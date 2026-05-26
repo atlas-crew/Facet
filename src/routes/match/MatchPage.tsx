@@ -24,10 +24,20 @@ import { usePipelineStore } from '../../store/pipelineStore'
 import { useResumeStore } from '../../store/resumeStore'
 import { useUiStore } from '../../store/uiStore'
 import { useHandoffStore } from '../../store/handoffStore'
-import type { MatchGapSeverity, SkillMatch, VectorAwareMatchResult, WatchOut } from '../../types/match'
+import type {
+  MatchGapSeverity,
+  SkillMatch,
+  VectorAwareMatchResult,
+  WatchOut,
+} from '../../types/match'
 import type { PipelineEntry } from '../../types/pipeline'
 import { analyzeIdentityJobMatch, prepareMatchJobDescription } from '../../utils/jobMatch'
-import { createJdAnalysisFromMatchArtifacts, hashJobDescriptionText, savePipelineJDAnalysis } from '../../utils/jdAnalysis'
+import {
+  createJdAnalysisFromMatchArtifacts,
+  hashJobDescriptionText,
+  savePipelineJDAnalysis,
+} from '../../utils/jdAnalysis'
+import { projectForAudience } from '../../utils/audienceFilter'
 import { applyMatchReportToResumeData } from '../../utils/matchAssembler'
 import { facetClientEnv } from '../../utils/facetEnv'
 import { sanitizeEndpointUrl } from '../../utils/idUtils'
@@ -73,7 +83,9 @@ const MATCH_REPORT_SECTION_ID_SET = new Set<MatchReportSectionId>(
 const isMatchReportSectionId = (value: string): value is MatchReportSectionId =>
   MATCH_REPORT_SECTION_ID_SET.has(value as MatchReportSectionId)
 
-const getDefaultOpenReportSections = (hasVectorSummary: boolean): ReadonlySet<MatchReportSectionId> =>
+const getDefaultOpenReportSections = (
+  hasVectorSummary: boolean,
+): ReadonlySet<MatchReportSectionId> =>
   new Set([
     ...(hasVectorSummary ? [MATCH_REPORT_SECTION_IDS.vectorSummary] : []),
     MATCH_REPORT_SECTION_IDS.summary,
@@ -115,19 +127,74 @@ export function MatchPage() {
   const currentJDAnalysis = useMatchStore((state) => state.currentJDAnalysis)
   const currentAnalysis = useMatchStore((state) => state.currentAnalysis)
   const currentReport = useMatchStore((state) => state.currentReport)
-  const currentReportDisclosureKey = currentReport
+  const candidateJDAnalysis = useMemo(
+    () => (currentJDAnalysis ? projectForAudience(currentJDAnalysis, 'candidate') : null),
+    [currentJDAnalysis],
+  )
+  const candidateAnalysis = useMemo<VectorAwareMatchResult | null>(() => {
+    if (!currentAnalysis) return null
+    if (!candidateJDAnalysis) return currentAnalysis
+
+    return {
+      ...currentAnalysis,
+      company: candidateJDAnalysis.company,
+      role: candidateJDAnalysis.role,
+      jobDescription: candidateJDAnalysis.analyzedJobDescription,
+      overallFit: candidateJDAnalysis.overallFit,
+      fitScore: candidateJDAnalysis.fitScore,
+      confidence: candidateJDAnalysis.confidence,
+      oneLineSummary: candidateJDAnalysis.oneLineSummary,
+      matchedVectors: candidateJDAnalysis.matchedVectors,
+      primaryVectorId: candidateJDAnalysis.primaryVectorId,
+      skillMatches: candidateJDAnalysis.skillMatches,
+      strengthsToLead: candidateJDAnalysis.strengthsToLead,
+      watchOuts: candidateJDAnalysis.watchOuts,
+      triggeredPrioritize: candidateJDAnalysis.triggeredPrioritize,
+      triggeredAvoid: candidateJDAnalysis.triggeredAvoid,
+      relevantAwareness: candidateJDAnalysis.relevantAwareness,
+      recommendation: candidateJDAnalysis.recommendation,
+      rationale: candidateJDAnalysis.rationale,
+      warnings: candidateJDAnalysis.warnings,
+    }
+  }, [candidateJDAnalysis, currentAnalysis])
+  const candidateReport = useMemo(() => {
+    if (!currentReport) return null
+    if (!candidateJDAnalysis) return currentReport
+
+    return {
+      ...currentReport,
+      company: candidateJDAnalysis.company,
+      role: candidateJDAnalysis.role,
+      summary: candidateJDAnalysis.summary,
+      jobDescription: candidateJDAnalysis.analyzedJobDescription,
+      matchScore: candidateJDAnalysis.fitScore,
+      requirements: candidateJDAnalysis.requirements,
+      topBullets: candidateJDAnalysis.evidenceMapping?.topBullets ?? [],
+      topSkills: candidateJDAnalysis.evidenceMapping?.topSkills ?? [],
+      topProjects: candidateJDAnalysis.evidenceMapping?.topProjects ?? [],
+      topProfiles: candidateJDAnalysis.evidenceMapping?.topProfiles ?? [],
+      topPhilosophy: candidateJDAnalysis.evidenceMapping?.topPhilosophy ?? [],
+      gaps: candidateJDAnalysis.gaps,
+      advantages: candidateJDAnalysis.advantages,
+      positioningRecommendations: candidateJDAnalysis.positioningRecommendations,
+      gapFocus: candidateJDAnalysis.gapFocus,
+      warnings: candidateJDAnalysis.warnings,
+    }
+  }, [candidateJDAnalysis, currentReport])
+  const currentReportDisclosureKey = candidateReport
     ? [
-        currentReport.generatedAt,
-        currentReport.identityVersion,
-        currentReport.company,
-        currentReport.role,
-        currentReport.summary,
+        candidateReport.generatedAt,
+        candidateReport.identityVersion,
+        candidateReport.company,
+        candidateReport.role,
+        candidateReport.summary,
       ].join('::')
     : ''
-  const [openReportSections, setOpenReportSections] = useState<ReadonlySet<MatchReportSectionId>>(() =>
-    currentReport ? getDefaultOpenReportSections(Boolean(currentAnalysis)) : new Set(),
+  const [openReportSections, setOpenReportSections] = useState<ReadonlySet<MatchReportSectionId>>(
+    () => (candidateReport ? getDefaultOpenReportSections(Boolean(candidateAnalysis)) : new Set()),
   )
   const warnings = useMatchStore((state) => state.warnings)
+  const candidateWarnings = candidateReport?.warnings ?? warnings
   const history = useMatchStore((state) => state.history)
   const setJobDescription = useMatchStore((state) => state.setJobDescription)
   const setResults = useMatchStore((state) => state.setResults)
@@ -135,10 +202,7 @@ export function MatchPage() {
   const setComparisonVector = useUiStore((state) => state.setComparisonVector)
   const setPendingAnalysis = useHandoffStore((state) => state.setPendingAnalysis)
 
-  const aiEndpoint = useMemo(
-    () => sanitizeEndpointUrl(facetClientEnv.anthropicProxyUrl),
-    [],
-  )
+  const aiEndpoint = useMemo(() => sanitizeEndpointUrl(facetClientEnv.anthropicProxyUrl), [])
 
   const prepared = useMemo(() => prepareMatchJobDescription(jobDescription), [jobDescription])
   const identityCounts = useMemo(() => {
@@ -156,26 +220,27 @@ export function MatchPage() {
   const reportNavItems = useMemo(
     () =>
       REPORT_NAV_ITEMS.filter((item) => {
-        if (item.id === MATCH_REPORT_SECTION_IDS.vectorSummary) return Boolean(currentAnalysis)
+        if (item.id === MATCH_REPORT_SECTION_IDS.vectorSummary) return Boolean(candidateAnalysis)
         if (item.id === MATCH_REPORT_SECTION_IDS.history) return history.length > 0
         return true
       }),
-    [currentAnalysis, history.length],
+    [candidateAnalysis, history.length],
   )
-  const matchTone = currentReport ? getFitTone(currentReport.matchScore) : 'neutral'
-  const requirementsTone = currentReport && currentReport.gaps.length > 0 ? 'warning' : 'success'
+  const matchTone = candidateReport ? getFitTone(candidateReport.matchScore) : 'neutral'
+  const requirementsTone =
+    candidateReport && candidateReport.gaps.length > 0 ? 'warning' : 'success'
 
   useEffect(() => {
     if (lastReportDisclosureKeyRef.current === currentReportDisclosureKey) return
     lastReportDisclosureKeyRef.current = currentReportDisclosureKey
 
-    if (!currentReport) {
+    if (!candidateReport) {
       setOpenReportSections(new Set())
       return
     }
 
-    setOpenReportSections(getDefaultOpenReportSections(Boolean(currentAnalysis)))
-  }, [currentAnalysis, currentReport, currentReportDisclosureKey])
+    setOpenReportSections(getDefaultOpenReportSections(Boolean(candidateAnalysis)))
+  }, [candidateAnalysis, candidateReport, currentReportDisclosureKey])
 
   const openReportSection = useCallback((id: MatchReportSectionId) => {
     setOpenReportSections((sections) => new Set(sections).add(id))
@@ -224,7 +289,8 @@ export function MatchPage() {
 
       openReportSection(targetId)
       const scheduleFrame =
-        window.requestAnimationFrame ?? ((callback: FrameRequestCallback) => window.setTimeout(callback, 0))
+        window.requestAnimationFrame ??
+        ((callback: FrameRequestCallback) => window.setTimeout(callback, 0))
       scheduleFrame(() => scrollReportSectionIntoView(targetId))
     }
 
@@ -277,7 +343,7 @@ export function MatchPage() {
   }
 
   const handleExport = () => {
-    if (!currentReport && !currentAnalysis) {
+    if (!candidateReport && !candidateAnalysis) {
       setPageNotice(null)
       setPageError('Run JD matching before exporting a report.')
       return
@@ -287,9 +353,9 @@ export function MatchPage() {
       'match-report.json',
       JSON.stringify(
         {
-          jdAnalysis: currentJDAnalysis,
-          analysis: currentAnalysis,
-          report: currentReport,
+          jdAnalysis: candidateJDAnalysis,
+          analysis: candidateAnalysis,
+          report: candidateReport,
         },
         null,
         2,
@@ -308,12 +374,21 @@ export function MatchPage() {
 
     const company = currentReport.company || currentJDAnalysis.company || 'Unknown company'
     const role = currentReport.role || currentJDAnalysis.role || 'Unspecified role'
-    const jdText = jobDescription || currentJDAnalysis.analyzedJobDescription || currentReport.jobDescription
+    const jdText =
+      jobDescription || currentJDAnalysis.analyzedJobDescription || currentReport.jobDescription
     if (hashJobDescriptionText(jdText) !== currentJDAnalysis.jdTextHash) {
       setPageNotice(null)
-      setPageError('The job description changed after this analysis. Re-run JD matching before saving to Pipeline.')
+      setPageError(
+        'The job description changed after this analysis. Re-run JD matching before saving to Pipeline.',
+      )
       return
     }
+    const candidateSkillMatch = candidateJDAnalysis
+      ? (candidateJDAnalysis.skillMatches ?? [])
+          .map((skillMatch) => skillMatch.skillName)
+          .slice(0, 8)
+          .join(', ')
+      : currentJDAnalysis.matchedKeywords.slice(0, 8).join(', ')
     const pipelineEntryDraft: Omit<PipelineEntry, 'id' | 'createdAt' | 'lastAction' | 'history'> = {
       company,
       role,
@@ -328,10 +403,13 @@ export function MatchPage() {
       presetId: null,
       resumeVariant: '',
       resumeGeneration: null,
-      positioning: currentReport.positioningRecommendations[0]?.text ?? currentJDAnalysis.oneLineSummary ?? '',
-      skillMatch: currentJDAnalysis.matchedKeywords.slice(0, 8).join(', '),
+      positioning:
+        candidateReport?.positioningRecommendations[0]?.text ??
+        candidateJDAnalysis?.oneLineSummary ??
+        '',
+      skillMatch: candidateSkillMatch,
       nextStep: 'Review JD analysis and decide whether to apply.',
-      notes: currentReport.summary,
+      notes: candidateReport?.summary ?? currentReport.summary,
       appMethod: 'unknown',
       response: 'none',
       daysToResponse: null,
@@ -363,7 +441,9 @@ export function MatchPage() {
       const existingIds = new Set(pipelineStore.entries.map((entry) => entry.id))
       addPipelineEntry(pipelineEntryDraft)
 
-      const createdEntry = usePipelineStore.getState().entries.find((entry) => !existingIds.has(entry.id))
+      const createdEntry = usePipelineStore
+        .getState()
+        .entries.find((entry) => !existingIds.has(entry.id))
       targetEntryId = createdEntry?.id ?? null
     }
 
@@ -381,7 +461,12 @@ export function MatchPage() {
       analyzedJobDescription: jdText,
       jdTextHash: currentJDAnalysis.jdTextHash,
     })
-    usePipelineStore.getState().addHistoryNote(targetEntryId, matchingEntry ? 'Updated JD Match analysis' : 'Saved JD Match analysis')
+    usePipelineStore
+      .getState()
+      .addHistoryNote(
+        targetEntryId,
+        matchingEntry ? 'Updated JD Match analysis' : 'Saved JD Match analysis',
+      )
     setPageError(null)
     setPageNotice(
       matchingEntry
@@ -391,15 +476,15 @@ export function MatchPage() {
   }
 
   const handleAssembleInBuild = () => {
-    if (!currentReport) {
+    if (!candidateReport) {
       setPageNotice(null)
       setPageError('Run JD matching before assembling a Build vector.')
       return
     }
 
-    const assembled = applyMatchReportToResumeData(resumeData, currentReport)
+    const assembled = applyMatchReportToResumeData(resumeData, candidateReport)
     setResumeData(assembled.data)
-    setPendingAnalysis(currentReport.jobDescription, assembled.vectorId)
+    setPendingAnalysis(candidateReport.jobDescription, assembled.vectorId)
     setSelectedVector(assembled.vectorId)
     setComparisonVector(null)
     setPageError(null)
@@ -418,13 +503,17 @@ export function MatchPage() {
           <p className="match-eyebrow">Phase 1</p>
           <h1>JD Matching</h1>
           <p className="match-copy">
-            Decompose a job description, score the current identity model against it,
-            then inspect advantages, evidence, and gaps before material generation.
+            Decompose a job description, score the current identity model against it, then inspect
+            advantages, evidence, and gaps before material generation.
           </p>
         </div>
 
         <div className="match-header-actions">
-          <button className="match-btn" type="button" onClick={() => void navigate({ to: '/identity' })}>
+          <button
+            className="match-btn"
+            type="button"
+            onClick={() => void navigate({ to: '/identity' })}
+          >
             <Fingerprint size={16} />
             Open Identity
           </button>
@@ -432,7 +521,7 @@ export function MatchPage() {
             className="match-btn match-btn-primary"
             type="button"
             onClick={handleAssembleInBuild}
-            disabled={!currentReport}
+            disabled={!candidateReport}
           >
             <ArrowRight size={16} />
             Assemble in Build
@@ -446,25 +535,35 @@ export function MatchPage() {
             <Sparkles size={16} />
             Save to Pipeline
           </button>
-          <button className="match-btn" type="button" onClick={handleExport} disabled={!currentReport}>
+          <button
+            className="match-btn"
+            type="button"
+            onClick={handleExport}
+            disabled={!candidateReport}
+          >
             <Download size={16} />
             Export Report
           </button>
         </div>
       </header>
 
-      {pageError && <div className="match-banner match-banner-error" role="alert">{pageError}</div>}
-      {pageNotice && <div className="match-banner match-banner-notice" role="status">{pageNotice}</div>}
+      {pageError && (
+        <div className="match-banner match-banner-error" role="alert">
+          {pageError}
+        </div>
+      )}
+      {pageNotice && (
+        <div className="match-banner match-banner-notice" role="status">
+          {pageNotice}
+        </div>
+      )}
 
-      {currentReport ? (
+      {candidateReport ? (
         <nav className="match-report-nav" aria-label="Match report sections">
           <ul className="match-report-nav-list">
             {reportNavItems.map((item) => (
               <li key={item.id}>
-                <a
-                  href={`#${item.id}`}
-                  onClick={(event) => handleReportNavClick(event, item.id)}
-                >
+                <a href={`#${item.id}`} onClick={(event) => handleReportNavClick(event, item.id)}>
                   {item.label}
                 </a>
               </li>
@@ -478,8 +577,8 @@ export function MatchPage() {
           <div>
             <h2>Analyze Job Description</h2>
             <p>
-              Phase 1 uses the applied identity model as the source of truth. Run this
-              before resume assembly, prep generation, or cover letter drafting.
+              Phase 1 uses the applied identity model as the source of truth. Run this before resume
+              assembly, prep generation, or cover letter drafting.
             </p>
             <span className="sr-only" aria-live="polite">
               {isGenerating ? 'Analyzing job description.' : ''}
@@ -502,28 +601,42 @@ export function MatchPage() {
         </div>
 
         <ol className="match-flow-rail" aria-label="Match workflow">
-          <li className={currentIdentity ? 'match-flow-step match-flow-step-ready' : 'match-flow-step'}>
+          <li
+            className={
+              currentIdentity ? 'match-flow-step match-flow-step-ready' : 'match-flow-step'
+            }
+          >
             <span>1</span>
             <div>
               <strong>Identity</strong>
               <p>{currentIdentity ? 'Model loaded' : 'Load a model first'}</p>
             </div>
           </li>
-          <li className={jobDescription.trim() ? 'match-flow-step match-flow-step-ready' : 'match-flow-step'}>
+          <li
+            className={
+              jobDescription.trim() ? 'match-flow-step match-flow-step-ready' : 'match-flow-step'
+            }
+          >
             <span>2</span>
             <div>
               <strong>Job description</strong>
-              <p>{jobDescription.trim() ? `${prepared.wordCount} words ready` : 'Paste the full JD'}</p>
+              <p>
+                {jobDescription.trim() ? `${prepared.wordCount} words ready` : 'Paste the full JD'}
+              </p>
             </div>
           </li>
-          <li className={currentReport ? 'match-flow-step match-flow-step-ready' : 'match-flow-step'}>
+          <li
+            className={currentReport ? 'match-flow-step match-flow-step-ready' : 'match-flow-step'}
+          >
             <span>3</span>
             <div>
               <strong>Report</strong>
               <p>{currentReport ? 'Generated' : 'Run the matcher'}</p>
             </div>
           </li>
-          <li className={currentReport ? 'match-flow-step match-flow-step-ready' : 'match-flow-step'}>
+          <li
+            className={currentReport ? 'match-flow-step match-flow-step-ready' : 'match-flow-step'}
+          >
             <span>4</span>
             <div>
               <strong>Next action</strong>
@@ -572,38 +685,47 @@ export function MatchPage() {
         </div>
       </section>
 
-      {currentReport ? (
+      {candidateReport ? (
         <>
-          {currentAnalysis ? (
+          {candidateAnalysis ? (
             <>
               <section className="match-overview-grid match-analysis-overview-grid">
-                <article className={`match-overview-card match-overview-card-${getFitTone(currentAnalysis.fitScore)}`}>
+                <article
+                  className={`match-overview-card match-overview-card-${getFitTone(candidateAnalysis.fitScore)}`}
+                >
                   <div className="match-overview-label">Overall fit</div>
-                  <div className="match-overview-value">{currentAnalysis.overallFit}</div>
-                  <p>{currentAnalysis.recommendation} recommendation · {currentAnalysis.confidence} confidence</p>
+                  <div className="match-overview-value">{candidateAnalysis.overallFit}</div>
+                  <p>
+                    {candidateAnalysis.recommendation} recommendation ·{' '}
+                    {candidateAnalysis.confidence} confidence
+                  </p>
                 </article>
                 <article className="match-overview-card match-overview-card-accent">
                   <div className="match-overview-label">Primary vector</div>
                   <div className="match-overview-value">
-                    {currentAnalysis.matchedVectors[0]?.title ?? 'None'}
+                    {candidateAnalysis.matchedVectors[0]?.title ?? 'None'}
                   </div>
                   <p>
-                    {currentAnalysis.matchedVectors[0]
-                      ? currentAnalysis.matchedVectors[0].matchStrength
+                    {candidateAnalysis.matchedVectors[0]
+                      ? candidateAnalysis.matchedVectors[0].matchStrength
                       : 'Skill-first fallback'}
                   </p>
                 </article>
-                <article className={`match-overview-card match-overview-card-${getFitTone(currentAnalysis.fitScore)}`}>
+                <article
+                  className={`match-overview-card match-overview-card-${getFitTone(candidateAnalysis.fitScore)}`}
+                >
                   <div className="match-overview-label">Fit score</div>
-                  <div className="match-overview-value">{formatPercent(currentAnalysis.fitScore)}</div>
-                  <p>{currentAnalysis.oneLineSummary}</p>
+                  <div className="match-overview-value">
+                    {formatPercent(candidateAnalysis.fitScore)}
+                  </div>
+                  <p>{candidateAnalysis.oneLineSummary}</p>
                 </article>
               </section>
 
               <ReportDisclosure
                 id={MATCH_REPORT_SECTION_IDS.vectorSummary}
                 title="Vector-Aware Summary"
-                description={currentAnalysis.rationale}
+                description={candidateAnalysis.rationale}
                 meta="Identity signal"
                 tone="accent"
                 open={openReportSections.has(MATCH_REPORT_SECTION_IDS.vectorSummary)}
@@ -613,29 +735,29 @@ export function MatchPage() {
                   <NestedDisclosure
                     key={`${currentReportDisclosureKey}:matched-vectors`}
                     title="Matched vectors"
-                    meta={`${currentAnalysis.matchedVectors.length} vectors`}
+                    meta={`${candidateAnalysis.matchedVectors.length} vectors`}
                     tone="accent"
                     defaultOpen
                   >
-                    <VectorMatchList analysis={currentAnalysis} />
+                    <VectorMatchList analysis={candidateAnalysis} />
                   </NestedDisclosure>
 
                   <NestedDisclosure
                     key={`${currentReportDisclosureKey}:skill-matches`}
                     title="Skill matches"
-                    meta={`${currentAnalysis.skillMatches.length} skills`}
+                    meta={`${candidateAnalysis.skillMatches.length} skills`}
                     tone="success"
                   >
-                    <SkillMatchList skillMatches={currentAnalysis.skillMatches} />
+                    <SkillMatchList skillMatches={candidateAnalysis.skillMatches} />
                   </NestedDisclosure>
 
                   <NestedDisclosure
                     key={`${currentReportDisclosureKey}:watch-outs`}
                     title="Watch-outs"
-                    meta={`${currentAnalysis.watchOuts.length} items`}
+                    meta={`${candidateAnalysis.watchOuts.length} items`}
                     tone="warning"
                   >
-                    <WatchOutList watchOuts={currentAnalysis.watchOuts} />
+                    <WatchOutList watchOuts={candidateAnalysis.watchOuts} />
                   </NestedDisclosure>
 
                   <NestedDisclosure
@@ -644,7 +766,7 @@ export function MatchPage() {
                     meta="Targeting rules"
                     tone="violet"
                   >
-                    <FilterAwarenessSummary analysis={currentAnalysis} />
+                    <FilterAwarenessSummary analysis={candidateAnalysis} />
                   </NestedDisclosure>
                 </div>
               </ReportDisclosure>
@@ -654,33 +776,40 @@ export function MatchPage() {
           <section className="match-overview-grid">
             <article className={`match-overview-card match-overview-card-${matchTone}`}>
               <div className="match-overview-label">Match score</div>
-              <div className="match-overview-value">{formatPercent(currentReport.matchScore)}</div>
-              <p>{currentReport.role || 'Unspecified role'}{currentReport.company ? ` at ${currentReport.company}` : ''}</p>
+              <div className="match-overview-value">
+                {formatPercent(candidateReport.matchScore)}
+              </div>
+              <p>
+                {candidateReport.role || 'Unspecified role'}
+                {candidateReport.company ? ` at ${candidateReport.company}` : ''}
+              </p>
             </article>
             <article className={`match-overview-card match-overview-card-${requirementsTone}`}>
               <div className="match-overview-label">Requirements</div>
-              <div className="match-overview-value">{currentReport.requirements.length}</div>
-              <p>{currentReport.gaps.length} currently flagged as coverage gaps.</p>
+              <div className="match-overview-value">{candidateReport.requirements.length}</div>
+              <p>{candidateReport.gaps.length} currently flagged as coverage gaps.</p>
             </article>
             <article className="match-overview-card match-overview-card-success">
               <div className="match-overview-label">Advantages</div>
-              <div className="match-overview-value">{currentReport.advantages.length}</div>
-              <p>{currentReport.positioningRecommendations.length} positioning recommendations.</p>
+              <div className="match-overview-value">{candidateReport.advantages.length}</div>
+              <p>
+                {candidateReport.positioningRecommendations.length} positioning recommendations.
+              </p>
             </article>
           </section>
 
           <ReportDisclosure
             id={MATCH_REPORT_SECTION_IDS.summary}
             title="Summary"
-            description={currentReport.summary}
+            description={candidateReport.summary}
             meta="Decision frame"
             tone={matchTone}
             open={openReportSections.has(MATCH_REPORT_SECTION_IDS.summary)}
             onOpenChange={handleReportSectionToggle}
           >
-            {warnings.length > 0 ? (
+            {candidateWarnings.length > 0 ? (
               <div className="match-warning-list">
-                {warnings.map((warning, index) => (
+                {candidateWarnings.map((warning, index) => (
                   <div key={`warning-${index}`} className="match-warning-item">
                     <AlertTriangle size={14} />
                     <span>{warning.text}</span>
@@ -694,14 +823,14 @@ export function MatchPage() {
             id={MATCH_REPORT_SECTION_IDS.advantages}
             title="Advantages"
             description="Computed fresh for this JD from the top-supported requirement combinations."
-            meta={`${currentReport.advantages.length} found`}
+            meta={`${candidateReport.advantages.length} found`}
             tone="success"
             open={openReportSections.has(MATCH_REPORT_SECTION_IDS.advantages)}
             onOpenChange={handleReportSectionToggle}
           >
             <div className="match-advantage-list">
-              {currentReport.advantages.length > 0 ? (
-                currentReport.advantages.map((advantage) => (
+              {candidateReport.advantages.length > 0 ? (
+                candidateReport.advantages.map((advantage) => (
                   <NestedDisclosure
                     key={`${currentReportDisclosureKey}:${advantage.id}`}
                     title={advantage.claim}
@@ -714,12 +843,17 @@ export function MatchPage() {
                     </div>
                     <div className="match-chip-row">
                       {advantage.requirementIds.map((requirementId) => (
-                        <span key={requirementId} className="match-chip">{requirementId}</span>
+                        <span key={requirementId} className="match-chip">
+                          {requirementId}
+                        </span>
                       ))}
                     </div>
                     <div className="match-evidence-list">
                       {advantage.evidence.map((asset) => (
-                        <div key={`${advantage.id}::${asset.kind}::${asset.id}`} className="match-evidence-item">
+                        <div
+                          key={`${advantage.id}::${asset.kind}::${asset.id}`}
+                          className="match-evidence-item"
+                        >
                           <div className="match-evidence-title">
                             <span>{asset.label}</span>
                             <span>{formatPercent(asset.score)}</span>
@@ -731,7 +865,9 @@ export function MatchPage() {
                   </NestedDisclosure>
                 ))
               ) : (
-                <div className="match-empty-inline">No distinct advantages were identified in this report.</div>
+                <div className="match-empty-inline">
+                  No distinct advantages were identified in this report.
+                </div>
               )}
             </div>
           </ReportDisclosure>
@@ -740,14 +876,14 @@ export function MatchPage() {
             id={MATCH_REPORT_SECTION_IDS.requirements}
             title="Requirement Coverage"
             description="Structured JD requirements scored against tags, technologies, and identity text."
-            meta={`${currentReport.requirements.length} requirements`}
+            meta={`${candidateReport.requirements.length} requirements`}
             tone="warning"
             open={openReportSections.has(MATCH_REPORT_SECTION_IDS.requirements)}
             onOpenChange={handleReportSectionToggle}
           >
             <div className="match-requirement-list">
-              {currentReport.requirements.length > 0 ? (
-                currentReport.requirements.map((requirement) => (
+              {candidateReport.requirements.length > 0 ? (
+                candidateReport.requirements.map((requirement) => (
                   <NestedDisclosure
                     key={`${currentReportDisclosureKey}:${requirement.id}`}
                     title={requirement.label}
@@ -759,14 +895,18 @@ export function MatchPage() {
                         <h3>{requirement.label}</h3>
                         <p>{requirement.evidence}</p>
                       </div>
-                      <div className="match-requirement-score">{formatPercent(requirement.coverageScore)}</div>
+                      <div className="match-requirement-score">
+                        {formatPercent(requirement.coverageScore)}
+                      </div>
                     </div>
                     <div className="match-chip-row">
                       <span className={`match-chip match-chip-priority-${requirement.priority}`}>
                         {requirement.priority}
                       </span>
                       {requirement.tags.map((tag) => (
-                        <span key={tag} className="match-chip">{tag}</span>
+                        <span key={tag} className="match-chip">
+                          {tag}
+                        </span>
                       ))}
                     </div>
                     <div className="match-requirement-foot">
@@ -780,7 +920,9 @@ export function MatchPage() {
                   </NestedDisclosure>
                 ))
               ) : (
-                <div className="match-empty-inline">No structured requirements flagged for this JD.</div>
+                <div className="match-empty-inline">
+                  No structured requirements flagged for this JD.
+                </div>
               )}
             </div>
           </ReportDisclosure>
@@ -796,11 +938,31 @@ export function MatchPage() {
               onOpenChange={handleReportSectionToggle}
             >
               <div className="match-asset-groups">
-                <AssetGroup key={`${currentReportDisclosureKey}:bullets`} title="Bullets" assets={currentReport.topBullets} />
-                <AssetGroup key={`${currentReportDisclosureKey}:skills`} title="Skills" assets={currentReport.topSkills} />
-                <AssetGroup key={`${currentReportDisclosureKey}:projects`} title="Projects" assets={currentReport.topProjects} />
-                <AssetGroup key={`${currentReportDisclosureKey}:profiles`} title="Profiles" assets={currentReport.topProfiles} />
-                <AssetGroup key={`${currentReportDisclosureKey}:philosophy`} title="Philosophy" assets={currentReport.topPhilosophy} />
+                <AssetGroup
+                  key={`${currentReportDisclosureKey}:bullets`}
+                  title="Bullets"
+                  assets={candidateReport.topBullets}
+                />
+                <AssetGroup
+                  key={`${currentReportDisclosureKey}:skills`}
+                  title="Skills"
+                  assets={candidateReport.topSkills}
+                />
+                <AssetGroup
+                  key={`${currentReportDisclosureKey}:projects`}
+                  title="Projects"
+                  assets={candidateReport.topProjects}
+                />
+                <AssetGroup
+                  key={`${currentReportDisclosureKey}:profiles`}
+                  title="Profiles"
+                  assets={candidateReport.topProfiles}
+                />
+                <AssetGroup
+                  key={`${currentReportDisclosureKey}:philosophy`}
+                  title="Philosophy"
+                  assets={candidateReport.topPhilosophy}
+                />
               </div>
             </ReportDisclosure>
 
@@ -808,16 +970,16 @@ export function MatchPage() {
               id={MATCH_REPORT_SECTION_IDS.gaps}
               title="Gaps and Positioning"
               description="What the JD asks for that the identity model does not strongly cover yet."
-              meta={`${currentReport.gaps.length} gaps · ${
-                currentReport.positioningRecommendations.length + currentReport.gapFocus.length
+              meta={`${candidateReport.gaps.length} gaps · ${
+                candidateReport.positioningRecommendations.length + candidateReport.gapFocus.length
               } notes`}
-              tone={currentReport.gaps.length > 0 ? 'critical' : 'success'}
+              tone={candidateReport.gaps.length > 0 ? 'critical' : 'success'}
               open={openReportSections.has(MATCH_REPORT_SECTION_IDS.gaps)}
               onOpenChange={handleReportSectionToggle}
             >
               <div className="match-gap-list">
-                {currentReport.gaps.length > 0 ? (
-                  currentReport.gaps.map((gap) => (
+                {candidateReport.gaps.length > 0 ? (
+                  candidateReport.gaps.map((gap) => (
                     <NestedDisclosure
                       key={`${currentReportDisclosureKey}:${gap.requirementId}`}
                       title={gap.label}
@@ -826,7 +988,9 @@ export function MatchPage() {
                     >
                       <div className="match-gap-topline">
                         <span>{gap.label}</span>
-                        <span className={`match-chip match-chip-gap-${gap.severity}`}>{gap.severity}</span>
+                        <span className={`match-chip match-chip-gap-${gap.severity}`}>
+                          {gap.severity}
+                        </span>
                       </div>
                       <p>{gap.reason}</p>
                     </NestedDisclosure>
@@ -836,22 +1000,22 @@ export function MatchPage() {
                 )}
               </div>
 
-              {currentReport.positioningRecommendations.length > 0 ? (
+              {candidateReport.positioningRecommendations.length > 0 ? (
                 <div className="match-positioning-block">
                   <h3>Positioning recommendations</h3>
                   <ul className="match-list">
-                    {currentReport.positioningRecommendations.map((entry, index) => (
+                    {candidateReport.positioningRecommendations.map((entry, index) => (
                       <li key={`positioning-${index}`}>{entry.text}</li>
                     ))}
                   </ul>
                 </div>
               ) : null}
 
-              {currentReport.gapFocus.length > 0 ? (
+              {candidateReport.gapFocus.length > 0 ? (
                 <div className="match-positioning-block">
                   <h3>Gap focus</h3>
                   <ul className="match-list">
-                    {currentReport.gapFocus.map((entry, index) => (
+                    {candidateReport.gapFocus.map((entry, index) => (
                       <li key={`gap-focus-${index}`}>{entry.text}</li>
                     ))}
                   </ul>
@@ -864,10 +1028,14 @@ export function MatchPage() {
         <section className="match-empty-state">
           <h2>No match report yet</h2>
           <p>
-            Phase 1 starts here: load an identity model, paste a JD, and generate the first
-            match report that Phase 2 material generators will consume.
+            Phase 1 starts here: load an identity model, paste a JD, and generate the first match
+            report that Phase 2 material generators will consume.
           </p>
-          <button className="match-btn match-btn-primary" type="button" onClick={() => void navigate({ to: '/identity' })}>
+          <button
+            className="match-btn match-btn-primary"
+            type="button"
+            onClick={() => void navigate({ to: '/identity' })}
+          >
             <ArrowRight size={16} />
             Go to Identity
           </button>
@@ -892,7 +1060,8 @@ export function MatchPage() {
                   <span>{formatPercent(entry.matchScore)}</span>
                 </div>
                 <div className="match-history-meta">
-                  {entry.company || 'Unknown company'} · {entry.requirementCount} requirements · {entry.gapCount} gaps
+                  {entry.company || 'Unknown company'} · {entry.requirementCount} requirements ·{' '}
+                  {entry.gapCount} gaps
                 </div>
                 <p>{entry.summary}</p>
               </article>
@@ -1017,7 +1186,9 @@ function AssetGroup({
               {asset.matchedTags.length > 0 ? (
                 <div className="match-chip-row">
                   {asset.matchedTags.map((tag) => (
-                    <span key={tag} className="match-chip">{tag}</span>
+                    <span key={tag} className="match-chip">
+                      {tag}
+                    </span>
                   ))}
                 </div>
               ) : null}
@@ -1025,17 +1196,15 @@ function AssetGroup({
           ))}
         </div>
       ) : (
-        <div className="match-empty-inline">No high-confidence {title.toLowerCase()} for this JD yet.</div>
+        <div className="match-empty-inline">
+          No high-confidence {title.toLowerCase()} for this JD yet.
+        </div>
       )}
     </NestedDisclosure>
   )
 }
 
-function VectorMatchList({
-  analysis,
-}: {
-  analysis: VectorAwareMatchResult
-}) {
+function VectorMatchList({ analysis }: { analysis: VectorAwareMatchResult }) {
   if (analysis.matchedVectors.length === 0) {
     return <div className="match-empty-inline">No search vectors matched this JD.</div>
   }
@@ -1065,11 +1234,7 @@ function VectorMatchList({
   )
 }
 
-function SkillMatchList({
-  skillMatches,
-}: {
-  skillMatches: SkillMatch[]
-}) {
+function SkillMatchList({ skillMatches }: { skillMatches: SkillMatch[] }) {
   if (skillMatches.length === 0) {
     return <div className="match-empty-inline">No JD-linked skill matches were identified.</div>
   }
@@ -1093,11 +1258,7 @@ function SkillMatchList({
   )
 }
 
-function WatchOutList({
-  watchOuts,
-}: {
-  watchOuts: WatchOut[]
-}) {
+function WatchOutList({ watchOuts }: { watchOuts: WatchOut[] }) {
   if (watchOuts.length === 0) {
     return <div className="match-empty-inline">No watch-outs flagged in this pass.</div>
   }
@@ -1118,17 +1279,17 @@ function WatchOutList({
   )
 }
 
-function FilterAwarenessSummary({
-  analysis,
-}: {
-  analysis: VectorAwareMatchResult
-}) {
+function FilterAwarenessSummary({ analysis }: { analysis: VectorAwareMatchResult }) {
   if (
     analysis.triggeredPrioritize.length === 0 &&
     analysis.triggeredAvoid.length === 0 &&
     analysis.relevantAwareness.length === 0
   ) {
-    return <div className="match-empty-inline">No matching filters or awareness items were triggered.</div>
+    return (
+      <div className="match-empty-inline">
+        No matching filters or awareness items were triggered.
+      </div>
+    )
   }
 
   return (

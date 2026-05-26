@@ -5,7 +5,22 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { PipelineJDAnalysisPanel } from '../routes/pipeline/PipelineJDAnalysisPanel'
 import type { PipelineJDAnalysisViewState } from '../routes/pipeline/pipelineAnalysis'
 import { JD_ANALYSIS_MODEL_VERSION, type JDAnalysis } from '../types/jdAnalysis'
-import { untagged } from '../types/audience'
+import type { AudienceAssignment, AudienceTag, AudienceTagged, TaggedNote } from '../types/audience'
+
+const audienceAssignment = (audiences: AudienceTag[]): AudienceAssignment => ({
+  inferred: audiences,
+  asserted: null,
+})
+
+const tagged = <T,>(item: T, audiences: AudienceTag[] = ['candidate']): T & AudienceTagged => ({
+  ...item,
+  audiences: audienceAssignment(audiences),
+})
+
+const taggedNote = (text: string, audiences: AudienceTag[] = ['candidate']): TaggedNote => ({
+  text,
+  audiences: audienceAssignment(audiences),
+})
 
 const analysis = (overrides: Partial<JDAnalysis> = {}): JDAnalysis => ({
   id: 'analysis-1',
@@ -96,7 +111,7 @@ describe('PipelineJDAnalysisPanel', () => {
       analysis: analysis({
         recommendation: 'maybe' as JDAnalysis['recommendation'],
         watchOuts: [
-          untagged({
+          tagged({
             type: 'filter_risk',
             referenceId: 'watch-1',
             description: 'Latency claims',
@@ -113,6 +128,32 @@ describe('PipelineJDAnalysisPanel', () => {
     expect(screen.getByText('Latency claims: Have data ready')).toBeTruthy()
   })
 
+  it('projects saved analysis rendering to the candidate audience', () => {
+    renderPanel({
+      analysis: analysis({
+        strengthsToLead: [taggedNote('Candidate-visible strength')],
+        positioningRecommendations: [taggedNote('Recruiter-only hook', ['recruiter'])],
+        watchOuts: [
+          tagged({
+            type: 'awareness_item',
+            referenceId: 'candidate-gap-prep',
+            description: 'Candidate gap prep',
+            severity: 'soft',
+            suggestedAction: 'Bring evidence',
+          }),
+        ],
+        warnings: [taggedNote('Internal data-quality flag', ['internal'])],
+      }),
+      driftReasons: [],
+      status: 'current',
+    })
+
+    expect(screen.getByText('Candidate-visible strength')).toBeTruthy()
+    expect(screen.getByText('Candidate gap prep: Bring evidence')).toBeTruthy()
+    expect(screen.queryByText('Recruiter-only hook')).toBeNull()
+    expect(screen.queryByText('Internal data-quality flag')).toBeNull()
+  })
+
   it('renders the empty drift reason fallback', () => {
     renderPanel({
       analysis: analysis(),
@@ -120,6 +161,8 @@ describe('PipelineJDAnalysisPanel', () => {
       status: 'stale',
     })
 
-    expect(screen.getByText('Saved analysis may need review because the source inputs changed.')).toBeTruthy()
+    expect(
+      screen.getByText('Saved analysis may need review because the source inputs changed.'),
+    ).toBeTruthy()
   })
 })

@@ -8,7 +8,7 @@ import { useIdentityStore } from '../store/identityStore'
 import { useJDAnalysisStore } from '../store/jdAnalysisStore'
 import { usePipelineStore } from '../store/pipelineStore'
 import { useUiStore } from '../store/uiStore'
-import { untagged, untaggedNote } from '../types/audience'
+import type { AudienceAssignment, AudienceTag, AudienceTagged, TaggedNote } from '../types/audience'
 import { JD_ANALYSIS_MODEL_VERSION, type JDAnalysis } from '../types/jdAnalysis'
 import type { PipelineEntry } from '../types/pipeline'
 import { hashJobDescriptionText } from '../utils/jdAnalysis'
@@ -82,6 +82,21 @@ const getPipelineRowTexts = (container: HTMLElement) =>
 
 const analyzedJobDescription = 'We need a platform-minded engineer.'
 
+const audienceAssignment = (audiences: AudienceTag[] = ['candidate']): AudienceAssignment => ({
+  inferred: audiences,
+  asserted: null,
+})
+
+const tagged = <T,>(item: T, audiences?: AudienceTag[]): T & AudienceTagged => ({
+  ...item,
+  audiences: audienceAssignment(audiences),
+})
+
+const taggedNote = (text: string, audiences?: AudienceTag[]): TaggedNote => ({
+  text,
+  audiences: audienceAssignment(audiences),
+})
+
 const jdAnalysisFixture: JDAnalysis = {
   id: 'analysis-1',
   pipelineEntryId: 'pipe-1',
@@ -91,7 +106,7 @@ const jdAnalysisFixture: JDAnalysis = {
   audienceRulesVersion: 'audience-rules.v1',
   generatedAt: '2026-04-14T12:00:00.000Z',
   updatedAt: '2026-04-14T12:00:00.000Z',
-  warnings: [untaggedNote('Review the Kubernetes requirement before applying.')],
+  warnings: [taggedNote('Review the Kubernetes requirement before applying.')],
   company: 'Acme Corp',
   role: 'Staff Platform Engineer',
   summary: 'Platform reliability role.',
@@ -106,7 +121,7 @@ const jdAnalysisFixture: JDAnalysis = {
   oneLineSummary: 'Lead with platform reliability.',
   rationale: 'Strong platform match.',
   matchedVectors: [
-    untagged({
+    tagged({
       vectorId: 'backend',
       title: 'Backend Platform',
       priority: 'high',
@@ -125,11 +140,11 @@ const jdAnalysisFixture: JDAnalysis = {
     topProfiles: [],
     topPhilosophy: [],
   },
-  strengthsToLead: [untaggedNote('Reliability leadership')],
+  strengthsToLead: [taggedNote('Reliability leadership')],
   advantages: [],
   advantageHypotheses: [],
   gaps: [
-    untagged({
+    tagged({
       requirementId: 'req-1',
       label: 'Kubernetes',
       severity: 'medium',
@@ -142,7 +157,7 @@ const jdAnalysisFixture: JDAnalysis = {
   triggeredPrioritize: [],
   triggeredAvoid: [],
   relevantAwareness: [],
-  positioningRecommendations: [untaggedNote('Lead with platform reliability.')],
+  positioningRecommendations: [taggedNote('Lead with platform reliability.')],
   requirementCoverageScore: 0.8,
   matchedRequirementIds: [],
   matchedKeywords: ['platform'],

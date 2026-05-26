@@ -7,14 +7,34 @@ import { useIdentityStore } from '../store/identityStore'
 import { useJDAnalysisStore } from '../store/jdAnalysisStore'
 import { useMatchStore } from '../store/matchStore'
 import { usePipelineStore } from '../store/pipelineStore'
+import { useHandoffStore } from '../store/handoffStore'
+import { normalizeResumeWorkspaceData, useResumeStore } from '../store/resumeStore'
 import { resolveStorage } from '../store/storage'
+import type { AudienceAssignment, AudienceTag } from '../types/audience'
 import type { JDAnalysis } from '../types/jdAnalysis'
 import type { MatchHistoryEntry, MatchReport, VectorAwareMatchResult } from '../types/match'
-import { untagged, untaggedNote } from '../types/audience'
 import { hashJobDescriptionText } from '../utils/jdAnalysis'
 import { cloneIdentityFixture } from './fixtures/identityFixture'
 
 const navigateMock = vi.fn(async () => undefined)
+
+const assignment = (inferred: AudienceTag[] = ['candidate']): AudienceAssignment => ({
+  inferred,
+  asserted: null,
+})
+
+const tagged = <T,>(
+  item: T,
+  inferred: AudienceTag[] = ['candidate'],
+): T & { audiences: AudienceAssignment } => ({
+  ...item,
+  audiences: assignment(inferred),
+})
+
+const taggedNote = (text: string, inferred: AudienceTag[] = ['candidate']) => ({
+  text,
+  audiences: assignment(inferred),
+})
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => navigateMock,
@@ -29,7 +49,7 @@ const reportFixture: MatchReport = {
   jobDescription: 'Own platform delivery and Linux debugging.',
   matchScore: 0.82,
   requirements: [
-    untagged({
+    tagged({
       id: 'platform-delivery',
       label: 'Platform delivery',
       priority: 'core',
@@ -42,7 +62,7 @@ const reportFixture: MatchReport = {
     }),
   ],
   topBullets: [
-    untagged({
+    tagged({
       kind: 'bullet',
       id: 'platform-migration',
       label: 'Platform migration',
@@ -61,9 +81,9 @@ const reportFixture: MatchReport = {
   topPhilosophy: [],
   gaps: [],
   advantages: [],
-  positioningRecommendations: [untaggedNote('Lead with platform migration stories.')],
-  gapFocus: [untaggedNote('Do not over-claim AI depth.')],
-  warnings: [untaggedNote('No search vectors defined.')],
+  positioningRecommendations: [taggedNote('Lead with platform migration stories.')],
+  gapFocus: [taggedNote('Do not over-claim AI depth.')],
+  warnings: [taggedNote('No search vectors defined.')],
 }
 
 const analysisFixture: VectorAwareMatchResult = {
@@ -78,7 +98,7 @@ const analysisFixture: VectorAwareMatchResult = {
   confidence: 'high',
   oneLineSummary: 'Strong match - Platform lead',
   matchedVectors: [
-    untagged({
+    tagged({
       vectorId: 'platform-lead',
       title: 'Platform lead',
       priority: 'high',
@@ -90,7 +110,7 @@ const analysisFixture: VectorAwareMatchResult = {
   ],
   primaryVectorId: 'platform-lead',
   skillMatches: [
-    untagged({
+    tagged({
       skillName: 'Kubernetes',
       jdRequirement: 'Own Kubernetes-backed platform delivery.',
       requirementStrength: 'required',
@@ -100,9 +120,9 @@ const analysisFixture: VectorAwareMatchResult = {
       presentationGuidance: 'Lead with Kubernetes platform migration stories.',
     }),
   ],
-  strengthsToLead: [untaggedNote('Kubernetes')],
+  strengthsToLead: [taggedNote('Kubernetes')],
   watchOuts: [
-    untagged({
+    tagged({
       type: 'awareness_item',
       referenceId: 'ai-depth',
       description: 'Some AI platform depth is requested.',
@@ -111,7 +131,7 @@ const analysisFixture: VectorAwareMatchResult = {
     }),
   ],
   triggeredPrioritize: [
-    untagged({
+    tagged({
       filterId: 'platform-ownership',
       label: 'Platform ownership',
       weight: 'high',
@@ -120,7 +140,7 @@ const analysisFixture: VectorAwareMatchResult = {
   ],
   triggeredAvoid: [],
   relevantAwareness: [
-    untagged({
+    tagged({
       awarenessId: 'ai-depth',
       topic: 'AI depth',
       severity: 'medium',
@@ -130,7 +150,7 @@ const analysisFixture: VectorAwareMatchResult = {
   ],
   recommendation: 'apply',
   rationale: 'Strong platform fit with a modest AI caution.',
-  warnings: [untaggedNote('No search vectors defined.')],
+  warnings: [taggedNote('No search vectors defined.')],
 }
 
 const jdAnalysisFixture: JDAnalysis = {
@@ -142,7 +162,7 @@ const jdAnalysisFixture: JDAnalysis = {
   audienceRulesVersion: 'audience-rules.v1',
   generatedAt: '2026-04-08T00:00:00.000Z',
   updatedAt: '2026-04-08T00:00:00.000Z',
-  warnings: [untaggedNote('No search vectors defined.')],
+  warnings: [taggedNote('No search vectors defined.')],
   company: 'Atlas',
   role: 'Staff Platform Engineer',
   summary: reportFixture.summary,
@@ -166,11 +186,11 @@ const jdAnalysisFixture: JDAnalysis = {
     topProfiles: [],
     topPhilosophy: [],
   },
-  strengthsToLead: [untaggedNote('Kubernetes')],
+  strengthsToLead: [taggedNote('Kubernetes')],
   advantages: [],
   advantageHypotheses: [],
   gaps: [],
-  gapFocus: [untaggedNote('Do not over-claim AI depth.')],
+  gapFocus: [taggedNote('Do not over-claim AI depth.')],
   watchOuts: analysisFixture.watchOuts,
   triggeredPrioritize: analysisFixture.triggeredPrioritize,
   triggeredAvoid: [],
@@ -196,6 +216,14 @@ describe('MatchPage', () => {
       sortDir: 'asc',
       filters: { tier: 'all', status: 'all', search: '' },
     })
+    useResumeStore.setState({
+      ...normalizeResumeWorkspaceData(undefined),
+      past: [],
+      future: [],
+      canUndo: false,
+      canRedo: false,
+    })
+    useHandoffStore.setState({ pendingGeneration: null })
     useMatchStore.setState({
       jobDescription: reportFixture.jobDescription,
       currentJDAnalysis: jdAnalysisFixture,
@@ -236,12 +264,321 @@ describe('MatchPage', () => {
     expect(screen.getByText('Requirement Coverage')).toBeTruthy()
   })
 
+  it('projects Match rendering to candidate-facing JD analysis fields', () => {
+    useMatchStore.setState({
+      currentJDAnalysis: {
+        ...jdAnalysisFixture,
+        warnings: [
+          taggedNote('Candidate caution is visible.'),
+          taggedNote('Internal parser warning is hidden.', ['internal']),
+        ],
+        matchedVectors: [
+          tagged({
+            ...analysisFixture.matchedVectors[0]!,
+            vectorId: 'candidate-vector',
+            title: 'Candidate vector',
+          }),
+          tagged(
+            {
+              ...analysisFixture.matchedVectors[0]!,
+              vectorId: 'recruiter-vector',
+              title: 'Recruiter vector',
+            },
+            ['recruiter'],
+          ),
+        ],
+        skillMatches: [
+          tagged({
+            ...analysisFixture.skillMatches[0]!,
+            skillName: 'Candidate skill',
+          }),
+          tagged(
+            {
+              ...analysisFixture.skillMatches[0]!,
+              skillName: 'Hiring manager skill',
+            },
+            ['hiring_manager'],
+          ),
+        ],
+        evidenceMapping: {
+          ...jdAnalysisFixture.evidenceMapping,
+          topBullets: [
+            tagged({
+              ...jdAnalysisFixture.evidenceMapping.topBullets[0]!,
+              id: 'candidate-proof',
+              label: 'Candidate proof',
+            }),
+            tagged(
+              {
+                ...jdAnalysisFixture.evidenceMapping.topBullets[0]!,
+                id: 'recruiter-proof',
+                label: 'Recruiter proof',
+              },
+              ['recruiter'],
+            ),
+          ],
+        },
+        advantages: [
+          tagged({
+            id: 'candidate-advantage',
+            claim: 'Candidate advantage is visible.',
+            requirementIds: ['candidate-requirement'],
+            evidence: [],
+          }),
+          tagged(
+            {
+              id: 'recruiter-advantage',
+              claim: 'Recruiter hook is hidden.',
+              requirementIds: ['recruiter-requirement'],
+              evidence: [],
+            },
+            ['recruiter'],
+          ),
+        ],
+        gapFocus: [
+          taggedNote('Candidate gap focus is visible.'),
+          taggedNote('Hiring manager gap focus is hidden.', ['hiring_manager']),
+        ],
+        positioningRecommendations: [
+          taggedNote('Candidate positioning is visible.'),
+          taggedNote('Recruiter positioning hook is hidden.', ['recruiter']),
+        ],
+      },
+      currentAnalysis: {
+        ...analysisFixture,
+        matchedVectors: [
+          ...analysisFixture.matchedVectors,
+          tagged(
+            {
+              ...analysisFixture.matchedVectors[0]!,
+              vectorId: 'recruiter-vector',
+              title: 'Recruiter vector',
+            },
+            ['recruiter'],
+          ),
+        ],
+      },
+      currentReport: {
+        ...reportFixture,
+        advantages: [
+          tagged({
+            id: 'candidate-advantage',
+            claim: 'Candidate advantage is visible.',
+            requirementIds: ['candidate-requirement'],
+            evidence: [],
+          }),
+          tagged(
+            {
+              id: 'recruiter-advantage',
+              claim: 'Recruiter hook is hidden.',
+              requirementIds: ['recruiter-requirement'],
+              evidence: [],
+            },
+            ['recruiter'],
+          ),
+        ],
+        positioningRecommendations: [
+          taggedNote('Candidate positioning is visible.'),
+          taggedNote('Recruiter positioning hook is hidden.', ['recruiter']),
+        ],
+        gapFocus: [
+          taggedNote('Candidate gap focus is visible.'),
+          taggedNote('Hiring manager gap focus is hidden.', ['hiring_manager']),
+        ],
+        warnings: [
+          taggedNote('Candidate caution is visible.'),
+          taggedNote('Internal parser warning is hidden.', ['internal']),
+        ],
+      },
+      warnings: [
+        taggedNote('Candidate caution is visible.'),
+        taggedNote('Internal parser warning is hidden.', ['internal']),
+      ],
+    })
+
+    render(<MatchPage />)
+
+    expect(screen.getAllByText('Candidate vector').length).toBeGreaterThan(0)
+    expect(screen.getByText('Candidate skill')).toBeTruthy()
+    expect(screen.getByText('Candidate proof')).toBeTruthy()
+    expect(screen.getAllByText('Candidate advantage is visible.').length).toBeGreaterThan(0)
+    expect(screen.getByText('Candidate positioning is visible.')).toBeTruthy()
+    expect(screen.getByText('Candidate gap focus is visible.')).toBeTruthy()
+    expect(screen.getByText('Candidate caution is visible.')).toBeTruthy()
+    expect(screen.queryByText('Recruiter vector')).toBeNull()
+    expect(screen.queryByText('Hiring manager skill')).toBeNull()
+    expect(screen.queryByText('Recruiter proof')).toBeNull()
+    expect(screen.queryByText('Recruiter hook is hidden.')).toBeNull()
+    expect(screen.queryByText('Recruiter positioning hook is hidden.')).toBeNull()
+    expect(screen.queryByText('Hiring manager gap focus is hidden.')).toBeNull()
+    expect(screen.queryByText('Internal parser warning is hidden.')).toBeNull()
+  })
+
+  it('exports the candidate-projected match report', async () => {
+    useMatchStore.setState({
+      currentJDAnalysis: {
+        ...jdAnalysisFixture,
+        warnings: [
+          taggedNote('Candidate export warning.'),
+          taggedNote('Internal export warning.', ['internal']),
+        ],
+        matchedVectors: [
+          tagged({
+            ...analysisFixture.matchedVectors[0]!,
+            vectorId: 'candidate-vector',
+            title: 'Candidate export vector',
+          }),
+          tagged(
+            {
+              ...analysisFixture.matchedVectors[0]!,
+              vectorId: 'recruiter-vector',
+              title: 'Recruiter export vector',
+            },
+            ['recruiter'],
+          ),
+        ],
+        skillMatches: [
+          tagged({
+            ...analysisFixture.skillMatches[0]!,
+            skillName: 'Candidate export skill',
+          }),
+          tagged(
+            {
+              ...analysisFixture.skillMatches[0]!,
+              skillName: 'Recruiter export skill',
+            },
+            ['recruiter'],
+          ),
+        ],
+        positioningRecommendations: [
+          taggedNote('Candidate export positioning.'),
+          taggedNote('Recruiter export hook.', ['recruiter']),
+        ],
+      },
+      currentAnalysis: {
+        ...analysisFixture,
+        matchedVectors: [
+          ...analysisFixture.matchedVectors,
+          tagged(
+            {
+              ...analysisFixture.matchedVectors[0]!,
+              vectorId: 'recruiter-vector',
+              title: 'Recruiter export vector',
+            },
+            ['recruiter'],
+          ),
+        ],
+      },
+      currentReport: {
+        ...reportFixture,
+        positioningRecommendations: [
+          taggedNote('Candidate export positioning.'),
+          taggedNote('Recruiter export hook.', ['recruiter']),
+        ],
+        warnings: [
+          taggedNote('Candidate export warning.'),
+          taggedNote('Internal export warning.', ['internal']),
+        ],
+      },
+    })
+
+    render(<MatchPage />)
+    fireEvent.click(screen.getByRole('button', { name: /export report/i }))
+
+    expect(exportedBlob).toBeTruthy()
+    const exported = JSON.parse(await exportedBlob!.text())
+    const serialized = JSON.stringify(exported)
+    expect(serialized).toContain('Candidate export vector')
+    expect(serialized).toContain('Candidate export skill')
+    expect(serialized).toContain('Candidate export positioning.')
+    expect(serialized).toContain('Candidate export warning.')
+    expect(serialized).not.toContain('Recruiter export vector')
+    expect(serialized).not.toContain('Recruiter export skill')
+    expect(serialized).not.toContain('Recruiter export hook.')
+    expect(serialized).not.toContain('Internal export warning.')
+  })
+
+  it('assembles Build handoff from the candidate-projected report', () => {
+    const candidateSkill = tagged({
+      kind: 'skill' as const,
+      id: 'candidate-skill',
+      label: 'Kubernetes',
+      sourceLabel: 'Infrastructure',
+      text: 'Kubernetes',
+      tags: ['kubernetes'],
+      matchedTags: ['kubernetes'],
+      matchedKeywords: ['kubernetes'],
+      matchedRequirementIds: ['platform-delivery'],
+      score: 0.95,
+    })
+    const recruiterSkill = tagged(
+      {
+        kind: 'skill' as const,
+        id: 'recruiter-skill',
+        label: 'Terraform',
+        sourceLabel: 'Infrastructure',
+        text: 'Terraform',
+        tags: ['terraform'],
+        matchedTags: ['terraform'],
+        matchedKeywords: ['terraform'],
+        matchedRequirementIds: ['platform-delivery'],
+        score: 0.9,
+      },
+      ['recruiter'],
+    )
+
+    useMatchStore.setState({
+      currentJDAnalysis: {
+        ...jdAnalysisFixture,
+        role: '',
+        evidenceMapping: {
+          ...jdAnalysisFixture.evidenceMapping,
+          topSkills: [candidateSkill, recruiterSkill],
+        },
+        positioningRecommendations: [
+          taggedNote('Candidate Build target line.'),
+          taggedNote('Recruiter Build hook.', ['recruiter']),
+        ],
+      },
+      currentReport: {
+        ...reportFixture,
+        role: '',
+        topSkills: [recruiterSkill, candidateSkill],
+        positioningRecommendations: [
+          taggedNote('Recruiter Build hook.', ['recruiter']),
+          taggedNote('Candidate Build target line.'),
+        ],
+      },
+    })
+
+    render(<MatchPage />)
+    fireEvent.click(screen.getByRole('button', { name: /assemble in build/i }))
+
+    const handoff = useHandoffStore.getState().pendingGeneration
+    const vectorId = handoff?.primaryVectorId
+    expect(vectorId).toBeTruthy()
+    expect(handoff?.jobDescription).toBe(reportFixture.jobDescription)
+
+    const resumeData = useResumeStore.getState().data
+    expect(
+      resumeData.target_lines.find((line) => line.id === `match-target-${vectorId}`)?.text,
+    ).toBe('Candidate Build target line.')
+    const assembledSkillContent = resumeData.skill_groups.find(
+      (group) => group.id === 'infrastructure',
+    )?.vectors?.[vectorId!]?.content
+    expect(assembledSkillContent).toBe('Kubernetes')
+    expect(assembledSkillContent).not.toContain('Terraform')
+    expect(JSON.stringify(resumeData)).not.toContain('Recruiter Build hook.')
+  })
+
   it('shows report navigation only when a report exists', () => {
     const { rerender } = render(<MatchPage />)
 
     const nav = screen.getByRole('navigation', { name: /match report sections/i })
     expect(nav.querySelector('a[href="#match-report-summary"]')?.textContent).toBe('Summary')
-    expect(nav.querySelector('a[href="#match-report-requirements"]')?.textContent).toBe('Requirements')
+    expect(nav.querySelector('a[href="#match-report-requirements"]')?.textContent).toBe(
+      'Requirements',
+    )
     expect(nav.querySelector('a[href="#match-report-history"]')).toBeNull()
 
     useMatchStore.setState({
@@ -326,10 +663,16 @@ describe('MatchPage', () => {
   it('progressively discloses dense report sections', () => {
     const { container } = render(<MatchPage />)
 
-    const vectorSummary = container.querySelector<HTMLDetailsElement>('#match-report-vector-summary details')
+    const vectorSummary = container.querySelector<HTMLDetailsElement>(
+      '#match-report-vector-summary details',
+    )
     const summary = container.querySelector<HTMLDetailsElement>('#match-report-summary details')
-    const advantages = container.querySelector<HTMLDetailsElement>('#match-report-advantages details')
-    const requirements = container.querySelector<HTMLDetailsElement>('#match-report-requirements details')
+    const advantages = container.querySelector<HTMLDetailsElement>(
+      '#match-report-advantages details',
+    )
+    const requirements = container.querySelector<HTMLDetailsElement>(
+      '#match-report-requirements details',
+    )
     const evidence = container.querySelector<HTMLDetailsElement>('#match-report-evidence details')
     const gaps = container.querySelector<HTMLDetailsElement>('#match-report-gaps details')
 
@@ -349,10 +692,14 @@ describe('MatchPage', () => {
     const { container, rerender } = render(<MatchPage />)
 
     const vectorNestedSections = Array.from(
-      container.querySelectorAll<HTMLDetailsElement>('#match-report-vector-summary .match-nested-disclosure'),
+      container.querySelectorAll<HTMLDetailsElement>(
+        '#match-report-vector-summary .match-nested-disclosure',
+      ),
     )
     const evidenceNestedSections = Array.from(
-      container.querySelectorAll<HTMLDetailsElement>('#match-report-evidence .match-nested-disclosure'),
+      container.querySelectorAll<HTMLDetailsElement>(
+        '#match-report-evidence .match-nested-disclosure',
+      ),
     )
     const requirementNestedSection = container.querySelector<HTMLDetailsElement>(
       '#match-report-requirements .match-nested-disclosure',
@@ -368,16 +715,25 @@ describe('MatchPage', () => {
     fireEvent.click(screen.getByText('Skill matches'))
     expect(vectorNestedSections[1]?.open).toBe(true)
 
-    useMatchStore.setState({ warnings: [untaggedNote('Updated warning after nested section opened.')] })
+    useMatchStore.setState({
+      warnings: [taggedNote('Updated warning after nested section opened.')],
+    })
     rerender(<MatchPage />)
 
     expect(
-      container.querySelectorAll<HTMLDetailsElement>('#match-report-vector-summary .match-nested-disclosure')[1]?.open,
+      container.querySelectorAll<HTMLDetailsElement>(
+        '#match-report-vector-summary .match-nested-disclosure',
+      )[1]?.open,
     ).toBe(true)
   })
 
   it('renders inline empty states for empty advantages and requirements', () => {
     useMatchStore.setState({
+      currentJDAnalysis: {
+        ...jdAnalysisFixture,
+        requirements: [],
+        advantages: [],
+      },
       currentReport: {
         ...reportFixture,
         advantages: [],
@@ -394,7 +750,9 @@ describe('MatchPage', () => {
   it('opens a collapsed report section when reached from a hash link', () => {
     const { container } = render(<MatchPage />)
 
-    const requirements = container.querySelector<HTMLDetailsElement>('#match-report-requirements details')
+    const requirements = container.querySelector<HTMLDetailsElement>(
+      '#match-report-requirements details',
+    )
     expect(requirements?.open).toBe(false)
 
     window.location.hash = '#match-report-requirements'
@@ -408,12 +766,16 @@ describe('MatchPage', () => {
 
     const { container } = render(<MatchPage />)
 
-    expect(container.querySelector<HTMLDetailsElement>('#match-report-requirements details')?.open).toBe(true)
+    expect(
+      container.querySelector<HTMLDetailsElement>('#match-report-requirements details')?.open,
+    ).toBe(true)
   })
 
   it('ignores unknown report section hashes', () => {
     const { container } = render(<MatchPage />)
-    const requirements = container.querySelector<HTMLDetailsElement>('#match-report-requirements details')
+    const requirements = container.querySelector<HTMLDetailsElement>(
+      '#match-report-requirements details',
+    )
 
     expect(requirements?.open).toBe(false)
 
@@ -436,9 +798,13 @@ describe('MatchPage', () => {
 
   it('reopens a manually collapsed section when its nav link is clicked again', async () => {
     const { container } = render(<MatchPage />)
-    const requirements = container.querySelector<HTMLDetailsElement>('#match-report-requirements details')
+    const requirements = container.querySelector<HTMLDetailsElement>(
+      '#match-report-requirements details',
+    )
     const nav = screen.getByRole('navigation', { name: /match report sections/i })
-    const requirementLink = nav.querySelector<HTMLAnchorElement>('a[href="#match-report-requirements"]')
+    const requirementLink = nav.querySelector<HTMLAnchorElement>(
+      'a[href="#match-report-requirements"]',
+    )
 
     expect(requirementLink).toBeTruthy()
     expect(requirements?.open).toBe(false)
@@ -447,14 +813,18 @@ describe('MatchPage', () => {
     expect(requirements?.open).toBe(true)
 
     fireEvent.click(screen.getByText('Requirement Coverage'))
-    expect(container.querySelector<HTMLDetailsElement>('#match-report-requirements details')?.open).toBe(false)
+    expect(
+      container.querySelector<HTMLDetailsElement>('#match-report-requirements details')?.open,
+    ).toBe(false)
 
     const refreshedRequirementLink = screen
       .getByRole('navigation', { name: /match report sections/i })
       .querySelector<HTMLAnchorElement>('a[href="#match-report-requirements"]')
     fireEvent.click(refreshedRequirementLink!)
     await waitFor(() => {
-      expect(container.querySelector<HTMLDetailsElement>('#match-report-requirements details')?.open).toBe(true)
+      expect(
+        container.querySelector<HTMLDetailsElement>('#match-report-requirements details')?.open,
+      ).toBe(true)
     })
   })
 
@@ -481,6 +851,32 @@ describe('MatchPage', () => {
   })
 
   it('exports the combined analysis and report payload', async () => {
+    const exportScopedAnalysis: JDAnalysis = {
+      ...jdAnalysisFixture,
+      warnings: [
+        taggedNote('Candidate export warning.'),
+        taggedNote('Internal export warning.', ['internal']),
+      ],
+      positioningRecommendations: [
+        taggedNote('Candidate export positioning.'),
+        taggedNote('Recruiter export hook.', ['recruiter']),
+      ],
+    }
+
+    useMatchStore.setState({
+      currentJDAnalysis: exportScopedAnalysis,
+      currentAnalysis: {
+        ...analysisFixture,
+        warnings: exportScopedAnalysis.warnings,
+      },
+      currentReport: {
+        ...reportFixture,
+        warnings: exportScopedAnalysis.warnings,
+        positioningRecommendations: exportScopedAnalysis.positioningRecommendations,
+      },
+      warnings: exportScopedAnalysis.warnings,
+    })
+
     render(<MatchPage />)
 
     fireEvent.click(screen.getByRole('button', { name: /export report/i }))
@@ -495,6 +891,10 @@ describe('MatchPage', () => {
     expect(payload.jdAnalysis?.id).toBe('match-analysis-1')
     expect(payload.analysis?.id).toBe('match-analysis-1')
     expect(payload.report?.summary).toBe(reportFixture.summary)
+    expect(JSON.stringify(payload)).toContain('Candidate export warning.')
+    expect(JSON.stringify(payload)).toContain('Candidate export positioning.')
+    expect(JSON.stringify(payload)).not.toContain('Internal export warning.')
+    expect(JSON.stringify(payload)).not.toContain('Recruiter export hook.')
     expect(screen.getByRole('status').textContent).toContain('Exported the current match report.')
   })
 
@@ -510,12 +910,16 @@ describe('MatchPage', () => {
     expect(entry?.jdAnalysisId).toBe('match-analysis-1')
     expect(entry?.vectorId).toBe('platform-lead')
 
-    const attachedAnalysis = entry ? useJDAnalysisStore.getState().findByPipelineEntry(entry.id) : null
+    const attachedAnalysis = entry
+      ? useJDAnalysisStore.getState().findByPipelineEntry(entry.id)
+      : null
     expect(attachedAnalysis?.id).toBe('match-analysis-1')
     expect(attachedAnalysis?.pipelineEntryId).toBe(entry?.id)
     expect(attachedAnalysis?.jdTextHash).toBe(hashJobDescriptionText(entry?.jobDescription ?? ''))
     expect(entry?.history.at(-1)?.note).toBe('Saved JD Match analysis')
-    expect(screen.getByRole('status').textContent).toContain('Saved Atlas · Staff Platform Engineer to Pipeline')
+    expect(screen.getByRole('status').textContent).toContain(
+      'Saved Atlas · Staff Platform Engineer to Pipeline',
+    )
   })
 
   it('reuses a matching pipeline entry when saving the canonical JD analysis', () => {
@@ -576,7 +980,9 @@ describe('MatchPage', () => {
     const attachedAnalysis = useJDAnalysisStore.getState().findByPipelineEntry(existingEntryId)
     expect(attachedAnalysis?.id).toBe('match-analysis-1')
     expect(attachedAnalysis?.pipelineEntryId).toBe(existingEntryId)
-    expect(screen.getByRole('status').textContent).toContain('most recent matching Atlas · Staff Platform Engineer')
+    expect(screen.getByRole('status').textContent).toContain(
+      'most recent matching Atlas · Staff Platform Engineer',
+    )
   })
 
   it('fills blank analysis-derived fields on a matching pipeline entry', () => {
@@ -617,10 +1023,146 @@ describe('MatchPage', () => {
     const entry = usePipelineStore.getState().entries[0]!
     expect(entry.vectorId).toBe('platform-lead')
     expect(entry.positioning).toBe('Lead with platform migration stories.')
-    expect(entry.skillMatch).toBe('platform')
+    expect(entry.skillMatch).toBe('Kubernetes')
     expect(entry.nextStep).toBe('Review JD analysis and decide whether to apply.')
     expect(entry.jdAnalysisId).toBe('match-analysis-1')
     expect(usePipelineStore.getState().entries).toHaveLength(1)
+  })
+
+  it('fills blank Pipeline fields from candidate-facing analysis text', () => {
+    usePipelineStore.getState().addEntry({
+      company: 'Atlas',
+      role: 'Staff Platform Engineer',
+      tier: '2',
+      status: 'researching',
+      comp: '',
+      url: '',
+      contact: '',
+      vectorId: null,
+      jobDescription: '',
+      jdAnalysisId: null,
+      presetId: null,
+      resumeVariant: '',
+      resumeGeneration: null,
+      positioning: '',
+      skillMatch: '',
+      nextStep: '',
+      notes: '',
+      appMethod: 'unknown',
+      response: 'none',
+      daysToResponse: null,
+      rounds: null,
+      format: [],
+      rejectionStage: '',
+      rejectionReason: '',
+      offerAmount: '',
+      dateApplied: '',
+      dateClosed: '',
+    })
+    useMatchStore.setState({
+      currentJDAnalysis: {
+        ...jdAnalysisFixture,
+        positioningRecommendations: [
+          taggedNote('Candidate Pipeline positioning.'),
+          taggedNote('Recruiter Pipeline hook.', ['recruiter']),
+        ],
+        skillMatches: [
+          tagged({
+            ...analysisFixture.skillMatches[0]!,
+            skillName: 'Candidate Pipeline skill',
+          }),
+          tagged(
+            {
+              ...analysisFixture.skillMatches[0]!,
+              skillName: 'Recruiter Pipeline skill',
+            },
+            ['recruiter'],
+          ),
+        ],
+      },
+      currentReport: {
+        ...reportFixture,
+        positioningRecommendations: [
+          taggedNote('Recruiter Pipeline hook.', ['recruiter']),
+          taggedNote('Candidate Pipeline positioning.'),
+        ],
+      },
+    })
+
+    render(<MatchPage />)
+    fireEvent.click(screen.getByRole('button', { name: /save to pipeline/i }))
+
+    const entry = usePipelineStore.getState().entries[0]!
+    expect(entry.positioning).toBe('Candidate Pipeline positioning.')
+    expect(entry.skillMatch).toBe('Candidate Pipeline skill')
+    expect(entry.positioning).not.toContain('Recruiter Pipeline hook.')
+    expect(entry.skillMatch).not.toContain('Recruiter Pipeline skill')
+
+    const attachedAnalysis = useJDAnalysisStore.getState().findByPipelineEntry(entry.id)
+    expect(
+      attachedAnalysis?.positioningRecommendations.some(
+        (note) => note.text === 'Recruiter Pipeline hook.',
+      ),
+    ).toBe(true)
+    expect(
+      attachedAnalysis?.skillMatches.some(
+        (skillMatch) => skillMatch.skillName === 'Recruiter Pipeline skill',
+      ),
+    ).toBe(true)
+  })
+
+  it('keeps skill match blank when candidate skill matches are filtered out', () => {
+    usePipelineStore.getState().addEntry({
+      company: 'Atlas',
+      role: 'Staff Platform Engineer',
+      tier: '2',
+      status: 'researching',
+      comp: '',
+      url: '',
+      contact: '',
+      vectorId: null,
+      jobDescription: '',
+      jdAnalysisId: null,
+      presetId: null,
+      resumeVariant: '',
+      resumeGeneration: null,
+      positioning: '',
+      skillMatch: '',
+      nextStep: '',
+      notes: '',
+      appMethod: 'unknown',
+      response: 'none',
+      daysToResponse: null,
+      rounds: null,
+      format: [],
+      rejectionStage: '',
+      rejectionReason: '',
+      offerAmount: '',
+      dateApplied: '',
+      dateClosed: '',
+    })
+    useMatchStore.setState({
+      currentJDAnalysis: {
+        ...jdAnalysisFixture,
+        skillMatches: [
+          tagged(
+            {
+              ...analysisFixture.skillMatches[0]!,
+              skillName: 'Recruiter-only skill',
+            },
+            ['recruiter'],
+          ),
+        ],
+        matchedKeywords: ['platform', 'linux'],
+      },
+    })
+
+    render(<MatchPage />)
+    fireEvent.click(screen.getByRole('button', { name: /save to pipeline/i }))
+
+    const entry = usePipelineStore.getState().entries[0]!
+    expect(entry.skillMatch).toBe('')
+    expect(entry.skillMatch).not.toContain('Recruiter-only skill')
   })
 
   it('creates a new pipeline entry when existing entries do not match the JD analysis role', () => {
@@ -672,7 +1214,9 @@ describe('MatchPage', () => {
     expect(atlas?.role).toBe('Staff Platform Engineer')
     expect(atlas?.jobDescription).toBe(reportFixture.jobDescription)
     expect(atlas?.jdAnalysisId).toBe('match-analysis-1')
-    expect(screen.getByRole('status').textContent).toContain('Saved Atlas · Staff Platform Engineer to Pipeline')
+    expect(screen.getByRole('status').textContent).toContain(
+      'Saved Atlas · Staff Platform Engineer to Pipeline',
+    )
   })
 
   it('creates a fresh entry instead of reusing a terminal matching pipeline entry', () => {
@@ -723,8 +1267,12 @@ describe('MatchPage', () => {
     const fresh = entries.find((entry) => entry.id !== rejectedId)
     expect(fresh?.company).toBe('Atlas')
     expect(fresh?.jdAnalysisId).toBe('match-analysis-1')
-    expect(useJDAnalysisStore.getState().findByPipelineEntry(fresh?.id ?? '')?.id).toBe('match-analysis-1')
-    expect(screen.getByRole('status').textContent).toContain('Saved Atlas · Staff Platform Engineer to Pipeline')
+    expect(useJDAnalysisStore.getState().findByPipelineEntry(fresh?.id ?? '')?.id).toBe(
+      'match-analysis-1',
+    )
+    expect(screen.getByRole('status').textContent).toContain(
+      'Saved Atlas · Staff Platform Engineer to Pipeline',
+    )
   })
 
   it('creates a fresh entry instead of reusing a soft-deleted matching pipeline entry', () => {
@@ -774,7 +1322,11 @@ describe('MatchPage', () => {
     const fresh = entries.find((entry) => entry.id !== deletedId)
     expect(fresh?.company).toBe('Atlas')
     expect(fresh?.jdAnalysisId).toBe('match-analysis-1')
-    expect(useJDAnalysisStore.getState().findByPipelineEntry(fresh?.id ?? '')?.id).toBe('match-analysis-1')
-    expect(screen.getByRole('status').textContent).toContain('Saved Atlas · Staff Platform Engineer to Pipeline')
+    expect(useJDAnalysisStore.getState().findByPipelineEntry(fresh?.id ?? '')?.id).toBe(
+      'match-analysis-1',
+    )
+    expect(screen.getByRole('status').textContent).toContain(
+      'Saved Atlas · Staff Platform Engineer to Pipeline',
+    )
   })
 })

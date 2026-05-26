@@ -1,5 +1,6 @@
 import type { PipelineJDAnalysisViewState } from './pipelineAnalysis'
 import { describePipelineJDAnalysisDriftReason } from './pipelineAnalysis'
+import { projectForAudience } from '../../utils/audienceFilter'
 
 const EMPTY_VALUE = '\u2014'
 const META_SEPARATOR = ' \u00b7 '
@@ -36,18 +37,19 @@ export function PipelineJDAnalysisPanel({ panelId, state, titleId }: PipelineJDA
           <span className="pipeline-analysis-badge is-missing">Analysis missing</span>
         </div>
         <p className="pipeline-jd-analysis-summary">
-          This entry has a saved analysis reference, but the analysis artifact is no longer available.
-          Refresh JD Analysis to recreate it.
+          This entry has a saved analysis reference, but the analysis artifact is no longer
+          available. Refresh JD Analysis to recreate it.
         </p>
       </section>
     )
   }
 
-  const generatedAt = formatGeneratedAt(analysis.generatedAt)
-  const fitScore = `${Math.round(analysis.fitScore * 100)}%`
+  const candidateAnalysis = projectForAudience(analysis, 'candidate')
+  const generatedAt = formatGeneratedAt(candidateAnalysis.generatedAt)
+  const fitScore = `${Math.round(candidateAnalysis.fitScore * 100)}%`
   const needsReview = state.status === 'stale'
-  const company = analysis.company || EMPTY_VALUE
-  const role = analysis.role || EMPTY_VALUE
+  const company = candidateAnalysis.company || EMPTY_VALUE
+  const role = candidateAnalysis.role || EMPTY_VALUE
   const metadata = [company, role, generatedAt].join(META_SEPARATOR)
 
   return (
@@ -55,7 +57,9 @@ export function PipelineJDAnalysisPanel({ panelId, state, titleId }: PipelineJDA
       <div className="pipeline-jd-analysis-header">
         <div>
           <span className="pipeline-detail-action-label">JD Analysis</span>
-          <h3 id={titleId}>{analysis.oneLineSummary || analysis.summary || 'Saved analysis'}</h3>
+          <h3 id={titleId}>
+            {candidateAnalysis.oneLineSummary || candidateAnalysis.summary || 'Saved analysis'}
+          </h3>
           <p>{metadata}</p>
         </div>
         <span
@@ -74,46 +78,52 @@ export function PipelineJDAnalysisPanel({ panelId, state, titleId }: PipelineJDA
       ) : null}
 
       <div className="pipeline-jd-analysis-metrics">
-        <Metric label="Fit" value={formatMetricValue(analysis.overallFit)} />
+        <Metric label="Fit" value={formatMetricValue(candidateAnalysis.overallFit)} />
         <Metric label="Score" value={fitScore} />
-        <Metric label="Confidence" value={formatMetricValue(analysis.confidence)} />
-        <Metric label="Recommendation" value={formatMetricValue(analysis.recommendation)} />
+        <Metric label="Confidence" value={formatMetricValue(candidateAnalysis.confidence)} />
+        <Metric
+          label="Recommendation"
+          value={formatMetricValue(candidateAnalysis.recommendation)}
+        />
       </div>
 
-      {analysis.summary || analysis.rationale ? (
+      {candidateAnalysis.summary || candidateAnalysis.rationale ? (
         <div className="pipeline-jd-analysis-copy">
-          {analysis.summary ? <p>{analysis.summary}</p> : null}
-          {analysis.rationale ? <p>{analysis.rationale}</p> : null}
+          {candidateAnalysis.summary ? <p>{candidateAnalysis.summary}</p> : null}
+          {candidateAnalysis.rationale ? <p>{candidateAnalysis.rationale}</p> : null}
         </div>
       ) : null}
 
       <div className="pipeline-jd-analysis-grid">
         <AnalysisList
           title="Matched vectors"
-          items={analysis.matchedVectors.map((vector) =>
-            `${vector.title}${vector.vectorId === analysis.primaryVectorId ? ' (primary)' : ''}: ${formatMetricValue(vector.matchStrength)}`,
+          items={candidateAnalysis.matchedVectors.map(
+            (vector) =>
+              `${vector.title}${vector.vectorId === candidateAnalysis.primaryVectorId ? ' (primary)' : ''}: ${formatMetricValue(vector.matchStrength)}`,
           )}
           empty="No matched vectors saved."
         />
         <AnalysisList
           title="Strengths to lead"
           items={[
-            ...analysis.strengthsToLead.map((note) => note.text),
-            ...analysis.positioningRecommendations.map((note) => note.text),
+            ...candidateAnalysis.strengthsToLead.map((note) => note.text),
+            ...candidateAnalysis.positioningRecommendations.map((note) => note.text),
           ]}
           empty="No strengths saved."
         />
         <AnalysisList
           title="Gaps and watch outs"
           items={[
-            ...analysis.gaps.map((gap) => `${gap.label}: ${gap.reason}`),
-            ...analysis.watchOuts.map((watchOut) => `${watchOut.description}: ${watchOut.suggestedAction}`),
+            ...candidateAnalysis.gaps.map((gap) => `${gap.label}: ${gap.reason}`),
+            ...candidateAnalysis.watchOuts.map(
+              (watchOut) => `${watchOut.description}: ${watchOut.suggestedAction}`,
+            ),
           ]}
           empty="No gaps or watch outs saved."
         />
         <AnalysisList
           title="Warnings"
-          items={analysis.warnings.map((note) => note.text)}
+          items={candidateAnalysis.warnings.map((note) => note.text)}
           empty="No warnings."
         />
       </div>
@@ -130,15 +140,7 @@ function Metric({ label, value }: { label: string; value: string }) {
   )
 }
 
-function AnalysisList({
-  title,
-  items,
-  empty,
-}: {
-  title: string
-  items: string[]
-  empty: string
-}) {
+function AnalysisList({ title, items, empty }: { title: string; items: string[]; empty: string }) {
   const visibleItems = items.filter(Boolean)
 
   return (
