@@ -2,6 +2,7 @@ import type { JdAnalysisResult, JdBulletAdjustment, ResumeData } from '../types'
 import { notesText } from '../types/audience'
 import type { JDAnalysis } from '../types/jdAnalysis'
 import type { MatchAssetScore } from '../types/match'
+import { projectForAudience } from './audienceFilter'
 
 const dedupe = (values: string[]): string[] =>
   Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)))
@@ -61,6 +62,17 @@ const buildSkillGaps = (analysis: JDAnalysis): string[] =>
       .map((skill) => skill.skillName),
   ])
 
+const buildInternalProjectionNotes = (analysis: JDAnalysis): string[] =>
+  dedupe([
+    ...analysis.triggeredPrioritize.map((trigger) =>
+      [trigger.label, trigger.jdEvidence].filter(Boolean).join(': '),
+    ),
+    ...analysis.watchOuts.map((watchOut) =>
+      [watchOut.description, watchOut.suggestedAction].filter(Boolean).join(' '),
+    ),
+    ...notesText(analysis.warnings),
+  ])
+
 const buildVectorStrategy = (analysis: JDAnalysis, suggestedVectorIds: string[]): string => {
   const vectorSummary = analysis.matchedVectors
     .filter((vector) => suggestedVectorIds.includes(vector.vectorId))
@@ -84,24 +96,26 @@ export const buildProjectionFromJDAnalysis = (
   analysis: JDAnalysis,
   data: ResumeData,
 ): JdAnalysisResult => {
-  const primaryVectorId = resolvePrimaryVectorId(analysis, data)
-  const suggestedVectorIds = resolveSuggestedVectorIds(analysis, data, primaryVectorId)
-  const positioningTexts = notesText(analysis.positioningRecommendations)
+  const internalAnalysis = projectForAudience(analysis, 'internal')
+  const primaryVectorId = resolvePrimaryVectorId(internalAnalysis, data)
+  const suggestedVectorIds = resolveSuggestedVectorIds(internalAnalysis, data, primaryVectorId)
+  const positioningTexts = notesText(internalAnalysis.positioningRecommendations)
+  const internalProjectionNotes = buildInternalProjectionNotes(internalAnalysis)
   const positioningNote =
-    joinSentences(positioningTexts) ||
-    analysis.rationale ||
-    analysis.oneLineSummary ||
-    analysis.summary
+    joinSentences([...positioningTexts, ...internalProjectionNotes]) ||
+    internalAnalysis.rationale ||
+    internalAnalysis.oneLineSummary ||
+    internalAnalysis.summary
 
   return {
     primary_vector: primaryVectorId,
     suggested_vectors: suggestedVectorIds,
-    bullet_adjustments: mapBulletAdjustments(analysis, data),
-    suggested_target_line: positioningTexts[0] ?? analysis.oneLineSummary,
-    skill_gaps: buildSkillGaps(analysis),
-    matched_keywords: analysis.matchedKeywords,
-    suggested_variables: buildSuggestedVariables(analysis),
+    bullet_adjustments: mapBulletAdjustments(internalAnalysis, data),
+    suggested_target_line: positioningTexts[0] ?? internalAnalysis.oneLineSummary,
+    skill_gaps: buildSkillGaps(internalAnalysis),
+    matched_keywords: internalAnalysis.matchedKeywords,
+    suggested_variables: buildSuggestedVariables(internalAnalysis),
     positioning_note: positioningNote,
-    vector_strategy: buildVectorStrategy(analysis, suggestedVectorIds),
+    vector_strategy: buildVectorStrategy(internalAnalysis, suggestedVectorIds),
   }
 }
