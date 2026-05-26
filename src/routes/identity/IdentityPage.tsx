@@ -35,6 +35,7 @@ import {
   resolveSelectedVectorAfterReplaceImport,
 } from '../../utils/importSelection'
 import { parseJsonWithRepair } from '../../utils/jsonParsing'
+import { getSupplementalContextTokenLimitError } from '../../utils/supplementalContextSecurity'
 import { useFocusTrap } from '../../utils/useFocusTrap'
 import {
   findNextPendingIdentitySkill,
@@ -553,6 +554,12 @@ export function IdentityPage() {
       setPageError(lengthError)
       return false
     }
+    const tokenLimitError = getSupplementalContextTokenLimitError(trimmed, 'AI conversation export')
+    if (tokenLimitError) {
+      setPageNotice(null)
+      setPageError(tokenLimitError)
+      return false
+    }
     if (!canAppendSupplementalContext(trimmed)) {
       return false
     }
@@ -580,6 +587,12 @@ export function IdentityPage() {
     if (lengthError) {
       setPageNotice(null)
       setPageError(lengthError)
+      return false
+    }
+    const tokenLimitError = getSupplementalContextTokenLimitError(trimmed, 'Brag doc text')
+    if (tokenLimitError) {
+      setPageNotice(null)
+      setPageError(tokenLimitError)
       return false
     }
     if (!canAppendSupplementalContext(trimmed)) {
@@ -613,6 +626,10 @@ export function IdentityPage() {
       const lengthError = getSupplementalContextLengthError('brag-doc', text)
       if (lengthError) {
         throw new Error(lengthError)
+      }
+      const tokenLimitError = getSupplementalContextTokenLimitError(text, file.name)
+      if (tokenLimitError) {
+        throw new Error(tokenLimitError)
       }
       if (!canAppendSupplementalContext(text)) {
         return

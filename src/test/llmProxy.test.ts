@@ -25,6 +25,7 @@ describe('callLlmProxy', () => {
       },
       betas: ['task-budgets-2026-03-13'],
       capabilityFallback: 'opus_unavailable',
+      pastedContentTokenCounts: [{ label: 'AI conversation export', tokens: 123 }],
     })
 
     const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
@@ -35,6 +36,7 @@ describe('callLlmProxy', () => {
         max_tokens: 128000,
         thinking_budget: 10000,
         capability_fallback: 'opus_unavailable',
+        pasted_content_token_counts: [{ label: 'AI conversation export', tokens: 123 }],
         output_config: {
           task_budget: { type: 'tokens', total: 80000 },
           effort: 'high',

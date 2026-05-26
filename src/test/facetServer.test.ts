@@ -1815,6 +1815,382 @@ describe('facetServer persistence API', () => {
     expect(messagesCreate).not.toHaveBeenCalled()
   })
 
+  it('rejects oversized pasted-content token metadata before calling Anthropic', async () => {
+    const messagesCreate = vi.fn(async () => ({
+      content: [{ type: 'text', text: '{"ok":true}' }],
+      usage: { input_tokens: 0, output_tokens: 0 },
+    }))
+
+    const { createFacetServer, createInMemoryWorkspaceStore } = await loadProxyModules()
+
+    const { server } = createFacetServer({
+      allowedOrigins: ['http://localhost:5173'],
+      proxyApiKey: 'proxy-key',
+      maxPastedContentTokens: 20_000,
+      persistenceStore: createInMemoryWorkspaceStore(),
+      anthropicClient: {
+        messages: {
+          create: messagesCreate,
+        },
+      },
+    })
+    servers.add(server)
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, '127.0.0.1', () => resolve())
+    })
+
+    const address = server.address()
+    if (!address || typeof address === 'string') {
+      throw new Error('Failed to bind pasted-content token limit test server.')
+    }
+
+    const response = await fetch(`http://127.0.0.1:${address.port}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost:5173',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+      body: JSON.stringify({
+        feature: 'identity.extract',
+        model: 'sonnet',
+        system: 'Return JSON only.',
+        messages: [
+          {
+            role: 'user',
+            content: `Extract identity.\n###FACET_AI_EXPORT_START_context-ai###\n${'a'.repeat(80_001)}\n###FACET_AI_EXPORT_END_context-ai###`,
+          },
+        ],
+        pasted_content_token_counts: [
+          {
+            label: 'AI conversation export',
+            tokens: 1,
+          },
+        ],
+      }),
+    })
+
+    expect(response.status).toBe(413)
+    await expect(response.json()).resolves.toEqual({
+      error:
+        'Pasted content "AI export context-ai" is estimated at 20001 tokens; maximum is 20000.',
+      code: 'pasted_content_token_limit_exceeded',
+      limit: 20_000,
+    })
+    expect(messagesCreate).not.toHaveBeenCalled()
+  })
+
+  it('rejects explicit pasted-content token counts above the proxy limit', async () => {
+    const messagesCreate = vi.fn(async () => ({
+      content: [{ type: 'text', text: '{"ok":true}' }],
+      usage: { input_tokens: 0, output_tokens: 0 },
+    }))
+
+    const { createFacetServer, createInMemoryWorkspaceStore } = await loadProxyModules()
+
+    const { server } = createFacetServer({
+      allowedOrigins: ['http://localhost:5173'],
+      proxyApiKey: 'proxy-key',
+      maxPastedContentTokens: 20_000,
+      persistenceStore: createInMemoryWorkspaceStore(),
+      anthropicClient: {
+        messages: {
+          create: messagesCreate,
+        },
+      },
+    })
+    servers.add(server)
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, '127.0.0.1', () => resolve())
+    })
+
+    const address = server.address()
+    if (!address || typeof address === 'string') {
+      throw new Error('Failed to bind explicit pasted-content token limit test server.')
+    }
+
+    const response = await fetch(`http://127.0.0.1:${address.port}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost:5173',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+      body: JSON.stringify({
+        feature: 'identity.extract',
+        model: 'sonnet',
+        messages: [{ role: 'user', content: 'Extract identity.' }],
+        pasted_content_token_counts: [
+          {
+            label: 'AI conversation export',
+            tokens: 20_000.1,
+          },
+        ],
+      }),
+    })
+
+    expect(response.status).toBe(413)
+    await expect(response.json()).resolves.toEqual({
+      error:
+        'Pasted content "AI conversation export" is estimated at 20001 tokens; maximum is 20000.',
+      code: 'pasted_content_token_limit_exceeded',
+      limit: 20_000,
+    })
+    expect(messagesCreate).not.toHaveBeenCalled()
+  })
+
+  it('rejects invalid pasted-content token metadata before calling Anthropic', async () => {
+    const messagesCreate = vi.fn(async () => ({
+      content: [{ type: 'text', text: '{"ok":true}' }],
+      usage: { input_tokens: 0, output_tokens: 0 },
+    }))
+
+    const { createFacetServer, createInMemoryWorkspaceStore } = await loadProxyModules()
+
+    const { server } = createFacetServer({
+      allowedOrigins: ['http://localhost:5173'],
+      proxyApiKey: 'proxy-key',
+      persistenceStore: createInMemoryWorkspaceStore(),
+      anthropicClient: {
+        messages: {
+          create: messagesCreate,
+        },
+      },
+    })
+    servers.add(server)
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, '127.0.0.1', () => resolve())
+    })
+
+    const address = server.address()
+    if (!address || typeof address === 'string') {
+      throw new Error('Failed to bind invalid pasted-content metadata test server.')
+    }
+
+    const post = (pastedContentTokenCounts: unknown) =>
+      fetch(`http://127.0.0.1:${address.port}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'http://localhost:5173',
+          'X-Proxy-API-Key': 'proxy-key',
+        },
+        body: JSON.stringify({
+          feature: 'identity.extract',
+          model: 'sonnet',
+          messages: [{ role: 'user', content: 'Extract identity.' }],
+          pasted_content_token_counts: pastedContentTokenCounts,
+        }),
+      })
+
+    for (const invalidValue of ['not-array', [{}], [{ label: 'bad', tokens: -1 }]]) {
+      const response = await post(invalidValue)
+      expect(response.status).toBe(400)
+      await expect(response.json()).resolves.toEqual({
+        error: 'Requested pasted_content_token_counts must be an array of token-count objects',
+      })
+    }
+    expect(messagesCreate).not.toHaveBeenCalled()
+  })
+
+  it('rejects malformed AI export delimiters before calling Anthropic', async () => {
+    const messagesCreate = vi.fn(async () => ({
+      content: [{ type: 'text', text: '{"ok":true}' }],
+      usage: { input_tokens: 0, output_tokens: 0 },
+    }))
+
+    const { createFacetServer, createInMemoryWorkspaceStore } = await loadProxyModules()
+
+    const { server } = createFacetServer({
+      allowedOrigins: ['http://localhost:5173'],
+      proxyApiKey: 'proxy-key',
+      persistenceStore: createInMemoryWorkspaceStore(),
+      anthropicClient: {
+        messages: {
+          create: messagesCreate,
+        },
+      },
+    })
+    servers.add(server)
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, '127.0.0.1', () => resolve())
+    })
+
+    const address = server.address()
+    if (!address || typeof address === 'string') {
+      throw new Error('Failed to bind malformed delimiter test server.')
+    }
+
+    const response = await fetch(`http://127.0.0.1:${address.port}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost:5173',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+      body: JSON.stringify({
+        feature: 'identity.extract',
+        model: 'sonnet',
+        messages: [
+          {
+            role: 'user',
+            content: '###FACET_AI_EXPORT_START_context-ai###\nUnclosed context block.',
+          },
+        ],
+      }),
+    })
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({
+      error: 'AI export delimiters are malformed or unbalanced.',
+      code: 'pasted_content_delimiter_error',
+    })
+    expect(messagesCreate).not.toHaveBeenCalled()
+  })
+
+  it('allows valid pasted-content metadata and under-limit multipart delimited blocks', async () => {
+    const messagesCreate = vi.fn(async () => ({
+      content: [{ type: 'text', text: '{"ok":true}' }],
+      usage: { input_tokens: 0, output_tokens: 0 },
+    }))
+
+    const { createFacetServer, createInMemoryWorkspaceStore } = await loadProxyModules()
+
+    const { server } = createFacetServer({
+      allowedOrigins: ['http://localhost:5173'],
+      proxyApiKey: 'proxy-key',
+      maxPastedContentTokens: 20_000,
+      persistenceStore: createInMemoryWorkspaceStore(),
+      anthropicClient: {
+        messages: {
+          create: messagesCreate,
+        },
+      },
+    })
+    servers.add(server)
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, '127.0.0.1', () => resolve())
+    })
+
+    const address = server.address()
+    if (!address || typeof address === 'string') {
+      throw new Error('Failed to bind valid pasted-content token test server.')
+    }
+
+    const response = await fetch(`http://127.0.0.1:${address.port}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost:5173',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+      body: JSON.stringify({
+        feature: 'identity.extract',
+        model: 'sonnet',
+        system: 'Return JSON only.',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: 'Extract identity.\n###FACET_AI_EXPORT_START_context-ai###\nStaff platform context.\n###FACET_AI_EXPORT_END_context-ai###',
+              },
+            ],
+          },
+        ],
+        pasted_content_token_counts: [
+          {
+            label: ' AI conversation export ',
+            tokens: 99.1,
+          },
+        ],
+      }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(messagesCreate).toHaveBeenCalledTimes(1)
+  })
+
+  it('applies MAX_PASTED_CONTENT_TOKENS from environment configuration', async () => {
+    const upstreamRequests: Record<string, unknown>[] = []
+    const upstream = createHttpServer((req, res) => {
+      const chunks: Buffer[] = []
+      req.on('data', (chunk) => chunks.push(Buffer.from(chunk)))
+      req.on('end', () => {
+        upstreamRequests.push(JSON.parse(Buffer.concat(chunks).toString('utf8')))
+        res.writeHead(200, { 'content-type': 'application/json' })
+        res.end(
+          JSON.stringify({
+            content: [{ type: 'text', text: '{"ok":true}' }],
+            usage: { input_tokens: 0, output_tokens: 0 },
+          }),
+        )
+      })
+    })
+    servers.add(upstream)
+
+    await new Promise<void>((resolve) => {
+      upstream.listen(0, '127.0.0.1', () => resolve())
+    })
+    const upstreamAddress = upstream.address()
+    if (!upstreamAddress || typeof upstreamAddress === 'string') {
+      throw new Error('Failed to bind pasted-content env upstream.')
+    }
+
+    const { createEnvFacetServer } = await loadProxyModules()
+    const { server } = createEnvFacetServer({
+      ALLOWED_ORIGINS: 'http://localhost:5173',
+      ANTHROPIC_BASE_URL: `http://127.0.0.1:${upstreamAddress.port}`,
+      MAX_PASTED_CONTENT_TOKENS: '5',
+      PROXY_API_KEY: 'proxy-key',
+    })
+    servers.add(server)
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, '127.0.0.1', () => resolve())
+    })
+
+    const address = server.address()
+    if (!address || typeof address === 'string') {
+      throw new Error('Failed to bind pasted-content env test server.')
+    }
+
+    const response = await fetch(`http://127.0.0.1:${address.port}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost:5173',
+        'X-Proxy-API-Key': 'proxy-key',
+      },
+      body: JSON.stringify({
+        feature: 'identity.extract',
+        model: 'sonnet',
+        messages: [
+          {
+            role: 'user',
+            content:
+              '###FACET_AI_EXPORT_START_context-ai###\n' +
+              'a'.repeat(24) +
+              '\n###FACET_AI_EXPORT_END_context-ai###',
+          },
+        ],
+      }),
+    })
+
+    expect(response.status).toBe(413)
+    await expect(response.json()).resolves.toMatchObject({
+      code: 'pasted_content_token_limit_exceeded',
+      limit: 5,
+    })
+    expect(upstreamRequests).toHaveLength(0)
+  })
+
   it('keeps the default max token cap for non-task-budget features', async () => {
     const messagesCreate = vi.fn(async () => ({
       content: [{ type: 'text', text: '{"ok":true}' }],

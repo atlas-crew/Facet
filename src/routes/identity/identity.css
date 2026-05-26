@@ -775,6 +775,55 @@
   font-size: 12px;
 }
 
+.identity-context-preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--accent-primary) 24%, var(--border-subtle));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent-primary) 5%, var(--bg-surface));
+  padding: var(--space-3);
+}
+
+.identity-context-preview-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.identity-context-flags {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--warning) 42%, var(--border-subtle));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--warning) 8%, var(--bg-surface));
+  padding: var(--space-2);
+  font-size: 12px;
+}
+
+.identity-context-flags div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.identity-context-flags strong {
+  color: var(--text-primary);
+}
+
+.identity-context-flags span {
+  color: var(--text-secondary);
+}
+
+.identity-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
 .identity-btn-icon {
   padding: var(--space-1);
   min-width: auto;

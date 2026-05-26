@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ChangeEvent,
@@ -31,6 +32,11 @@ import type {
   SupplementalContextSource,
 } from '../../types/identity'
 import { AiWorkingStatus } from '../../components/AiWorkingStatus'
+import {
+  SUPPLEMENTAL_CONTEXT_MAX_TOKENS,
+  getSupplementalContextTokenLimitError,
+  scanSupplementalContextSecurity,
+} from '../../utils/supplementalContextSecurity'
 import { ScanReviewPane } from './ScanReviewPane'
 import { SOURCE_MATERIAL_SAMPLES } from './sampleSourceMaterial'
 
@@ -182,6 +188,7 @@ export function ExtractionAgentCard({
   const bragDocUploadRef = useRef<HTMLInputElement>(null)
   const copyResetTimeoutRef = useRef<number | null>(null)
   const [agentExportText, setAgentExportText] = useState('')
+  const [agentExportReviewed, setAgentExportReviewed] = useState(false)
   const [bragDocText, setBragDocText] = useState('')
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle')
   const [agentExportInputError, setAgentExportInputError] = useState<string | null>(null)
@@ -201,6 +208,13 @@ export function ExtractionAgentCard({
           contributingSourceCount === 1 ? '' : 's'
         }`
       : 'Generate Draft'
+  const agentExportSecurityScan = useMemo(
+    () => scanSupplementalContextSecurity(agentExportText),
+    [agentExportText],
+  )
+  const agentExportTokenLimitError = agentExportText.trim()
+    ? getSupplementalContextTokenLimitError(agentExportText, 'AI conversation export')
+    : null
 
   useEffect(
     () => () => {
@@ -233,8 +247,17 @@ export function ExtractionAgentCard({
     }
   }
   const addAgentExport = () => {
+    if (!agentExportReviewed) {
+      setAgentExportInputError('Review and confirm the AI export preview before adding it.')
+      return
+    }
+    if (agentExportTokenLimitError) {
+      setAgentExportInputError(agentExportTokenLimitError)
+      return
+    }
     if (onAddAgentExport(agentExportText)) {
       setAgentExportText('')
+      setAgentExportReviewed(false)
       setAgentExportInputError(null)
     }
   }
@@ -250,6 +273,7 @@ export function ExtractionAgentCard({
       setAgentExportInputError(lengthError)
       return
     }
+    setAgentExportReviewed(false)
     setAgentExportInputError(null)
     setAgentExportText(value)
   }
@@ -428,12 +452,63 @@ export function ExtractionAgentCard({
                     placeholder="Paste the narrative export here after the AI assistant generates it."
                   />
                 </label>
+                {agentExportText.trim() ? (
+                  <div
+                    className="identity-context-preview"
+                    role="group"
+                    aria-label="AI export preview"
+                  >
+                    <div className="identity-source-card-stats">
+                      <span>{agentExportSecurityScan.wordCount.toLocaleString()} words</span>
+                      <span>
+                        {agentExportSecurityScan.estimatedTokens.toLocaleString()} estimated tokens
+                      </span>
+                      <span>Limit {SUPPLEMENTAL_CONTEXT_MAX_TOKENS.toLocaleString()} tokens</span>
+                    </div>
+                    {agentExportSecurityScan.detectedSections.length > 0 ? (
+                      <div className="identity-context-preview-row">
+                        {agentExportSecurityScan.detectedSections.map((section) => (
+                          <span key={section} className="identity-source-card-badge">
+                            {section}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                    {agentExportSecurityScan.flaggedContent.length > 0 ? (
+                      <div className="identity-context-flags" role="alert">
+                        {agentExportSecurityScan.flaggedContent.map((flag, index) => (
+                          <div key={`${flag.label}:${flag.snippet}:${index}`}>
+                            <strong>{flag.label}</strong>
+                            <span>{flag.snippet}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    {agentExportTokenLimitError ? (
+                      <p className="identity-source-card-error-message" role="alert">
+                        {agentExportTokenLimitError}
+                      </p>
+                    ) : null}
+                    <label className="identity-checkbox-row">
+                      <input
+                        type="checkbox"
+                        checked={agentExportReviewed}
+                        onChange={(event) => setAgentExportReviewed(event.target.checked)}
+                      />
+                      <span>I reviewed this AI export preview.</span>
+                    </label>
+                  </div>
+                ) : null}
                 <div className="identity-card-actions">
                   <button
                     className="identity-btn"
                     type="button"
                     onClick={addAgentExport}
-                    disabled={agentExportText.trim().length === 0}
+                    disabled={
+                      agentExportText.trim().length === 0 ||
+                      !agentExportReviewed ||
+                      Boolean(agentExportTokenLimitError)
+                    }
                   >
                     <Sparkles size={16} />
                     Add AI Context

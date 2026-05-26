@@ -188,6 +188,11 @@ export interface LlmProxyOptions {
   proxyApiKey?: string
   /** Identifies the hosted AI feature for entitlement checks. */
   feature?: FacetAiFeatureKey
+  /** Estimated token counts for individual user-supplied paste blocks. */
+  pastedContentTokenCounts?: Array<{
+    label?: string
+    tokens: number
+  }>
   /** Optional external abort signal for cancellation. */
   signal?: AbortSignal
 }
@@ -236,6 +241,9 @@ export async function callLlmProxy(
         temperature: options.temperature ?? 0.3,
         ...(options.model ? { model: options.model } : {}),
         ...(options.feature ? { feature: options.feature } : {}),
+        ...(options.pastedContentTokenCounts
+          ? { pasted_content_token_counts: options.pastedContentTokenCounts }
+          : {}),
         ...(typeof options.maxTokens === 'number' ? { max_tokens: options.maxTokens } : {}),
         ...(typeof options.thinkingBudget === 'number'
           ? { thinking_budget: options.thinkingBudget }

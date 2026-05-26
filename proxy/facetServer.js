@@ -57,6 +57,7 @@ const DEFAULT_MODEL = CURRENT_SONNET_MODEL
 const DEFAULT_PROXY_API_KEY = 'facet-local-proxy'
 const DEFAULT_ALLOWED_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173']
 const TASK_BUDGET_FEATURE_MAX_TOKENS = 128_000
+const DEFAULT_MAX_PASTED_CONTENT_TOKENS = 20_000
 const TASK_BUDGET_FEATURES = new Set([
   'research.deep-search',
   'research.thesis',
@@ -725,6 +726,10 @@ function extractBearerToken(authorizationHeader) {
 }
 
 const ALLOWED_TOOL_TYPES = new Set(['web_search_20250305', 'web_search_20260209'])
+const AI_EXPORT_DELIMITED_BLOCK_PATTERN =
+  /###FACET_AI_EXPORT_START_([A-Za-z0-9_-]+)###([\s\S]*?)###FACET_AI_EXPORT_END_\1###/g
+const AI_EXPORT_DELIMITER_START_PATTERN = /###FACET_AI_EXPORT_START_[A-Za-z0-9_-]+###/g
+const AI_EXPORT_DELIMITER_END_PATTERN = /###FACET_AI_EXPORT_END_[A-Za-z0-9_-]+###/g
 
 function resolveModel(requested, defaultModel) {
   if (!requested) return defaultModel
@@ -828,6 +833,71 @@ function normalizeBetas(betas) {
     .filter((beta) => beta.length > 0)
 
   return normalized.length === betas.length ? normalized : null
+}
+
+function normalizePastedContentTokenCounts(value) {
+  if (value === undefined || value === null) {
+    return []
+  }
+
+  if (!Array.isArray(value)) {
+    return null
+  }
+
+  return value.map((entry) => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+      return null
+    }
+
+    const tokens = Number(entry.tokens)
+    if (!Number.isFinite(tokens) || tokens < 0) {
+      return null
+    }
+
+    return {
+      label: typeof entry.label === 'string' ? entry.label.trim() : '',
+      tokens: Math.ceil(tokens),
+    }
+  })
+}
+
+function estimateTextTokens(text) {
+  const trimmed = text.trim()
+  return trimmed ? Math.ceil(trimmed.length / 4) : 0
+}
+
+function extractMessageTextParts(messages) {
+  return messages.flatMap((message) => {
+    if (typeof message.content === 'string') {
+      return [message.content]
+    }
+
+    if (!Array.isArray(message.content)) {
+      return []
+    }
+
+    return message.content.flatMap((part) =>
+      part && typeof part === 'object' && typeof part.text === 'string' ? [part.text] : [],
+    )
+  })
+}
+
+function inspectDelimitedPastedContent(messages) {
+  const text = extractMessageTextParts(messages).join('\n')
+  AI_EXPORT_DELIMITED_BLOCK_PATTERN.lastIndex = 0
+  const counts = Array.from(text.matchAll(AI_EXPORT_DELIMITED_BLOCK_PATTERN)).map(
+    ([, id, body]) => ({
+      label: `AI export ${id}`,
+      tokens: estimateTextTokens(body),
+    }),
+  )
+  const startCount = text.match(AI_EXPORT_DELIMITER_START_PATTERN)?.length ?? 0
+  const endCount = text.match(AI_EXPORT_DELIMITER_END_PATTERN)?.length ?? 0
+
+  return {
+    counts,
+    malformed: startCount !== counts.length || endCount !== counts.length,
+  }
 }
 
 function hasValidMessages(messages) {
@@ -1062,6 +1132,7 @@ export function createFacetServer(options = {}) {
   const staticRootPromise = staticDir ? realpath(staticDir).catch(() => resolve(staticDir)) : null
   const defaultTemperature = options.defaultTemperature
   const defaultThinkingBudget = options.defaultThinkingBudget ?? 0
+  const maxPastedContentTokens = options.maxPastedContentTokens ?? DEFAULT_MAX_PASTED_CONTENT_TOKENS
   const proxyApiKey = options.proxyApiKey ?? DEFAULT_PROXY_API_KEY
   const anthropicClient =
     options.anthropicClient ??
@@ -1559,6 +1630,7 @@ export function createFacetServer(options = {}) {
         output_config,
         betas,
         capability_fallback,
+        pasted_content_token_counts,
       } = body
 
       if (!hasValidMessages(messages)) {
@@ -1758,6 +1830,41 @@ export function createFacetServer(options = {}) {
       const normalizedBetas = normalizeBetas(betas)
       if (normalizedBetas === null) {
         sendJson(res, 400, { error: 'Requested betas must be an array of strings' })
+        return
+      }
+      const normalizedPasteTokenCounts = normalizePastedContentTokenCounts(
+        pasted_content_token_counts,
+      )
+      if (
+        normalizedPasteTokenCounts === null ||
+        normalizedPasteTokenCounts.some((entry) => entry === null)
+      ) {
+        sendJson(res, 400, {
+          error: 'Requested pasted_content_token_counts must be an array of token-count objects',
+        })
+        return
+      }
+      const inspectedPasteTokenCounts = inspectDelimitedPastedContent(messages)
+      if (inspectedPasteTokenCounts.malformed) {
+        sendJson(res, 400, {
+          error: 'AI export delimiters are malformed or unbalanced.',
+          code: 'pasted_content_delimiter_error',
+        })
+        return
+      }
+      const enforcedPasteTokenCounts = [
+        ...normalizedPasteTokenCounts,
+        ...inspectedPasteTokenCounts.counts,
+      ]
+      const oversizedPaste = enforcedPasteTokenCounts.find(
+        (entry) => entry.tokens > maxPastedContentTokens,
+      )
+      if (oversizedPaste) {
+        sendJson(res, 413, {
+          error: `Pasted content "${oversizedPaste.label || 'unnamed'}" is estimated at ${oversizedPaste.tokens} tokens; maximum is ${maxPastedContentTokens}.`,
+          code: 'pasted_content_token_limit_exceeded',
+          limit: maxPastedContentTokens,
+        })
         return
       }
 
@@ -1991,6 +2098,10 @@ export function createEnvFacetServer(env = process.env) {
     defaultMaxTokens: parseInt(env.MAX_TOKENS ?? '4096', 10),
     maxRequestTokens: parseInt(env.MAX_REQUEST_TOKENS ?? env.MAX_TOKENS ?? '4096', 10),
     maxBodyBytes: parseInt(env.MAX_BODY_BYTES ?? '1048576', 10),
+    maxPastedContentTokens: parsePositiveInteger(
+      env.MAX_PASTED_CONTENT_TOKENS,
+      DEFAULT_MAX_PASTED_CONTENT_TOKENS,
+    ),
     defaultTemperature: parseFloat(env.DEFAULT_TEMPERATURE ?? ''),
     defaultThinkingBudget: parseInt(env.THINKING_BUDGET ?? '0', 10),
     opusAvailable: env.FACET_OPUS_AVAILABLE,
