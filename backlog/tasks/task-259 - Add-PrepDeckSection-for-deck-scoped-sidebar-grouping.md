@@ -1,9 +1,11 @@
 ---
 id: TASK-259
 title: Add PrepDeckSection for deck-scoped sidebar grouping
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-05-11 04:53'
+updated_date: '2026-05-26 00:59'
 labels:
   - prep
   - types
@@ -45,6 +47,12 @@ Depends on TASK-254 — sections reference cards, and the per-kind interfaces le
 - [ ] #6 Contract validator allows the optional field and asserts cardIds resolve to actual card IDs in deck.cards
 - [ ] #7 Regression tests cover sidebar rendering with sections present and absent, plus generator section emission per round type
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-05-26 Codex starting TASK-259. Plan: add PrepDeckSection and optional PrepDeck.sections; normalize/import/export/persist the optional deck sections safely; update PrepLiveMode/PrepPage sidebar grouping to prefer deck.sections and preserve current category fallback; teach prepGenerator schema/prompt/normalization/contract validation to emit/validate panel and technical round sections; add focused tests for typed deck sections, sidebar section rendering/fallback, generator emission, and invalid cardIds; run scoped tests, typecheck/lint/format/full-enough regression gates, independent review/audit where available, commit via cortex git commit, then close with receipts.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
