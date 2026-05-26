@@ -1,10 +1,10 @@
 ---
 id: TASK-246
 title: Wire run refresh into batch staleness review with cost confirmation
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-05-09'
-updated_date: '2026-05-26 04:08'
+updated_date: '2026-05-26 04:45'
 labels:
   - shepherding
   - staleness
@@ -46,23 +46,31 @@ The cost UX is a meaningful design surface — modal vs. inline confirm, what co
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Stale runs in the batch staleness review show a "Refresh search run" button (not "Refresh pending")
-- [ ] #2 Clicking refresh surfaces a cost confirmation step before any deep-search call is initiated
-- [ ] #3 User can cancel from the cost confirmation without side effects
-- [ ] #4 On confirm, the run is re-generated against the latest Identity-applied thesis snapshot via createDeepResearchJob + streaming
-- [ ] #5 Mid-flight identity drift recovery follows the same partial-success semantic as cover-letter / prep-deck handlers
-- [ ] #6 Pre-flight failure (rate limit, billing, proxy down) surfaces a specific error and leaves the original run intact
-- [ ] #7 In-progress visual state distinct from snappier refresh button states (60-120s wait)
-- [ ] #8 Panel copy updated: drop "run-level refresh isn't available yet" once the button ships
-- [ ] #9 Regression test for cost-confirmation flow (cancel vs. confirm) and dispatcher routing
+- [x] #1 Stale runs in the batch staleness review show a "Refresh search run" button (not "Refresh pending")
+- [x] #2 Clicking refresh surfaces a cost confirmation step before any deep-search call is initiated
+- [x] #3 User can cancel from the cost confirmation without side effects
+- [x] #4 On confirm, the run is re-generated against the latest Identity-applied thesis snapshot via createDeepResearchJob + streaming
+- [x] #5 Mid-flight identity drift recovery follows the same partial-success semantic as cover-letter / prep-deck handlers
+- [x] #6 Pre-flight failure (rate limit, billing, proxy down) surfaces a specific error and leaves the original run intact
+- [x] #7 In-progress visual state distinct from snappier refresh button states (60-120s wait)
+- [x] #8 Panel copy updated: drop "run-level refresh isn't available yet" once the button ships
+- [x] #9 Regression test for cost-confirmation flow (cancel vs. confirm) and dispatcher routing
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Implemented stale search-run refresh from the batch staleness review. Search runs now show Refresh search run, open a cost confirmation before calling createDeepResearchJob, regenerate against the preserved thesis snapshot with latest Identity revision/fields, hydrate the existing run through active job polling, and stamp accepted-current only when the original review context is still current. Preflight failures leave the original run intact; terminal failed/canceled jobs now surface explicit notices.
+
+Verification: npx vitest run src/test/ResearchPage.test.tsx (96 passed); npm run typecheck; npm run lint -- src/routes/research/ResearchPage.tsx src/test/ResearchPage.test.tsx; npm run format:files:check -- src/routes/research/ResearchPage.tsx src/test/ResearchPage.test.tsx; independent source review PASS WITH ISSUES with deferred follow-up TASK-246.1; independent diff test audit clean with no prioritized gaps.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
-- [ ] #3 All tests pass successfully
-- [ ] #4 Automatic formatting was applied.
-- [ ] #5 Linters report no WARNINGS or ERRORS
-- [ ] #6 The project builds successfully
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
+- [x] #3 All tests pass successfully
+- [x] #4 Automatic formatting was applied.
+- [x] #5 Linters report no WARNINGS or ERRORS
+- [x] #6 The project builds successfully
 <!-- DOD:END -->
