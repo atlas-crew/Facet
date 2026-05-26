@@ -1,10 +1,11 @@
 ---
 id: TASK-224
 title: Add unclassified-audience observability and review workflow
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-05-06 07:33'
-updated_date: '2026-05-06 20:29'
+updated_date: '2026-05-26 18:57'
 labels:
   - audience-tagging
   - observability
@@ -49,3 +50,9 @@ Add three layers of visibility:
 - [ ] #5 Linters report no WARNINGS or ERRORS
 - [ ] #6 The project builds successfully
 <!-- DOD:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-05-26 Codex starting TASK-224. Plan: inspect audience projection/rules and current identity debug surfaces, add projection-level unclassified counts plus dev warning, surface a compact review path for unclassified insights, cover threshold/count/UI behavior with production-shaped fixtures, run focused/full gates plus independent review/audit, commit/close/push.
+<!-- SECTION:NOTES:END -->
