@@ -1,9 +1,11 @@
 ---
 id: TASK-256
 title: 'Add Anchor card kind with sub-decisions, pushback, and honest tradeoff'
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-05-11 04:52'
+updated_date: '2026-05-26 00:01'
 labels:
   - prep
   - types
@@ -46,6 +48,12 @@ Depends on TASK-254 — without the union foundation there is no `kind` dispatch
 - [ ] #6 Contract validator asserts subDecisions is non-empty (length >= 1, ideally >= 3) on every anchor card
 - [ ] #7 Regression tests cover renderer (sub-decision visibility, pushback/tradeoff callouts) and generator emission of anchor cards with sub-decisions
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-05-25 Codex starting TASK-256. Plan: read doc-28 anchor-card design and current TASK-254 prep discriminated-union implementation; add PrepAnchorCard/PrepAnchorSubDecision + isAnchorCard; update PrepCardView renderer with umbrella story plus sub-decision list/callouts; update prepGenerator prompt/normalization/contract validation to emit/accept anchor cards with non-empty subDecisions; add focused renderer and generator/validator regression tests; run scoped tests, typecheck/lint/format, independent review/audit, commit with cortex git commit, then close with receipts.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
