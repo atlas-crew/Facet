@@ -12,8 +12,10 @@ import { Download, FileJson, Upload } from 'lucide-react'
 import { professionalIdentityToResumeData } from '../../identity/resumeAdapter'
 import type { ProfessionalIdentityV3 } from '../../identity/schema'
 import { getActiveResumeScan, useIdentityStore } from '../../store/identityStore'
+import { useJDAnalysisStore } from '../../store/jdAnalysisStore'
 import { useResumeStore } from '../../store/resumeStore'
 import { useUiStore } from '../../store/uiStore'
+import { PRODUCTION_AUDIENCES, type AudienceTag } from '../../types/audience'
 import {
   getSupplementalContextLengthError,
   SUPPLEMENTAL_CONTEXT_MAX_BYTES,
@@ -41,6 +43,13 @@ import {
   findNextPendingIdentitySkill,
   getIdentityEnrichmentProgress,
 } from '../../utils/identityEnrichment'
+import {
+  buildUnclassifiedAudienceSummary,
+  formatAudienceLabel,
+  setAudienceOverrideForInsight,
+} from '../../utils/audienceFilter'
+import type { UnclassifiedAudienceInsight } from '../../utils/audienceFilter'
+import type { JDAnalysis } from '../../types/jdAnalysis'
 import { BulletConfidenceCard } from './BulletConfidenceCard'
 import { DraftSummaryCard } from './DraftSummaryCard'
 import { ExtractionAgentCard } from './ExtractionAgentCard'
@@ -70,6 +79,8 @@ type IdentityPrimaryAction =
 const assertNever = (value: never): never => {
   throw new Error(`Unexpected identity action: ${String(value)}`)
 }
+
+const insightLabelDetail = (label: string): string => label.replace(/^[^:]+:\s*/, '')
 
 const hasPopulatedIdentity = (identity: ProfessionalIdentityV3 | null) =>
   Boolean(
@@ -175,8 +186,41 @@ export function IdentityPage() {
   const setSelectedVector = useUiStore((state) => state.setSelectedVector)
   const setComparisonVector = useUiStore((state) => state.setComparisonVector)
   const setData = useResumeStore((state) => state.setData)
+  const jdAnalyses = useJDAnalysisStore((state) => state.analyses)
+  const upsertAnalysis = useJDAnalysisStore((state) => state.upsertAnalysis)
 
   const aiEndpoint = useMemo(() => sanitizeEndpointUrl(facetClientEnv.anthropicProxyUrl), [])
+
+  const unclassifiedAudienceItems = useMemo(
+    () =>
+      jdAnalyses.flatMap((analysis) =>
+        buildUnclassifiedAudienceSummary(analysis).insights.map((insight) => ({
+          analysis,
+          insight,
+        })),
+      ),
+    [jdAnalyses],
+  )
+
+  const handleRetagUnclassifiedInsight = useCallback(
+    (analysis: JDAnalysis, insight: UnclassifiedAudienceInsight, audience: AudienceTag) => {
+      const currentAnalysis =
+        useJDAnalysisStore.getState().analyses.find((entry) => entry.id === analysis.id) ?? analysis
+      const currentInsight = buildUnclassifiedAudienceSummary(currentAnalysis).insights.find(
+        (entry) => entry.key === insight.key,
+      )
+      if (!currentInsight) {
+        setPageNotice(null)
+        setPageError('That JD insight has already been reviewed.')
+        return
+      }
+
+      upsertAnalysis(setAudienceOverrideForInsight(currentAnalysis, currentInsight, audience))
+      setPageError(null)
+      setPageNotice(`Tagged "${currentInsight.label}" for ${formatAudienceLabel(audience)}.`)
+    },
+    [upsertAnalysis],
+  )
 
   useEffect(
     () => () => {
@@ -1317,6 +1361,62 @@ export function IdentityPage() {
                   ) : null}
                 </div>
               </div>
+            </section>
+          ) : null}
+
+          {unclassifiedAudienceItems.length > 0 ? (
+            <section className="identity-card identity-audience-review">
+              <div className="identity-card-header">
+                <div>
+                  <p className="identity-eyebrow">Audience Review</p>
+                  <h2>Review unclassified JD insights</h2>
+                  <p className="identity-muted">
+                    {unclassifiedAudienceItems.length}{' '}
+                    {unclassifiedAudienceItems.length === 1 ? 'insight needs' : 'insights need'} an
+                    audience before they appear in candidate, recruiter, hiring-manager, or internal
+                    projections.
+                  </p>
+                </div>
+              </div>
+
+              <ul className="identity-audience-review-list">
+                {unclassifiedAudienceItems.map(({ analysis, insight }) => {
+                  const showInsightText = insight.text !== insightLabelDetail(insight.label)
+                  return (
+                    <li className="identity-audience-review-item" key={insight.key}>
+                      <div>
+                        <p className="identity-audience-review-meta">{insight.analysisLabel}</p>
+                        <h3>{insight.label}</h3>
+                        {showInsightText ? <p>{insight.text}</p> : null}
+                      </div>
+
+                      <label className="identity-field identity-audience-review-field">
+                        <span className="identity-label">Audience</span>
+                        <select
+                          className="identity-input"
+                          aria-label={`Audience for ${insight.label}`}
+                          value=""
+                          onChange={(event) => {
+                            const audience = event.target.value as AudienceTag
+                            if (PRODUCTION_AUDIENCES.includes(audience)) {
+                              handleRetagUnclassifiedInsight(analysis, insight, audience)
+                            }
+                          }}
+                        >
+                          <option value="" disabled hidden>
+                            Assign
+                          </option>
+                          {PRODUCTION_AUDIENCES.map((audience) => (
+                            <option key={audience} value={audience}>
+                              {formatAudienceLabel(audience)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </li>
+                  )
+                })}
+              </ul>
             </section>
           ) : null}
 

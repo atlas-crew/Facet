@@ -4,11 +4,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { IdentityPage } from '../routes/identity/IdentityPage'
 import { getActiveResumeScan, useIdentityStore } from '../store/identityStore'
+import { useJDAnalysisStore } from '../store/jdAnalysisStore'
 import { useResumeStore } from '../store/resumeStore'
 import { useUiStore } from '../store/uiStore'
 import { resolveStorage } from '../store/storage'
 import { cloneIdentityFixture } from './fixtures/identityFixture'
+import { applyRulesBasedAudiences } from '../utils/audienceRules'
 import type { IntakeSource, ResumeScanResult } from '../types/identity'
+import type { JDAnalysis } from '../types/jdAnalysis'
 
 const navigateMock = vi.fn(async () => undefined)
 const identityExtractionMocks = vi.hoisted(() => ({
@@ -130,6 +133,67 @@ const scanFixtureWithTwoBullets = (): ResumeScanResult => {
   return result
 }
 
+const jdAnalysisFixture = (): JDAnalysis =>
+  applyRulesBasedAudiences({
+    id: 'analysis-identity-review',
+    pipelineEntryId: 'pipe-identity-review',
+    jdTextHash: 'hash',
+    identityVersion: 1,
+    modelVersion: 'jd-analysis.v1.match-multipass-sonnet',
+    generatedAt: '2026-05-06T00:00:00.000Z',
+    updatedAt: '2026-05-06T00:00:00.000Z',
+    warnings: [],
+    company: 'Acme',
+    role: 'Staff Platform Engineer',
+    summary: '',
+    analyzedJobDescription: '',
+    jobDescriptionWordCount: 0,
+    jobDescriptionTruncated: false,
+    requirements: [
+      {
+        id: 'req-platform',
+        label: 'Platform ownership',
+        priority: 'core',
+        evidence: 'Owns distributed systems.',
+        tags: [],
+        keywords: [],
+        coverageScore: 0.4,
+        matchedAssetCount: 0,
+        matchedTags: [],
+        audiences: { inferred: ['recruiter'], asserted: ['unclassified'] },
+      },
+    ],
+    overallFit: 'strong',
+    fitScore: 0.8,
+    confidence: 'high',
+    recommendation: 'apply',
+    oneLineSummary: '',
+    rationale: '',
+    matchedVectors: [],
+    primaryVectorId: null,
+    skillMatches: [],
+    evidenceMapping: {
+      topBullets: [],
+      topSkills: [],
+      topProjects: [],
+      topProfiles: [],
+      topPhilosophy: [],
+    },
+    strengthsToLead: [],
+    advantages: [],
+    advantageHypotheses: [],
+    gaps: [],
+    gapFocus: [],
+    watchOuts: [],
+    triggeredPrioritize: [],
+    triggeredAvoid: [],
+    relevantAwareness: [],
+    positioningRecommendations: [],
+    requirementCoverageScore: 0,
+    matchedRequirementIds: [],
+    matchedKeywords: [],
+  })
+
 const createAbortError = (): DOMException =>
   new DOMException('The operation was aborted.', 'AbortError')
 
@@ -229,6 +293,7 @@ describe('IdentityPage', () => {
       changelog: [],
       lastError: null,
     })
+    useJDAnalysisStore.setState({ analyses: [] })
 
     identityExtractionMocks.generateIdentityDraftMock.mockReset()
     identityExtractionMocks.generateIdentityDraftMock.mockResolvedValue({
@@ -268,6 +333,72 @@ describe('IdentityPage', () => {
     vi.useRealTimers()
     vi.restoreAllMocks()
     navigateMock.mockReset()
+  })
+
+  it('surfaces unclassified JD insights and lets the user retag them', () => {
+    useJDAnalysisStore.setState({ analyses: [jdAnalysisFixture()] })
+
+    render(<IdentityPage />)
+
+    expect(screen.getByRole('heading', { name: 'Review unclassified JD insights' })).toBeTruthy()
+    expect(screen.getByText('Acme - Staff Platform Engineer')).toBeTruthy()
+    expect(screen.getByText('Requirements: Platform ownership')).toBeTruthy()
+    expect(screen.getByText(/1 insight needs an audience/)).toBeTruthy()
+
+    fireEvent.change(screen.getByLabelText('Audience for Requirements: Platform ownership'), {
+      target: { value: 'candidate' },
+    })
+
+    const updatedAnalysis = useJDAnalysisStore.getState().analyses[0]
+    expect(updatedAnalysis?.requirements[0]?.audiences.asserted).toEqual(['candidate'])
+    expect(
+      screen.getByText('Tagged "Requirements: Platform ownership" for Candidate.'),
+    ).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: 'Review unclassified JD insights' })).toBeNull()
+  })
+
+  it('shows a stale-review error when a JD insight was already retagged', () => {
+    const analysis = jdAnalysisFixture()
+    useJDAnalysisStore.setState({
+      analyses: [
+        {
+          ...analysis,
+          warnings: [
+            {
+              text: 'Second unclassified item.',
+              audiences: { inferred: ['unclassified'], asserted: null },
+            },
+          ],
+        },
+      ],
+    })
+
+    render(<IdentityPage />)
+
+    expect(screen.getByText(/2 insights need an audience/)).toBeTruthy()
+    const staleSelect = screen.getByLabelText('Audience for Requirements: Platform ownership')
+
+    useJDAnalysisStore.getState().analyses[0] = {
+      ...analysis,
+      requirements: [
+        {
+          ...analysis.requirements[0]!,
+          audiences: { inferred: ['recruiter'], asserted: ['candidate'] },
+        },
+      ],
+      warnings: [],
+    }
+
+    fireEvent.change(staleSelect, {
+      target: { value: 'recruiter' },
+    })
+
+    expect(screen.getByRole('alert').textContent).toContain(
+      'That JD insight has already been reviewed.',
+    )
+    expect(useJDAnalysisStore.getState().analyses[0]?.requirements[0]?.audiences.asserted).toEqual([
+      'candidate',
+    ])
   })
 
   it('uploads a PDF, populates the scan editor, and uses the scanned identity as the AI seed', async () => {

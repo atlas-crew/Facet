@@ -318,6 +318,59 @@
   gap: var(--space-2);
 }
 
+.identity-audience-review {
+  border-color: color-mix(in srgb, var(--warning) 32%, var(--border-subtle));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--warning) 10%, var(--bg-surface)) 0%,
+    var(--bg-surface) 100%
+  );
+}
+
+.identity-audience-review-list {
+  display: grid;
+  gap: var(--space-2);
+  max-height: min(480px, 60vh);
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.identity-audience-review-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 240px);
+  gap: var(--space-3);
+  align-items: start;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--bg-inset) 86%, transparent);
+  padding: var(--space-3);
+}
+
+.identity-audience-review-item h3 {
+  margin: var(--space-1) 0 0;
+  color: var(--text-primary);
+  font-size: 15px;
+}
+
+.identity-audience-review-item p {
+  margin: var(--space-2) 0 0;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.identity-audience-review-meta {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.identity-audience-review-field {
+  min-width: 0;
+}
+
 .identity-card-header {
   display: flex;
   align-items: flex-start;
@@ -478,6 +531,10 @@
 
   .identity-form-grid,
   .identity-inline-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .identity-audience-review-item {
     grid-template-columns: minmax(0, 1fr);
   }
 }

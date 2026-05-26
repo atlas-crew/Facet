@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   type AudienceAssignment,
   type TaggedNote,
@@ -7,11 +7,26 @@ import {
   notesText,
   resolveAudiences,
 } from '../types/audience'
-import { filterInsights, notesForAudience, projectForAudience } from '../utils/audienceFilter'
-import { AUDIENCE_RULES_VERSION, applyRulesBasedAudiences, type JDAnalysisLike } from '../utils/audienceRules'
+import {
+  buildUnclassifiedAudienceSummary,
+  filterInsights,
+  formatAudienceLabel,
+  notesForAudience,
+  projectForAudience,
+  setAudienceOverrideForInsight,
+  type UnclassifiedAudienceInsight,
+} from '../utils/audienceFilter'
+import {
+  AUDIENCE_RULES_VERSION,
+  applyRulesBasedAudiences,
+  type JDAnalysisLike,
+} from '../utils/audienceRules'
+import type { JDAnalysis } from '../types/jdAnalysis'
 import type { MatchAssetScore } from '../types/match'
 
-const baseAssignment = (inferred: AudienceAssignment['inferred'] = ['unclassified']): AudienceAssignment => ({
+const baseAssignment = (
+  inferred: AudienceAssignment['inferred'] = ['unclassified'],
+): AudienceAssignment => ({
   inferred,
   asserted: null,
 })
@@ -56,7 +71,13 @@ const baseAnalysis = (): JDAnalysisLike => ({
   matchedVectors: [],
   primaryVectorId: null,
   skillMatches: [],
-  evidenceMapping: { topBullets: [], topSkills: [], topProjects: [], topProfiles: [], topPhilosophy: [] },
+  evidenceMapping: {
+    topBullets: [],
+    topSkills: [],
+    topProjects: [],
+    topProfiles: [],
+    topPhilosophy: [],
+  },
   strengthsToLead: [],
   advantages: [],
   advantageHypotheses: [],
@@ -70,6 +91,10 @@ const baseAnalysis = (): JDAnalysisLike => ({
   requirementCoverageScore: 0,
   matchedRequirementIds: [],
   matchedKeywords: [],
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
 })
 
 describe('audience module — type helpers', () => {
@@ -103,6 +128,13 @@ describe('audience module — type helpers', () => {
 })
 
 describe('audience module — filter helpers', () => {
+  it('formatAudienceLabel normalizes audience and collection labels', () => {
+    expect(formatAudienceLabel('requirements')).toBe('Requirements')
+    expect(formatAudienceLabel('evidenceMapping.topBullets')).toBe('Evidence Mapping Top Bullets')
+    expect(formatAudienceLabel('hiring_manager')).toBe('Hiring Manager')
+    expect(formatAudienceLabel('foo_bar-baz')).toBe('Foo Bar Baz')
+  })
+
   it('filterInsights keeps items whose effective audiences include the requested audience', () => {
     const items = [
       taggedAsset({ id: 'a', audiences: baseAssignment(['recruiter']) }),
@@ -145,8 +177,22 @@ describe('audience module — filter helpers', () => {
     const tagged = applyRulesBasedAudiences({
       ...baseAnalysis(),
       gaps: [
-        { requirementId: 'r1', label: 'low gap', severity: 'low', reason: '', tags: [], audiences: baseAssignment() },
-        { requirementId: 'r2', label: 'high gap', severity: 'high', reason: '', tags: [], audiences: baseAssignment() },
+        {
+          requirementId: 'r1',
+          label: 'low gap',
+          severity: 'low',
+          reason: '',
+          tags: [],
+          audiences: baseAssignment(),
+        },
+        {
+          requirementId: 'r2',
+          label: 'high gap',
+          severity: 'high',
+          reason: '',
+          tags: [],
+          audiences: baseAssignment(),
+        },
       ],
       evidenceMapping: {
         topBullets: [taggedAsset({ id: 'asset-strong', score: 0.9 })],
@@ -174,6 +220,342 @@ describe('audience module — filter helpers', () => {
     const analysis = applyRulesBasedAudiences(baseAnalysis())
     const projection = projectForAudience(analysis, 'recruiter')
     expect(projection.matchedKeywords).toEqual([])
+  })
+
+  it('projectForAudience exposes unclassified counts and insight metadata', () => {
+    const analysis: JDAnalysis = {
+      ...applyRulesBasedAudiences(baseAnalysis()),
+      requirements: [
+        {
+          id: 'req-platform',
+          label: 'Platform ownership',
+          priority: 'core',
+          evidence: 'Owns distributed systems.',
+          tags: [],
+          keywords: [],
+          coverageScore: 0.4,
+          matchedAssetCount: 0,
+          matchedTags: [],
+          audiences: { inferred: ['recruiter'], asserted: ['unclassified'] },
+        },
+      ],
+      strengthsToLead: [
+        {
+          text: 'Lead with platform migration work.',
+          audiences: baseAssignment(['candidate']),
+        },
+      ],
+      evidenceMapping: {
+        topBullets: [
+          taggedAsset({ id: 'orphan-proof', audiences: baseAssignment(['unclassified']) }),
+        ],
+        topSkills: [],
+        topProjects: [],
+        topProfiles: [],
+        topPhilosophy: [],
+      },
+    }
+
+    const projection = projectForAudience(analysis, 'candidate')
+
+    expect(projection.requirements).toEqual([])
+    expect(projection.evidenceMapping.topBullets).toEqual([])
+    expect(projection.strengthsToLead.map((note) => note.text)).toEqual([
+      'Lead with platform migration work.',
+    ])
+    expect(projection.unclassifiedCount).toBe(2)
+    expect(projection.unclassifiedTotal).toBe(3)
+    expect(projection.unclassifiedRatio).toBeCloseTo(2 / 3)
+    expect(projection.unclassifiedInsights.map((insight) => insight.collection)).toEqual([
+      'requirements',
+      'evidenceMapping.topBullets',
+    ])
+    expect(projection.unclassifiedInsights[0]).toMatchObject({
+      key: 'analysis-1:requirements:0',
+      analysisId: 'analysis-1',
+      analysisLabel: 'Acme - Staff Eng',
+      index: 0,
+      label: 'Requirements: Platform ownership',
+      text: 'Owns distributed systems.',
+    })
+  })
+
+  it('buildUnclassifiedAudienceSummary uses fallback fields for sparse insight labels', () => {
+    const analysis: JDAnalysis = {
+      ...applyRulesBasedAudiences(baseAnalysis()),
+      warnings: [
+        {
+          text: '   ',
+          audiences: baseAssignment(['unclassified']),
+        },
+      ],
+      skillMatches: [
+        {
+          skillName: 'Rust',
+          jdRequirement: '',
+          requirementStrength: 'preferred',
+          userDepth: 'strong',
+          userPositioning: '',
+          matchQuality: 'strong',
+          presentationGuidance: 'Position Rust as systems ownership.',
+          audiences: baseAssignment(['unclassified']),
+        },
+      ],
+    }
+
+    const summary = buildUnclassifiedAudienceSummary(analysis)
+
+    expect(summary.totalTaggedCount).toBe(2)
+    expect(summary.unclassifiedRatio).toBe(1)
+    expect(summary.insights).toEqual([
+      expect.objectContaining({
+        label: 'Warnings: Unclassified insight',
+        text: 'Unclassified insight',
+      }),
+      expect.objectContaining({
+        label: 'Skill Matches: Rust',
+        text: 'Position Rust as systems ownership.',
+      }),
+    ])
+  })
+
+  it('warns once in dev when unclassified insights exceed the review threshold', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const analysis: JDAnalysis = {
+      ...applyRulesBasedAudiences({
+        ...baseAnalysis(),
+        id: 'analysis-warn-threshold',
+        updatedAt: '2026-05-06T00:00:01.000Z',
+      }),
+      warnings: [
+        {
+          text: 'Unrouted warning.',
+          audiences: baseAssignment(['unclassified']),
+        },
+      ],
+    }
+
+    projectForAudience(analysis, 'candidate')
+    projectForAudience(analysis, 'candidate')
+
+    expect(warnSpy).toHaveBeenCalledTimes(import.meta.env.DEV ? 1 : 0)
+    if (import.meta.env.DEV) {
+      expect(warnSpy.mock.calls[0]?.[0]).toContain('unclassified')
+      expect(warnSpy.mock.calls[0]?.[1]).toMatchObject({
+        analysisId: 'analysis-warn-threshold',
+        audience: 'candidate',
+        unclassifiedCount: 1,
+      })
+    }
+  })
+
+  it('does not warn when unclassified insight ratio is at the threshold', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const analysis: JDAnalysis = {
+      ...applyRulesBasedAudiences({
+        ...baseAnalysis(),
+        id: 'analysis-warn-boundary',
+        updatedAt: '2026-05-06T00:00:02.000Z',
+      }),
+      warnings: [
+        {
+          text: 'One unclassified warning.',
+          audiences: baseAssignment(['unclassified']),
+        },
+      ],
+      strengthsToLead: Array.from({ length: 9 }, (_, index) => ({
+        text: `Candidate note ${index + 1}`,
+        audiences: baseAssignment(['candidate']),
+      })),
+    }
+
+    projectForAudience(analysis, 'candidate')
+
+    expect(warnSpy).not.toHaveBeenCalled()
+  })
+
+  it('warns again for a different audience or updated analysis snapshot', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const analysis: JDAnalysis = {
+      ...applyRulesBasedAudiences({
+        ...baseAnalysis(),
+        id: 'analysis-warn-keying',
+        updatedAt: '2026-05-06T00:00:03.000Z',
+      }),
+      warnings: [
+        {
+          text: 'Unrouted warning.',
+          audiences: baseAssignment(['unclassified']),
+        },
+      ],
+    }
+
+    projectForAudience(analysis, 'candidate')
+    projectForAudience(analysis, 'recruiter')
+    projectForAudience({ ...analysis, updatedAt: '2026-05-06T00:00:04.000Z' }, 'candidate')
+
+    expect(warnSpy).toHaveBeenCalledTimes(import.meta.env.DEV ? 3 : 0)
+  })
+
+  it('evicts old dev warning keys after the warning cache limit', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const protectedAnalysis: JDAnalysis = {
+      ...applyRulesBasedAudiences({
+        ...baseAnalysis(),
+        id: 'analysis-warning-lru-0',
+        updatedAt: '2026-05-06T00:01:00.000Z',
+      }),
+      warnings: [{ text: 'Unrouted warning 0.', audiences: baseAssignment(['unclassified']) }],
+    }
+
+    projectForAudience(protectedAnalysis, 'candidate')
+    for (let index = 1; index <= 199; index += 1) {
+      projectForAudience(
+        {
+          ...protectedAnalysis,
+          id: `analysis-warning-lru-${index}`,
+          updatedAt: `2026-05-06T00:01:${String(index).padStart(2, '0')}.000Z`,
+          warnings: [
+            {
+              text: `Unrouted warning ${index}.`,
+              audiences: baseAssignment(['unclassified']),
+            },
+          ],
+        },
+        'candidate',
+      )
+    }
+    const callsAtCapacity = warnSpy.mock.calls.length
+    projectForAudience(protectedAnalysis, 'candidate')
+    expect(warnSpy).toHaveBeenCalledTimes(callsAtCapacity)
+
+    projectForAudience(
+      {
+        ...protectedAnalysis,
+        id: 'analysis-warning-lru-200',
+        updatedAt: '2026-05-06T00:01:200.000Z',
+        warnings: [{ text: 'Unrouted warning 200.', audiences: baseAssignment(['unclassified']) }],
+      },
+      'candidate',
+    )
+    const callsAfterEviction = warnSpy.mock.calls.length
+    expect(callsAfterEviction).toBe(callsAtCapacity + (import.meta.env.DEV ? 1 : 0))
+
+    projectForAudience(protectedAnalysis, 'candidate')
+    expect(warnSpy).toHaveBeenCalledTimes(callsAfterEviction + (import.meta.env.DEV ? 1 : 0))
+  })
+
+  it('caches unclassified summaries until the analysis update stamp changes', () => {
+    const analysis: JDAnalysis = {
+      ...applyRulesBasedAudiences({
+        ...baseAnalysis(),
+        id: 'analysis-summary-cache',
+        updatedAt: '2026-05-06T00:02:00.000Z',
+      }),
+      warnings: [{ text: 'First warning.', audiences: baseAssignment(['unclassified']) }],
+    }
+
+    const first = buildUnclassifiedAudienceSummary(analysis)
+    expect(buildUnclassifiedAudienceSummary(analysis)).toBe(first)
+
+    analysis.updatedAt = '2026-05-06T00:02:01.000Z'
+    analysis.warnings = [
+      ...analysis.warnings,
+      { text: 'Second warning.', audiences: baseAssignment(['unclassified']) },
+    ]
+
+    const second = buildUnclassifiedAudienceSummary(analysis)
+    expect(second).not.toBe(first)
+    expect(second.unclassifiedCount).toBe(2)
+  })
+
+  it('applies manual audience overrides for unclassified insight review', () => {
+    const analysis: JDAnalysis = {
+      ...applyRulesBasedAudiences(baseAnalysis()),
+      warnings: [
+        {
+          text: 'Needs manual routing.',
+          audiences: { inferred: ['internal'], asserted: ['recruiter', 'unclassified'] },
+        },
+      ],
+    }
+    const insight = buildUnclassifiedAudienceSummary(analysis).insights[0]!
+
+    const updated = setAudienceOverrideForInsight(analysis, insight, 'candidate')
+
+    expect(updated.warnings[0]!.audiences.asserted).toEqual(['recruiter', 'candidate'])
+    expect(projectForAudience(updated, 'candidate').warnings.map((note) => note.text)).toEqual([
+      'Needs manual routing.',
+    ])
+
+    const inferredOnlyAnalysis: JDAnalysis = {
+      ...analysis,
+      id: 'analysis-inferred-unclassified',
+      warnings: [
+        {
+          text: 'Only inferred unclassified.',
+          audiences: baseAssignment(['unclassified']),
+        },
+      ],
+    }
+    const inferredOnlyInsight = buildUnclassifiedAudienceSummary(inferredOnlyAnalysis).insights[0]!
+    const updatedInferredOnly = setAudienceOverrideForInsight(
+      inferredOnlyAnalysis,
+      inferredOnlyInsight,
+      'candidate',
+    )
+    expect(updatedInferredOnly.warnings[0]!.audiences.asserted).toEqual(['candidate'])
+
+    const evidenceAnalysis: JDAnalysis = {
+      ...analysis,
+      id: 'analysis-evidence-override',
+      evidenceMapping: {
+        ...analysis.evidenceMapping,
+        topBullets: [
+          taggedAsset({ id: 'orphan-proof', audiences: baseAssignment(['unclassified']) }),
+        ],
+      },
+      warnings: [],
+    }
+    const evidenceInsight = buildUnclassifiedAudienceSummary(evidenceAnalysis).insights[0]!
+    const updatedEvidence = setAudienceOverrideForInsight(
+      evidenceAnalysis,
+      evidenceInsight,
+      'candidate',
+    )
+    expect(updatedEvidence.evidenceMapping.topBullets[0]!.audiences.asserted).toEqual(['candidate'])
+    expect(
+      projectForAudience(updatedEvidence, 'candidate').evidenceMapping.topBullets.map(
+        (asset) => asset.id,
+      ),
+    ).toEqual(['orphan-proof'])
+
+    const duplicateAudienceAnalysis: JDAnalysis = {
+      ...analysis,
+      id: 'analysis-duplicate-audience',
+      warnings: [
+        {
+          text: 'Already candidate tagged.',
+          audiences: { inferred: ['internal'], asserted: ['candidate', 'unclassified'] },
+        },
+      ],
+    }
+    const duplicateAudienceInsight =
+      buildUnclassifiedAudienceSummary(duplicateAudienceAnalysis).insights[0]!
+    const updatedDuplicateAudience = setAudienceOverrideForInsight(
+      duplicateAudienceAnalysis,
+      duplicateAudienceInsight,
+      'candidate',
+    )
+    expect(updatedDuplicateAudience.warnings[0]!.audiences.asserted).toEqual(['candidate'])
+
+    const badInsight: UnclassifiedAudienceInsight = {
+      ...duplicateAudienceInsight,
+      collection: 'summary' as UnclassifiedAudienceInsight['collection'],
+    }
+    expect(setAudienceOverrideForInsight(duplicateAudienceAnalysis, badInsight, 'candidate')).toBe(
+      duplicateAudienceAnalysis,
+    )
   })
 })
 
@@ -209,7 +591,10 @@ describe('audienceRules — applyRulesBasedAudiences', () => {
   })
 
   it('re-applies rules when audienceRulesVersion is missing or stale', () => {
-    const stale = { ...applyRulesBasedAudiences(baseAnalysis()), audienceRulesVersion: 'audience-rules.v0' }
+    const stale = {
+      ...applyRulesBasedAudiences(baseAnalysis()),
+      audienceRulesVersion: 'audience-rules.v0',
+    }
     const refreshed = applyRulesBasedAudiences(stale as JDAnalysisLike)
     expect(refreshed.audienceRulesVersion).toBe(AUDIENCE_RULES_VERSION)
   })
@@ -247,7 +632,10 @@ describe('audienceRules — applyRulesBasedAudiences', () => {
         },
       ],
     })
-    expect(effectiveAudiences(analysis.gaps[0]!.audiences).sort()).toEqual(['candidate', 'recruiter'])
+    expect(effectiveAudiences(analysis.gaps[0]!.audiences).sort()).toEqual([
+      'candidate',
+      'recruiter',
+    ])
   })
 
   it('strips recruiter/HM from negative skill matches', () => {

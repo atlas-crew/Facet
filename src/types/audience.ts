@@ -23,12 +23,9 @@
 // the union below and update DEFAULT_AUDIENCES_BY_INSIGHT_TYPE in
 // `audienceRules.ts`. Pair with `assertNever` discipline at switch sites.
 
-export type AudienceTag =
-  | 'candidate'
-  | 'recruiter'
-  | 'hiring_manager'
-  | 'internal'
-  | 'unclassified'
+export type AudienceTag = 'candidate' | 'recruiter' | 'hiring_manager' | 'internal' | 'unclassified'
+
+export const UNCLASSIFIED_AUDIENCE: AudienceTag = 'unclassified'
 
 export const PRODUCTION_AUDIENCES: ReadonlyArray<AudienceTag> = [
   'candidate',
@@ -77,8 +74,7 @@ export const effectiveAudiences = (assignment: AudienceAssignment): AudienceTag[
 
 export const noteText = (note: TaggedNote): string => note.text
 
-export const notesText = (notes: ReadonlyArray<TaggedNote>): string[] =>
-  notes.map(noteText)
+export const notesText = (notes: ReadonlyArray<TaggedNote>): string[] => notes.map(noteText)
 
 // Construction-site helper. Use at every site that creates a typed insight
 // whose final audience tags will be set later by `applyRulesBasedAudiences`
@@ -103,8 +99,13 @@ export const untaggedNote = (text: string): TaggedNote => ({
 const isAudienceAssignment = (value: unknown): value is AudienceAssignment => {
   if (typeof value !== 'object' || value === null) return false
   const candidate = value as Record<string, unknown>
-  return Array.isArray(candidate.inferred) && (candidate.asserted === null || Array.isArray(candidate.asserted))
+  return (
+    Array.isArray(candidate.inferred) &&
+    (candidate.asserted === null || Array.isArray(candidate.asserted))
+  )
 }
 
 export const hasAudiences = (value: unknown): value is AudienceTagged =>
-  typeof value === 'object' && value !== null && isAudienceAssignment((value as Record<string, unknown>).audiences)
+  typeof value === 'object' &&
+  value !== null &&
+  isAudienceAssignment((value as Record<string, unknown>).audiences)
