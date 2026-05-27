@@ -1,11 +1,11 @@
 ---
 id: TASK-51
 title: 'Pipeline: richer search across fields and saved filter sets'
-status: In Progress
+status: Done
 assignee:
   - '@codex'
 created_date: '2026-03-10 03:54'
-updated_date: '2026-05-27 20:54'
+updated_date: '2026-05-27 21:23'
 labels:
   - feature
   - pipeline
@@ -31,6 +31,8 @@ Current pipeline search only matches company/role. Expand search to other fields
 
 <!-- SECTION:NOTES:BEGIN -->
 2026-05-27 Codex starting TASK-51 as part of m-4 completion push. Plan: inspect Pipeline filters/search state and persistence boundaries, expand search fields, add local saved filter sets with UI and tests, keep performance behavior straightforward for moderate datasets, run review/audit gates, and commit atomically.
+
+Expanded Pipeline search across company, role, notes, next step, skills, and bounded job-description text; added browser-local named filter sets with save/apply/active-label behavior and localStorage normalization/validation tests. Verified with npx vitest run src/test/PipelinePage.test.tsx src/test/BuildPage.test.tsx src/test/pipelineStore.test.ts, npx eslint touched files, npx tsc --noEmit --pretty false, and git diff --check.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
