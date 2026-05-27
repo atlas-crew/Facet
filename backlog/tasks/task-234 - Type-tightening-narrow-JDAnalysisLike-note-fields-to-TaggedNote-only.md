@@ -1,9 +1,11 @@
 ---
 id: TASK-234
 title: 'Type tightening: narrow JDAnalysisLike note fields to TaggedNote[] only'
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-05-06 20:28'
+updated_date: '2026-05-27 11:49'
 labels:
   - audience-tagging
   - types
@@ -49,3 +51,9 @@ Once all callers produce `TaggedNote[]` (post-Phase-7), the union is dead weight
 - [ ] #5 Linters report no WARNINGS or ERRORS
 - [ ] #6 The project builds successfully
 <!-- DOD:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-05-27 Codex starting combined push with TASK-235/TASK-238. Plan: audit applyRulesBasedAudiences/JDAnalysisLike callers, narrow note fields to TaggedNote[], preserve legacy-string migration through explicit boundary normalization, update focused tests, then run gates/review/audit and close.
+<!-- SECTION:NOTES:END -->
