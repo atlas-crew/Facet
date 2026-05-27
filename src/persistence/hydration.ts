@@ -9,13 +9,13 @@ import { migratePrepState, usePrepStore } from '../store/prepStore'
 import { useRecruiterStore } from '../store/recruiterStore'
 import { normalizeResumeWorkspaceData, resumeMigration, useResumeStore } from '../store/resumeStore'
 import { normalizeResumeWorkspacePayload } from '../utils/resumeEntities'
+import { normalizeRecruiterCards } from '../utils/recruiterCardNormalization'
 import { migrateSearchState, useSearchStore } from '../store/searchStore'
 import type { SearchProfile } from '../types/search'
 import { resolveStorage } from '../store/storage'
 import { useUiStore } from '../store/uiStore'
 import type { DebriefSession } from '../types/debrief'
 import type { LinkedInProfileDraft } from '../types/linkedin'
-import type { RecruiterCard } from '../types/recruiter'
 import { cloneValue } from './clone'
 import {
   DEFAULT_LOCAL_WORKSPACE_ID,
@@ -111,7 +111,7 @@ export const applyWorkspaceSnapshotToStores = (snapshot: FacetWorkspaceSnapshot)
       null,
   }))
 
-  const recruiterCards = cloneValue(snapshot.artifacts.recruiter.payload.cards) as RecruiterCard[]
+  const recruiterCards = normalizeRecruiterCards(snapshot.artifacts.recruiter.payload.cards)
   useRecruiterStore.setState((state) => ({
     ...state,
     cards: recruiterCards,

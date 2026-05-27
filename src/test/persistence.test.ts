@@ -37,6 +37,7 @@ import {
 } from '../persistence/snapshot'
 import { assertValidWorkspaceSnapshot } from '../persistence/validation'
 import type { SearchProfile } from '../types/search'
+import { normalizeRecruiterCard, normalizeRecruiterCards } from '../utils/recruiterCardNormalization'
 import { buildWorkspaceSnapshot } from './fixtures/workspaceSnapshot'
 
 const LEGACY_KEYS = [
@@ -724,6 +725,112 @@ describe('persistence foundation', () => {
     expect(snapshot.artifacts.resume.payload.data.meta.name).toBe('Hydrated Name')
     snapshot.artifacts.coverLetters.payload.letters[0]!.name = 'Mutated Snapshot Letter'
     expect(useCoverLetterStore.getState().letters[0]?.name).toBe('Default')
+  })
+
+  it('normalizes legacy recruiter cards during workspace hydration', () => {
+    const snapshot = buildWorkspaceSnapshot()
+    snapshot.artifacts.recruiter.payload.cards = [
+      {
+        id: 'legacy-recruiter-1',
+        generatedAt: '2026-03-11T12:00:00.000Z',
+        company: 'Acme',
+        role: 'Staff Engineer',
+        candidateName: 'Jane Smith',
+        candidateTitle: 'Staff Platform Engineer',
+        matchScore: 0.82,
+        summary: 'Strong platform fit.',
+        recruiterHook: 'Jane Smith is a strong fit for Acme.',
+        suggestedIntro: 'Lead with platform migration wins.',
+        topReasons: ['Strong match on platform scope'],
+        proofPoints: ['Acme: Ported the platform to Kubernetes-based installs.'],
+        skillHighlights: ['Kubernetes'],
+        likelyConcerns: ['Domain ramp may take time.'],
+        durableMeta: 'legacy-corrupt-metadata',
+        positioningAngles: ['legacy angle'],
+        gapBridges: ['legacy bridge'],
+        notes: ['legacy note'],
+      } as unknown as (typeof snapshot.artifacts.recruiter.payload.cards)[number],
+    ]
+
+    applyWorkspaceSnapshotToStores(snapshot)
+
+    const [card] = useRecruiterStore.getState().cards
+    expect(card).toEqual(
+      expect.objectContaining({
+        id: 'legacy-recruiter-1',
+        matchScoreMethodology: '',
+        actionCta: '',
+        topReasons: ['Strong match on platform scope'],
+      }),
+    )
+    expect(card?.durableMeta).toBeUndefined()
+    expect(card).not.toHaveProperty('positioningAngles')
+    expect(card).not.toHaveProperty('gapBridges')
+    expect(card).not.toHaveProperty('notes')
+  })
+
+  it('normalizes recruiter card payload shapes defensively', () => {
+    const durableMeta = {
+      workspaceId: 'ws-1',
+      tenantId: null,
+      userId: 'user-1',
+      schemaVersion: 1,
+      revision: 3,
+      createdAt: '2026-03-11T12:00:00.000Z',
+      updatedAt: '2026-03-11T12:05:00.000Z',
+    }
+
+    expect(normalizeRecruiterCards(null)).toEqual([])
+    expect(normalizeRecruiterCards({ cards: [] })).toEqual([])
+    expect(normalizeRecruiterCards([null, undefined, 'not-an-object'])).toEqual([])
+
+    expect(
+      normalizeRecruiterCard({
+        id: 'recruiter-1',
+        durableMeta,
+        futureFeatureFlag: true,
+        generatedAt: 42,
+        company: null,
+        role: 'Staff Engineer',
+        candidateName: 'Jane Smith',
+        candidateTitle: 'Staff Platform Engineer',
+        matchScore: 'high',
+        matchScoreMethodology: 'Methodology.',
+        summary: 'Summary.',
+        recruiterHook: 'Hook.',
+        suggestedIntro: 'Intro.',
+        topReasons: ['Reason', 42],
+        proofPoints: ['Proof'],
+        skillHighlights: ['Kubernetes', null],
+        likelyConcerns: ['Concern'],
+        actionCta: 'Forward.',
+      }),
+    ).toEqual(
+      expect.objectContaining({
+        durableMeta,
+        futureFeatureFlag: true,
+        generatedAt: '',
+        company: '',
+        matchScore: 0,
+        topReasons: ['Reason'],
+        skillHighlights: ['Kubernetes'],
+      }),
+    )
+
+    expect(
+      normalizeRecruiterCard({
+        id: 'bad-meta',
+        durableMeta: {
+          workspaceId: 123,
+          tenantId: null,
+          userId: null,
+          schemaVersion: 1,
+          revision: 0,
+          createdAt: '2026-03-11T12:00:00.000Z',
+          updatedAt: '2026-03-11T12:00:00.000Z',
+        },
+      }).durableMeta,
+    ).toBeUndefined()
   })
 
   it('round-trips active research jobs through workspace snapshots and legacy hydration', () => {
