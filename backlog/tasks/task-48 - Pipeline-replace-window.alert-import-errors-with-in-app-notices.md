@@ -1,9 +1,11 @@
 ---
 id: TASK-48
 title: 'Pipeline: replace window.alert import/errors with in-app notices'
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-03-10 03:54'
+updated_date: '2026-05-27 20:54'
 labels:
   - remediation
   - pipeline
@@ -25,6 +27,12 @@ priority: medium
 - [ ] #2 Error messages include actionable details (skipped count, validation summary).
 - [ ] #3 Behavior parity: import still works for both JSON and legacy localStorage path.
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-05-27 Codex starting TASK-48 as part of m-4 completion push. Plan: inspect Pipeline import flows and existing notice/status patterns, replace window.alert success/error paths with in-app messaging, preserve JSON and legacy import behavior, add regression tests, run review/audit gates, and commit atomically.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
