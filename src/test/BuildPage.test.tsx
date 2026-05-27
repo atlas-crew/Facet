@@ -10,7 +10,7 @@ import { usePipelineStore } from '../store/pipelineStore'
 import { normalizeResumeWorkspaceData, useResumeStore } from '../store/resumeStore'
 import { useUiStore } from '../store/uiStore'
 import type { JDAnalysis } from '../types/jdAnalysis'
-import { untagged, untaggedNote } from '../types/audience'
+import { untagged, type AudienceTagged } from '../types/audience'
 import type { PipelineEntry } from '../types/pipeline'
 
 const {
@@ -135,6 +135,11 @@ const createPipelineEntry = (overrides: Partial<PipelineEntry> = {}): PipelineEn
   ...overrides,
 })
 
+const internalTagged = <T,>(item: T): T & AudienceTagged => ({
+  ...item,
+  audiences: { inferred: ['unclassified'], asserted: ['internal'] },
+})
+
 const createJDAnalysis = (overrides: Partial<JDAnalysis> = {}): JDAnalysis => ({
   id: 'analysis-77',
   pipelineEntryId: 'pipe-77',
@@ -159,7 +164,7 @@ const createJDAnalysis = (overrides: Partial<JDAnalysis> = {}): JDAnalysis => ({
   oneLineSummary: 'Lead with platform outcomes.',
   rationale: 'Start with Platform and keep Backend as a supporting lane.',
   matchedVectors: [
-    untagged({
+    internalTagged({
       vectorId: 'platform',
       title: 'Platform / DevEx',
       priority: 'high',
@@ -168,7 +173,7 @@ const createJDAnalysis = (overrides: Partial<JDAnalysis> = {}): JDAnalysis => ({
       thesisApplies: true,
       thesisFitExplanation: 'Platform delivery is central.',
     }),
-    untagged({
+    internalTagged({
       vectorId: 'backend',
       title: 'Backend Engineering',
       priority: 'medium',
@@ -196,7 +201,7 @@ const createJDAnalysis = (overrides: Partial<JDAnalysis> = {}): JDAnalysis => ({
   triggeredPrioritize: [],
   triggeredAvoid: [],
   relevantAwareness: [],
-  positioningRecommendations: [untaggedNote('Lead with platform outcomes.')],
+  positioningRecommendations: [internalTagged({ text: 'Lead with platform outcomes.' })],
   requirementCoverageScore: 0.8,
   matchedRequirementIds: [],
   matchedKeywords: ['TypeScript'],
@@ -289,7 +294,9 @@ describe('BuildPage', () => {
     })
     renderResumeAsDocxMock.mockReset()
     renderResumeAsDocxMock.mockResolvedValue({
-      blob: new Blob(['docx'], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }),
+      blob: new Blob(['docx'], {
+        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      }),
       generatedAt: '2026-05-04T00:00:00.000Z',
     })
     facetClientEnvMock.anthropicProxyUrl = 'http://localhost:9001'
@@ -350,7 +357,9 @@ describe('BuildPage', () => {
     const previewToolbar = screen.getByRole('toolbar', { name: /Build actions/i })
     expect(previewToolbar.querySelectorAll('.btn-primary')).toHaveLength(1)
     expect(previewToolbar.firstElementChild).toBe(screen.getByTestId('undo-redo-controls'))
-    const toolbarButtons = within(previewToolbar).getAllByRole('button').map((button) => button.getAttribute('aria-label') ?? button.textContent)
+    const toolbarButtons = within(previewToolbar)
+      .getAllByRole('button')
+      .map((button) => button.getAttribute('aria-label') ?? button.textContent)
     expect(toolbarButtons.slice(-2)).toEqual(['More tools', 'Download PDF'])
     expect(screen.queryByRole('button', { name: /Generate for Job/i })).toBeNull()
 
@@ -358,8 +367,12 @@ describe('BuildPage', () => {
 
     const workingContext = screen.getByLabelText('Current working context')
     expect(workingContext).toBeTruthy()
-    expect(within(topBar as HTMLElement).getByLabelText('Current working context')).toBe(workingContext)
-    expect(within(workingContext).queryByRole('button', { name: /Open Build context details/i })).toBeNull()
+    expect(within(topBar as HTMLElement).getByLabelText('Current working context')).toBe(
+      workingContext,
+    )
+    expect(
+      within(workingContext).queryByRole('button', { name: /Open Build context details/i }),
+    ).toBeNull()
     expect(within(workingContext).queryByText('Vector')).toBeNull()
     expect(within(workingContext).queryByText('Pages')).toBeNull()
     expect(within(workingContext).getByText('Generation')).toBeTruthy()
@@ -723,8 +736,12 @@ describe('BuildPage', () => {
     })
     const workingContext = screen.getByLabelText('Current working context')
     expect(within(workingContext).getByText('Analysis required')).toBeTruthy()
-    expect(within(workingContext).getByText('Run JD analysis from Pipeline before generating')).toBeTruthy()
-    expect(screen.queryByRole('button', { name: /Analyze Pipeline JD|Refresh Analysis/i })).toBeNull()
+    expect(
+      within(workingContext).getByText('Run JD analysis from Pipeline before generating'),
+    ).toBeTruthy()
+    expect(
+      screen.queryByRole('button', { name: /Analyze Pipeline JD|Refresh Analysis/i }),
+    ).toBeNull()
     expect(screen.getByRole('button', { name: /^Open Pipeline Entry$/i })).toBeTruthy()
   })
 
@@ -750,7 +767,9 @@ describe('BuildPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Refresh from Pipeline Analysis$/i }))
 
     await waitFor(() => {
-      expect(screen.getAllByText('Run JD analysis from Pipeline before generating a resume.').length).toBeGreaterThan(0)
+      expect(
+        screen.getAllByText('Run JD analysis from Pipeline before generating a resume.').length,
+      ).toBeGreaterThan(0)
     })
     expect(screen.getByRole('button', { name: /^Open Pipeline Entry$/i })).toBeTruthy()
   })
@@ -788,12 +807,17 @@ describe('BuildPage', () => {
     const unavailableContext = screen.getByLabelText('Current working context')
     expect(within(unavailableContext).getByText('Insights ready')).toBeTruthy()
     expect(within(unavailableContext).getByText('Positioning and gaps ready')).toBeTruthy()
-    expect(screen.getByRole('button', { name: /^Generate for Job$/i })).toHaveProperty('disabled', false)
+    expect(screen.getByRole('button', { name: /^Generate for Job$/i })).toHaveProperty(
+      'disabled',
+      false,
+    )
 
     expect(screen.queryByRole('button', { name: /Open Build context details/i })).toBeNull()
     expect(within(unavailableContext).getByText('Dynamic')).toBeTruthy()
     expect(within(unavailableContext).getByText('AI vector plan active')).toBeTruthy()
-    expect(within(unavailableContext).queryByText('Turn on suggestion mode after JD analysis')).toBeNull()
+    expect(
+      within(unavailableContext).queryByText('Turn on suggestion mode after JD analysis'),
+    ).toBeNull()
     expect(within(unavailableContext).queryByText('Analyze a JD to tailor this draft')).toBeNull()
   })
 
@@ -824,7 +848,9 @@ describe('BuildPage', () => {
       'Acme Corp · Staff Platform Engineer',
     )
     expect(usePipelineStore.getState().entries[0]?.resumeGeneration?.lastGeneratedAt).toBeTruthy()
-    expect(usePipelineStore.getState().entries[0]?.resumeId).toBe(useResumeStore.getState().activeResumeId)
+    expect(usePipelineStore.getState().entries[0]?.resumeId).toBe(
+      useResumeStore.getState().activeResumeId,
+    )
     expect(useResumeStore.getState().resumes[0]).toMatchObject({
       origin: {
         type: 'dynamic',
@@ -844,9 +870,11 @@ describe('BuildPage', () => {
     const workingContext = screen.getByLabelText('Current working context')
     expect(within(workingContext).getByText('Dynamic')).toBeTruthy()
     expect(within(workingContext).getByText('Pipeline handoff')).toBeTruthy()
-    expect(within(workingContext).getByRole('button', {
-      name: 'Open pipeline entry for Acme Corp · Staff Platform Engineer',
-    })).toBeTruthy()
+    expect(
+      within(workingContext).getByRole('button', {
+        name: 'Open pipeline entry for Acme Corp · Staff Platform Engineer',
+      }),
+    ).toBeTruthy()
   })
 
   it('prevents deselecting every vector in manual multi-vector mode', async () => {
@@ -862,7 +890,13 @@ describe('BuildPage', () => {
     fireEvent.click(screen.getByLabelText('Platform / DevEx (AI suggested)'))
     fireEvent.click(screen.getByLabelText('Backend Engineering (AI suggested)'))
 
-    expect(screen.getByLabelText('Backend Engineering (AI suggested)')).toHaveProperty('checked', true)
-    expect(screen.getByRole('button', { name: 'Continue to assembly suggestions' })).toHaveProperty('disabled', false)
+    expect(screen.getByLabelText('Backend Engineering (AI suggested)')).toHaveProperty(
+      'checked',
+      true,
+    )
+    expect(screen.getByRole('button', { name: 'Continue to assembly suggestions' })).toHaveProperty(
+      'disabled',
+      false,
+    )
   })
 })
