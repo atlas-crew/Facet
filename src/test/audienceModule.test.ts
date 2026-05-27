@@ -681,23 +681,36 @@ describe('audienceRules — applyRulesBasedAudiences', () => {
     expect(second).toBe(analysis)
   })
 
-  it('re-applies when version matches but TaggedNote fields are still string[] (TASK-226)', () => {
-    // Reproducer: a JDAnalysis can be stamped at the current rules version
-    // and still carry legacy string[] notes if a sanitize path trimmed
-    // strings before the rules engine ran. Stamp-only checking would
-    // short-circuit here and leak the type lie. The shape-aware guard must
-    // detect the mismatch and re-apply rules.
-    const stale = {
-      ...applyRulesBasedAudiences(baseAnalysis()),
-      // Type lie: claim current version, but warnings is string[].
-      warnings: ['legacy string'] as unknown as TaggedNote[],
-    }
+  it.each([
+    'strengthsToLead',
+    'gapFocus',
+    'positioningRecommendations',
+    'warnings',
+  ] as const)('throws when callers pass legacy string %s directly', (field) => {
+    expect(() =>
+      applyRulesBasedAudiences({
+        ...baseAnalysis(),
+        [field]: ['legacy string'] as unknown as TaggedNote[],
+      }),
+    ).toThrow(`JDAnalysisLike.${field} must contain TaggedNote entries.`)
+  })
 
-    const refreshed = applyRulesBasedAudiences(stale as JDAnalysisLike)
-
-    expect(refreshed.warnings).toEqual([
-      { text: 'legacy string', audiences: { inferred: ['internal'], asserted: null } },
-    ])
+  it.each([
+    ['warnings', undefined],
+    ['warnings', null],
+    ['warnings', 'not an array'],
+    ['warnings', {}],
+    ['gapFocus', [null]],
+    ['gapFocus', [42]],
+    ['gapFocus', [{ notText: 'x' }]],
+    ['gapFocus', [{ text: 5 }]],
+  ] as const)('throws when %s has malformed note shape %j', (field, value) => {
+    expect(() =>
+      applyRulesBasedAudiences({
+        ...baseAnalysis(),
+        [field]: value as unknown as TaggedNote[],
+      }),
+    ).toThrow(`JDAnalysisLike.${field} must contain TaggedNote entries.`)
   })
 
   it('re-applies rules when audienceRulesVersion is missing or stale', () => {
@@ -770,11 +783,13 @@ describe('audienceRules — applyRulesBasedAudiences', () => {
     expect(audiences).not.toContain('hiring_manager')
   })
 
-  it('upgrades string[] inputs to TaggedNote[] with default audiences', () => {
+  it('assigns default audiences to note fields', () => {
     const analysis = applyRulesBasedAudiences({
       ...baseAnalysis(),
-      positioningRecommendations: ['Lead with platform work'] as unknown as string[],
-      warnings: ['JD truncated'] as unknown as string[],
+      positioningRecommendations: [
+        { text: 'Lead with platform work', audiences: baseAssignment() },
+      ],
+      warnings: [{ text: 'JD truncated', audiences: baseAssignment() }],
     })
     expect(analysis.positioningRecommendations[0]).toMatchObject({
       text: 'Lead with platform work',

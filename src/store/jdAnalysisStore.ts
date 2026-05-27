@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { TaggedNote } from '../types/audience'
+import { hasAudiences, type TaggedNote, untaggedNote } from '../types/audience'
 import type { JDAnalysis } from '../types/jdAnalysis'
 import { applyRulesBasedAudiences, type JDAnalysisLike } from '../utils/audienceRules'
 
@@ -12,29 +12,70 @@ interface JDAnalysisState {
   findByPipelineEntry: (pipelineEntryId: string) => JDAnalysis | null
 }
 
-const trimWarningNotes = (warnings: unknown): TaggedNote[] | string[] => {
-  if (!Array.isArray(warnings)) return []
-  return warnings
-    .map((entry) => {
-      if (typeof entry === 'string') return entry.trim()
-      if (entry && typeof entry === 'object' && 'text' in entry && typeof (entry as { text: unknown }).text === 'string') {
-        return { ...(entry as TaggedNote), text: (entry as TaggedNote).text.trim() }
+const normalizeNotes = (
+  notes: unknown,
+): { notes: TaggedNote[]; needsRulesReapply: boolean } => {
+  if (!Array.isArray(notes)) return { notes: [], needsRulesReapply: true }
+
+  let needsRulesReapply = false
+  const normalized: TaggedNote[] = []
+
+  for (const entry of notes) {
+    if (typeof entry === 'string') {
+      const text = entry.trim()
+      if (text) normalized.push(untaggedNote(text))
+      needsRulesReapply = true
+      continue
+    }
+
+    if (
+      entry &&
+      typeof entry === 'object' &&
+      'text' in entry &&
+      typeof (entry as { text: unknown }).text === 'string'
+    ) {
+      const text = (entry as { text: string }).text.trim()
+      if (!text) {
+        needsRulesReapply = true
+        continue
       }
-      return ''
-    })
-    .filter((entry): entry is string | TaggedNote =>
-      typeof entry === 'string' ? entry.length > 0 : entry.text.length > 0,
-    ) as TaggedNote[] | string[]
+      if (hasAudiences(entry)) {
+        normalized.push({ ...(entry as TaggedNote), text })
+      } else {
+        normalized.push(untaggedNote(text))
+        needsRulesReapply = true
+      }
+      continue
+    }
+
+    needsRulesReapply = true
+  }
+
+  return { notes: normalized, needsRulesReapply }
 }
 
 const sanitizeAnalysis = (analysis: JDAnalysis): JDAnalysis => {
-  // Trim warning text (strings or TaggedNote.text), then route through the
-  // audience rules engine. The engine is idempotent on same-version input,
-  // so this is cheap when nothing has changed and self-healing when the
-  // rules version has bumped or the persisted record predates tagging.
+  // Normalize persisted legacy note arrays before routing through the
+  // audience rules engine. When the boundary had to repair strings or missing
+  // audience metadata, clear the version stamp so default note audiences are
+  // applied in one place.
+  const warnings = normalizeNotes(analysis.warnings)
+  const strengthsToLead = normalizeNotes(analysis.strengthsToLead)
+  const gapFocus = normalizeNotes(analysis.gapFocus)
+  const positioningRecommendations = normalizeNotes(analysis.positioningRecommendations)
+  const needsRulesReapply =
+    warnings.needsRulesReapply ||
+    strengthsToLead.needsRulesReapply ||
+    gapFocus.needsRulesReapply ||
+    positioningRecommendations.needsRulesReapply
+
   const trimmed: JDAnalysisLike = {
     ...analysis,
-    warnings: trimWarningNotes(analysis.warnings),
+    audienceRulesVersion: needsRulesReapply ? undefined : analysis.audienceRulesVersion,
+    warnings: warnings.notes,
+    strengthsToLead: strengthsToLead.notes,
+    gapFocus: gapFocus.notes,
+    positioningRecommendations: positioningRecommendations.notes,
   }
   return applyRulesBasedAudiences(trimmed)
 }

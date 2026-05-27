@@ -127,7 +127,7 @@ const testJdAnalysis: JDAnalysis = applyRulesBasedAudiences({
       tags: ['platform'],
     }),
   ],
-  gapFocus: ['Clarify the Kubernetes operations boundary.'],
+  gapFocus: [untaggedNote('Clarify the Kubernetes operations boundary.')],
   watchOuts: [
     untagged({
       type: 'avoid_skill',

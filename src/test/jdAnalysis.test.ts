@@ -5,6 +5,7 @@ import type { JdMatchExtraction, MatchReport, VectorAwareMatchResult } from '../
 import type { PipelineEntry } from '../types/pipeline'
 import type { TaggedNote } from '../types/audience'
 import { untagged, untaggedNote } from '../types/audience'
+import { AUDIENCE_RULES_VERSION } from '../utils/audienceRules'
 import {
   createJdAnalysisFromMatchArtifacts,
   analyzePipelineJobDescription,
@@ -477,16 +478,56 @@ describe('JDAnalysis canonical helpers', () => {
       },
     })
 
-    expect(
-      migrateJDAnalysisState({
-        analyses: [
-          {
-            ...analysis,
-            warnings: [' keep ', 42, ''] as unknown as TaggedNote[],
-          },
-        ],
-      }).analyses[0]?.warnings,
-    ).toEqual([{ text: 'keep', audiences: { inferred: ['internal'], asserted: null } }])
+    const migrated = migrateJDAnalysisState({
+      analyses: [
+        {
+          ...analysis,
+          strengthsToLead: [' lead with platform '] as unknown as TaggedNote[],
+          gapFocus: [' clarify AI depth '] as unknown as TaggedNote[],
+          positioningRecommendations: [' open with migration '] as unknown as TaggedNote[],
+          warnings: [' keep ', { text: 'bare object' }, 42, ''] as unknown as TaggedNote[],
+        },
+      ],
+    }).analyses[0]
+
+    expect(migrated?.audienceRulesVersion).toBe(AUDIENCE_RULES_VERSION)
+    expect(migrated?.strengthsToLead).toEqual([
+      {
+        text: 'lead with platform',
+        audiences: { inferred: ['recruiter', 'hiring_manager', 'candidate'], asserted: null },
+      },
+    ])
+    expect(migrated?.gapFocus).toEqual([
+      { text: 'clarify AI depth', audiences: { inferred: ['candidate'], asserted: null } },
+    ])
+    expect(migrated?.positioningRecommendations).toEqual([
+      {
+        text: 'open with migration',
+        audiences: { inferred: ['candidate', 'recruiter'], asserted: null },
+      },
+    ])
+    expect(migrated?.warnings).toEqual([
+      { text: 'keep', audiences: { inferred: ['internal'], asserted: null } },
+      { text: 'bare object', audiences: { inferred: ['internal'], asserted: null } },
+    ])
+  })
+
+  it('preserves current-version tagged analyses without clearing the rules stamp', () => {
+    const analysis = createJdAnalysisFromMatchArtifacts({
+      pipelineEntryId: 'pipe-1',
+      jobDescription: 'Own Kubernetes delivery systems.',
+      artifacts: {
+        analysis: baseAnalysis,
+        report: baseReport,
+        extraction: baseExtraction,
+      },
+    })
+
+    const migrated = migrateJDAnalysisState({ analyses: [analysis] }).analyses[0]
+
+    expect(migrated?.audienceRulesVersion).toBe(analysis.audienceRulesVersion)
+    expect(migrated?.warnings).toEqual(analysis.warnings)
+    expect(migrated?.strengthsToLead).toEqual(analysis.strengthsToLead)
   })
 
   it('preserves LLM-asserted audience tags while applying rules-based inference', () => {

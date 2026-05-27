@@ -150,28 +150,48 @@ const tagWith = <T extends AudienceTagged>(
 })
 
 const tagNotes = (
-  notes: TaggedNote[] | string[] | undefined,
+  notes: TaggedNote[] | undefined,
   defaults: AudienceTag[],
 ): TaggedNote[] => {
   if (!Array.isArray(notes)) return []
-  return notes.map((entry) => {
-    if (typeof entry === 'string') {
-      return {
-        text: entry,
-        audiences: buildAssignment(defaults),
-      }
+  return notes.map((entry) => ({
+    text: entry.text,
+    audiences: buildAssignment(defaults, entry.audiences),
+  }))
+}
+
+const NOTE_FIELDS = [
+  'strengthsToLead',
+  'gapFocus',
+  'positioningRecommendations',
+  'warnings',
+] as const
+
+const isNoteTextArray = (value: unknown): value is Array<Pick<TaggedNote, 'text'>> =>
+  Array.isArray(value) &&
+  value.every(
+    (entry) => entry !== null && typeof entry === 'object' && typeof (entry as { text?: unknown }).text === 'string',
+  )
+
+const isTaggedNoteArray = (value: unknown): value is TaggedNote[] =>
+  Array.isArray(value) &&
+  value.every(
+    (entry) => hasAudiences(entry) && typeof (entry as { text?: unknown }).text === 'string',
+  )
+
+const assertNoteFields = (input: JDAnalysisLike): void => {
+  for (const field of NOTE_FIELDS) {
+    if (!isNoteTextArray(input[field])) {
+      throw new Error(`JDAnalysisLike.${field} must contain TaggedNote entries.`)
     }
-    return {
-      text: entry.text,
-      audiences: buildAssignment(defaults, entry.audiences),
-    }
-  })
+  }
 }
 
 // === Public entry point =====================================================
 
-// Input shape allows partial/legacy data — string[] arrays from old persisted
-// records, missing `audiences` fields on insights, missing rulesVersion stamp.
+// Input shape allows partial data — missing `audiences` fields on insights and
+// missing rulesVersion stamps. Legacy string notes are converted at persistence
+// boundaries before callers reach this type.
 // Output is a fully-tagged JDAnalysis with `audienceRulesVersion` set to the
 // current AUDIENCE_RULES_VERSION.
 export interface JDAnalysisLike extends Omit<
@@ -205,37 +225,18 @@ export interface JDAnalysisLike extends Omit<
   triggeredPrioritize: FilterTrigger[]
   triggeredAvoid: AvoidTrigger[]
   relevantAwareness: RelevantAwareness[]
-  // Either legacy strings or already-tagged notes — applyRulesBasedAudiences
-  // normalizes both to TaggedNote[].
-  strengthsToLead: TaggedNote[] | string[]
-  gapFocus: TaggedNote[] | string[]
-  positioningRecommendations: TaggedNote[] | string[]
-  warnings: TaggedNote[] | string[]
-}
-
-// Runtime shape check for TaggedNote arrays. The version stamp alone isn't
-// enough to skip re-tagging: a JDAnalysis can be stamped at the current
-// rules version but still carry legacy `string[]` notes if a sanitize path
-// trimmed strings before the rules engine ran (TASK-226). Verifying actual
-// shape closes that hole.
-const isTaggedNoteArray = (value: unknown): value is TaggedNote[] => {
-  if (!Array.isArray(value)) return false
-  return value.every(
-    (entry) => hasAudiences(entry) && typeof (entry as { text?: unknown }).text === 'string',
-  )
+  strengthsToLead: TaggedNote[]
+  gapFocus: TaggedNote[]
+  positioningRecommendations: TaggedNote[]
+  warnings: TaggedNote[]
 }
 
 export const applyRulesBasedAudiences = (input: JDAnalysisLike): JDAnalysis => {
-  // Idempotency guard: skip the re-apply only when both the stamp matches
-  // AND every TaggedNote field is properly shaped. Stamp-only checking has
-  // been a silent type-contract violation (see TASK-226) — the shape check
-  // is the actual proof that the rules engine has run on this record.
+  assertNoteFields(input)
+
   if (
     input.audienceRulesVersion === AUDIENCE_RULES_VERSION &&
-    isTaggedNoteArray(input.warnings) &&
-    isTaggedNoteArray(input.strengthsToLead) &&
-    isTaggedNoteArray(input.gapFocus) &&
-    isTaggedNoteArray(input.positioningRecommendations)
+    NOTE_FIELDS.every((field) => isTaggedNoteArray(input[field]))
   ) {
     return input as JDAnalysis
   }
