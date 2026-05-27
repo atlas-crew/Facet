@@ -6,12 +6,12 @@ import { useHandoffStore } from '../../store/handoffStore'
 import { useIdentityStore } from '../../store/identityStore'
 import { useJDAnalysisStore } from '../../store/jdAnalysisStore'
 import { useUiStore } from '../../store/uiStore'
-import type { PipelineEntry } from '../../types/pipeline'
+import type { PipelineEntry, PipelineStatus, PipelineTier } from '../../types/pipeline'
 import { getFacetClientEnv } from '../../utils/facetEnv'
 import { sanitizeEndpointUrl } from '../../utils/idUtils'
 import { sanitizeUrl } from '../../utils/sanitizeUrl'
 import { investigatePipelineEntry } from '../../utils/pipelineInvestigation'
-import type { PipelineFilterState } from './PipelineFilters'
+import type { PipelineFilterState, PipelineSavedFilterSet } from './PipelineFilters'
 import type { SortField } from './PipelineTable'
 import { PipelineStats } from './PipelineStats'
 import { PipelineFilters } from './PipelineFilters'
@@ -42,6 +42,147 @@ type ModalState =
 
 const TIER_ORDER: Record<string, number> = { '1': 1, '2': 2, '3': 3, watch: 4 }
 const PIPELINE_HANDOFF_DEFAULT_MODE = 'dynamic'
+// TASK-51 scopes saved filter sets as browser-local presets, not workspace artifacts.
+const PIPELINE_SAVED_FILTERS_STORAGE_KEY = 'facet:pipeline:saved-filter-sets:v1'
+const FILTER_SET_NAME_MAX_LENGTH = 48
+const MAX_SAVED_FILTER_SETS = 20
+const MAX_SEARCHABLE_JOB_DESCRIPTION_CHARS = 4000
+const VALID_FILTER_TIERS = new Set<PipelineTier>(['1', '2', '3', 'watch'])
+const VALID_FILTER_STATUSES = new Set<PipelineStatus>([
+  'researching',
+  'applied',
+  'screening',
+  'interviewing',
+  'offer',
+  'accepted',
+  'rejected',
+  'withdrawn',
+  'closed',
+])
+
+type PipelineNoticeTone = 'success' | 'warning' | 'error'
+
+interface PipelineNotice {
+  tone: PipelineNoticeTone
+  title: string
+  detail?: string
+}
+
+function normalizeSavedFilterState(value: unknown): PipelineFilterState | null {
+  if (!value || typeof value !== 'object') return null
+  const raw = value as Record<string, unknown>
+  return {
+    tiers: Array.isArray(raw.tiers)
+      ? Array.from(
+          new Set(
+            raw.tiers.filter((tier): tier is PipelineTier =>
+              VALID_FILTER_TIERS.has(tier as PipelineTier),
+            ),
+          ),
+        )
+      : [],
+    statuses: Array.isArray(raw.statuses)
+      ? Array.from(
+          new Set(
+            raw.statuses.filter((status): status is PipelineStatus =>
+              VALID_FILTER_STATUSES.has(status as PipelineStatus),
+            ),
+          ),
+        )
+      : [],
+    search: typeof raw.search === 'string' ? raw.search : '',
+  }
+}
+
+function getLocalStorage(): Storage | null {
+  if (typeof window === 'undefined') return null
+  const storage = window.localStorage
+  if (
+    !storage ||
+    typeof storage.getItem !== 'function' ||
+    typeof storage.setItem !== 'function' ||
+    typeof storage.removeItem !== 'function'
+  ) {
+    return null
+  }
+  return storage
+}
+
+function readSavedFilterSets(): PipelineSavedFilterSet[] {
+  try {
+    const storage = getLocalStorage()
+    const raw = storage?.getItem(PIPELINE_SAVED_FILTERS_STORAGE_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed.flatMap((item): PipelineSavedFilterSet[] => {
+      if (!item || typeof item !== 'object') return []
+      const rawItem = item as Record<string, unknown>
+      const filters = normalizeSavedFilterState(rawItem.filters)
+      if (!filters || typeof rawItem.id !== 'string' || typeof rawItem.name !== 'string') {
+        return []
+      }
+      return [{ id: rawItem.id, name: rawItem.name, filters }]
+    })
+  } catch {
+    return []
+  }
+}
+
+function writeSavedFilterSets(
+  filterSets: PipelineSavedFilterSet[],
+): boolean {
+  try {
+    const storage = getLocalStorage()
+    if (!storage) return false
+    storage.setItem(PIPELINE_SAVED_FILTERS_STORAGE_KEY, JSON.stringify(filterSets))
+    return true
+  } catch {
+    return false
+  }
+}
+
+function createSavedFilterId(name: string, existing: PipelineSavedFilterSet[]): string {
+  const base = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'filter'
+  let id = base
+  let suffix = 2
+  while (existing.some((set) => set.id === id)) {
+    id = `${base}-${suffix}`
+    suffix += 1
+  }
+  return id
+}
+
+function getPipelineSearchText(entry: PipelineEntry): string {
+  return [
+    entry.company,
+    entry.role,
+    entry.notes,
+    entry.nextStep,
+    entry.skillMatch,
+    entry.jobDescription?.slice(0, MAX_SEARCHABLE_JOB_DESCRIPTION_CHARS),
+  ].filter(Boolean).join(' ').toLowerCase()
+}
+
+function entryCountLabel(count: number): string {
+  return `${count} ${count === 1 ? 'entry' : 'entries'}`
+}
+
+function normalizeFilterSetName(name: string): string {
+  return name.trim().replace(/\s+/g, ' ')
+}
+
+function detectLegacyPipelineData(): boolean {
+  try {
+    const raw = getLocalStorage()?.getItem('pipeline-data')
+    if (!raw) return false
+    const parsed = JSON.parse(raw)
+    const legacy = Array.isArray(parsed) ? parsed : parsed?.entries
+    return Array.isArray(legacy) ? legacy.length > 0 : true
+  } catch {
+    return true
+  }
+}
 
 export function PipelinePage() {
   const allEntries = usePipelineStore((s) => s.entries)
@@ -67,6 +208,12 @@ export function PipelinePage() {
   const [analyzingJdId, setAnalyzingJdId] = useState<string | null>(null)
   const [investigationErrors, setInvestigationErrors] = useState<Record<string, string>>({})
   const [analysisErrors, setAnalysisErrors] = useState<Record<string, string>>({})
+  const [savedFilterSets, setSavedFilterSets] = useState<PipelineSavedFilterSet[]>(() =>
+    readSavedFilterSets(),
+  )
+  const [activeFilterSetId, setActiveFilterSetId] = useState<string | null>(null)
+  const [hasLegacyData, setHasLegacyData] = useState(detectLegacyPipelineData)
+  const [pipelineNotice, setPipelineNotice] = useState<PipelineNotice | null>(null)
   const honoredLinkedEntryRef = useRef<string | null>(null)
 
   const importRef = useRef<HTMLInputElement>(null)
@@ -100,6 +247,18 @@ export function PipelinePage() {
   }, [currentIdentity?.model_revision, entries, jdAnalysisById])
 
   useEffect(() => {
+    setHasLegacyData(detectLegacyPipelineData())
+  }, [])
+
+  useEffect(() => {
+    if (pipelineNotice?.tone !== 'success') return
+    const timeoutId = window.setTimeout(() => {
+      setPipelineNotice((current) => (current === pipelineNotice ? null : current))
+    }, 5000)
+    return () => window.clearTimeout(timeoutId)
+  }, [pipelineNotice])
+
+  useEffect(() => {
     if (!requestedEntryId) return
     if (honoredLinkedEntryRef.current === requestedEntryId) return
     if (entries.some((entry) => entry.id === requestedEntryId)) {
@@ -116,6 +275,11 @@ export function PipelinePage() {
     [sortField]
   )
 
+  const searchTextByEntryId = useMemo(
+    () => new Map(entries.map((entry) => [entry.id, getPipelineSearchText(entry)])),
+    [entries],
+  )
+
   const filteredEntries = useMemo(() => {
     let result = [...entries]
 
@@ -125,11 +289,9 @@ export function PipelinePage() {
     if (filters.statuses.length > 0) {
       result = result.filter((e) => filters.statuses.includes(e.status))
     }
-    if (filters.search) {
-      const q = filters.search.toLowerCase()
-      result = result.filter(
-        (e) => e.company.toLowerCase().includes(q) || e.role.toLowerCase().includes(q)
-      )
+    const query = filters.search.trim().toLowerCase()
+    if (query) {
+      result = result.filter((entry) => (searchTextByEntryId.get(entry.id) ?? '').includes(query))
     }
 
     result.sort((a, b) => {
@@ -147,7 +309,94 @@ export function PipelinePage() {
     })
 
     return result
-  }, [entries, filters, sortField, sortDir])
+  }, [entries, filters, searchTextByEntryId, sortField, sortDir])
+
+  const handleSaveFilterSet = useCallback(
+    (name: string) => {
+      const trimmedName = normalizeFilterSetName(name)
+      if (!trimmedName) {
+        setPipelineNotice({
+          tone: 'warning',
+          title: 'Filter set not saved',
+          detail: 'Name this filter set before saving it.',
+        })
+        return
+      }
+      if (trimmedName.length > FILTER_SET_NAME_MAX_LENGTH) {
+        setPipelineNotice({
+          tone: 'warning',
+          title: 'Filter set not saved',
+          detail: `Use ${FILTER_SET_NAME_MAX_LENGTH} characters or fewer for the filter set name.`,
+        })
+        return
+      }
+
+      const existing = savedFilterSets.find(
+        (set) => set.name.toLowerCase() === trimmedName.toLowerCase(),
+      )
+      if (!existing && savedFilterSets.length >= MAX_SAVED_FILTER_SETS) {
+        setPipelineNotice({
+          tone: 'warning',
+          title: 'Filter set not saved',
+          detail: `You can save up to ${MAX_SAVED_FILTER_SETS} filter sets. Replace an existing saved filter to continue.`,
+        })
+        return
+      }
+      const nextSet: PipelineSavedFilterSet = {
+        id: existing?.id ?? createSavedFilterId(trimmedName, savedFilterSets),
+        name: existing?.name ?? trimmedName,
+        filters: {
+          tiers: [...filters.tiers],
+          statuses: [...filters.statuses],
+          search: filters.search.trim(),
+        },
+      }
+      const nextSets = existing
+        ? savedFilterSets.map((set) => (set.id === existing.id ? nextSet : set))
+        : [...savedFilterSets, nextSet]
+
+      setSavedFilterSets(nextSets)
+      setFilters(nextSet.filters)
+      setActiveFilterSetId(nextSet.id)
+      const didPersist = writeSavedFilterSets(nextSets)
+      setPipelineNotice({
+        tone: didPersist ? 'success' : 'error',
+        title: didPersist ? `Saved filter set "${trimmedName}"` : 'Filter set not saved',
+        detail: didPersist
+          ? 'This saved filter is available in this browser.'
+          : 'Local storage was unavailable, so the filter set could not be saved.',
+      })
+    },
+    [filters, savedFilterSets],
+  )
+
+  const handleApplyFilterSet = useCallback(
+    (id: string) => {
+      const filterSet = savedFilterSets.find((set) => set.id === id)
+      if (!filterSet) return
+      setFilters({
+        tiers: [...filterSet.filters.tiers],
+        statuses: [...filterSet.filters.statuses],
+        search: filterSet.filters.search,
+      })
+      setPipelineNotice({
+        tone: 'success',
+        title: `Applied filter set "${filterSet.name}"`,
+      })
+      setActiveFilterSetId(filterSet.id)
+    },
+    [savedFilterSets],
+  )
+
+  const handleFilterChange = useCallback((nextFilters: PipelineFilterState) => {
+    setFilters(nextFilters)
+    setActiveFilterSetId(null)
+  }, [])
+
+  const activeFilterSetName = useMemo(
+    () => savedFilterSets.find((set) => set.id === activeFilterSetId)?.name ?? null,
+    [activeFilterSetId, savedFilterSets],
+  )
 
   const handleSave = useCallback(
     (data: Omit<PipelineEntry, 'id' | 'createdAt' | 'lastAction' | 'history'>) => {
@@ -317,13 +566,36 @@ export function PipelinePage() {
       if (!file) return
       void parsePipelineImport(file).then((result) => {
         if (result.error) {
-          window.alert(result.error)
+          setPipelineNotice({
+            tone: 'error',
+            title: 'Import failed',
+            detail:
+              result.skipped > 0
+                ? `${result.error} Check that each entry includes id, company, and role.`
+                : result.error,
+          })
           return
         }
         importEntries(result.entries)
         if (result.skipped > 0) {
-          window.alert(`Imported ${result.entries.length} entries. ${result.skipped} entries skipped (invalid format).`)
+          setPipelineNotice({
+            tone: 'warning',
+            title: `Imported ${entryCountLabel(result.entries.length)}`,
+            detail: `${entryCountLabel(result.skipped)} skipped because they were missing required fields or had invalid format.`,
+          })
+          return
         }
+        setPipelineNotice({
+          tone: 'success',
+          title: `Imported ${entryCountLabel(result.entries.length)}`,
+          detail: 'Pipeline data replaced with imported JSON.',
+        })
+      }).catch(() => {
+        setPipelineNotice({
+          tone: 'error',
+          title: 'Import failed',
+          detail: 'The selected file could not be read. Try exporting the pipeline again and re-importing the JSON file.',
+        })
       })
       e.target.value = ''
     },
@@ -381,8 +653,12 @@ export function PipelinePage() {
 
   const handleImportLegacy = useCallback(() => {
     try {
-      const raw = localStorage.getItem('pipeline-data')
-      if (!raw) return
+      const storage = getLocalStorage()
+      const raw = storage?.getItem('pipeline-data')
+      if (!raw) {
+        setHasLegacyData(false)
+        return
+      }
       const parsed = JSON.parse(raw)
       const legacy = Array.isArray(parsed) ? parsed : parsed?.entries
       if (Array.isArray(legacy) && legacy.length > 0) {
@@ -392,20 +668,61 @@ export function PipelinePage() {
           url: e.url ? (sanitizeUrl(e.url) ?? '') : '',
         }))
         importEntries(sanitized)
-        localStorage.removeItem('pipeline-data')
+        storage?.removeItem('pipeline-data')
+        setHasLegacyData(false)
+        setPipelineNotice({
+          tone: 'success',
+          title: `Imported ${entryCountLabel(sanitized.length)} from legacy data`,
+          detail: 'Legacy pipeline data was moved into the current workspace.',
+        })
+        return
       }
-    } catch { /* invalid legacy data */ }
+      setPipelineNotice({
+        tone: 'warning',
+        title: 'Legacy import skipped',
+        detail: 'Saved legacy data did not contain pipeline entries.',
+      })
+      setHasLegacyData(false)
+    } catch {
+      setPipelineNotice({
+        tone: 'error',
+        title: 'Legacy import failed',
+        detail: 'Saved legacy pipeline data was not valid JSON.',
+      })
+      setHasLegacyData(false)
+    }
   }, [importEntries])
 
-  const hasLegacyData = useMemo(() => {
-    try {
-      const raw = localStorage.getItem('pipeline-data')
-      if (!raw) return false
-      const parsed = JSON.parse(raw)
-      const legacy = Array.isArray(parsed) ? parsed : parsed?.entries
-      return Array.isArray(legacy) && legacy.length > 0
-    } catch { return false }
-  }, [])
+  const pipelineNoticeElement = pipelineNotice
+    ? (() => {
+        const toneLabel =
+          pipelineNotice.tone === 'success'
+            ? 'Success'
+            : pipelineNotice.tone === 'warning'
+              ? 'Warning'
+              : 'Error'
+        return (
+          <div
+            className={`pipeline-notice pipeline-notice-${pipelineNotice.tone}`}
+            role={pipelineNotice.tone === 'error' ? 'alert' : 'status'}
+          >
+            <div>
+              <strong>
+                {toneLabel}: {pipelineNotice.title}
+              </strong>
+              {pipelineNotice.detail && <span>{pipelineNotice.detail}</span>}
+            </div>
+            <button
+              className="pipeline-notice-dismiss"
+              aria-label="Dismiss pipeline notice"
+              onClick={() => setPipelineNotice(null)}
+            >
+              Dismiss
+            </button>
+          </div>
+        )
+      })()
+    : null
 
   // Empty state
   if (entries.length === 0 && !modal) {
@@ -421,6 +738,7 @@ export function PipelinePage() {
             <p className="pipeline-status-line">{pipelineStatusLine}</p>
           </div>
         </div>
+        {pipelineNoticeElement}
         <div className="pipeline-empty">
           <h2>Start your opportunity pipeline</h2>
           <p>
@@ -495,11 +813,20 @@ export function PipelinePage() {
         </div>
       </div>
 
+      {pipelineNoticeElement}
+
       <PipelineStats entries={entries} />
 
       {analyticsOpen && <PipelineAnalytics entries={entries} onClose={() => setAnalyticsOpen(false)} />}
 
-      <PipelineFilters filters={filters} onFilterChange={setFilters} />
+      <PipelineFilters
+        filters={filters}
+        savedFilterSets={savedFilterSets}
+        activeFilterSetName={activeFilterSetName}
+        onFilterChange={handleFilterChange}
+        onSaveFilterSet={handleSaveFilterSet}
+        onApplyFilterSet={handleApplyFilterSet}
+      />
 
       <PipelineTable
         entries={filteredEntries}

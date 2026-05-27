@@ -80,6 +80,29 @@ const getPipelineRowTexts = (container: HTMLElement) =>
     (row) => row.textContent ?? '',
   )
 
+const resetPipelineLocalStorage = () => {
+  window.localStorage.removeItem('facet:pipeline:saved-filter-sets:v1')
+  window.localStorage.removeItem('facet:pipeline:saved-filter-sets:v1:pjqibl')
+  window.localStorage.removeItem('facet:pipeline:saved-filter-sets:v1:nick%40atlascrew.dev')
+  window.localStorage.removeItem('pipeline-data')
+}
+
+const installLocalStorageMock = () => {
+  const items = new Map<string, string>()
+  Object.defineProperty(window, 'localStorage', {
+    configurable: true,
+    value: {
+      getItem: vi.fn((key: string) => items.get(key) ?? null),
+      setItem: vi.fn((key: string, value: string) => {
+        items.set(key, value)
+      }),
+      removeItem: vi.fn((key: string) => {
+        items.delete(key)
+      }),
+    },
+  })
+}
+
 const analyzedJobDescription = 'We need a platform-minded engineer.'
 
 const audienceAssignment = (audiences: AudienceTag[] = ['candidate']): AudienceAssignment => ({
@@ -172,11 +195,16 @@ describe('PipelinePage', () => {
     mockInvestigatePipelineEntry.mockReset()
     mockAnalyzePipelineJobDescription.mockReset()
     mockAnalyzePipelineJobDescription.mockResolvedValue(jdAnalysisFixture)
+    installLocalStorageMock()
+    resetPipelineLocalStorage()
     useHandoffStore.setState({ pendingGeneration: null })
     useJDAnalysisStore.setState({ analyses: [] })
     useUiStore.setState({ selectedVector: 'all' })
     useIdentityStore.setState({
-      currentIdentity: { model_revision: 1 } as Parameters<
+      currentIdentity: {
+        model_revision: 1,
+        identity: { email: 'nick@atlascrew.dev', name: 'Nick' },
+      } as Parameters<
         typeof mockAnalyzePipelineJobDescription
       >[0],
     })
@@ -198,6 +226,7 @@ describe('PipelinePage', () => {
 
   afterEach(() => {
     cleanup()
+    resetPipelineLocalStorage()
     vi.unstubAllEnvs()
   })
 
@@ -228,6 +257,155 @@ describe('PipelinePage', () => {
     expect(screen.getByRole('button', { name: /^Add Entry$/i })).toBeTruthy()
     expect(screen.getByRole('button', { name: /^Paste JD$/i })).toBeTruthy()
     expect(container.querySelectorAll('.pipeline-header .pipeline-btn-primary')).toHaveLength(1)
+  })
+
+  it('imports pipeline JSON with an in-app notice instead of a browser alert', async () => {
+    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => undefined)
+    const { container } = render(<PipelinePage />)
+    const input = container.querySelector<HTMLInputElement>('input[type="file"]')
+    expect(input).toBeTruthy()
+
+    const file = new File(
+      [
+        JSON.stringify([
+          {
+            id: 'pipe-imported',
+            company: 'Imported Co',
+            role: 'Principal Platform Engineer',
+            tier: '1',
+            status: 'applied',
+          },
+        ]),
+      ],
+      'pipeline.json',
+      { type: 'application/json' },
+    )
+
+    fireEvent.change(input as HTMLInputElement, { target: { files: [file] } })
+
+    await waitFor(() => {
+      expect(usePipelineStore.getState().entries[0]?.company).toBe('Imported Co')
+    })
+    expect(screen.getByRole('status').textContent).toContain('Imported 1 entry')
+    expect(alertSpy).not.toHaveBeenCalled()
+    alertSpy.mockRestore()
+  })
+
+  it('shows actionable import errors in the page', async () => {
+    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => undefined)
+    const { container } = render(<PipelinePage />)
+    const input = container.querySelector<HTMLInputElement>('input[type="file"]')
+    expect(input).toBeTruthy()
+
+    const file = new File([JSON.stringify([{ id: 'missing-required-fields' }])], 'bad.json', {
+      type: 'application/json',
+    })
+
+    fireEvent.change(input as HTMLInputElement, { target: { files: [file] } })
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert').textContent).toContain('Import failed')
+    })
+    expect(screen.getByRole('alert').textContent).toContain('id, company, and role')
+    expect(alertSpy).not.toHaveBeenCalled()
+    alertSpy.mockRestore()
+  })
+
+  it('shows a warning notice when an import partially skips invalid entries', async () => {
+    const { container } = render(<PipelinePage />)
+    const input = container.querySelector<HTMLInputElement>('input[type="file"]')
+    expect(input).toBeTruthy()
+
+    const file = new File(
+      [
+        JSON.stringify([
+          {
+            id: 'pipe-imported',
+            company: 'Imported Co',
+            role: 'Principal Platform Engineer',
+            tier: '1',
+            status: 'applied',
+          },
+          { id: 'missing-required-fields' },
+        ]),
+      ],
+      'pipeline.json',
+      { type: 'application/json' },
+    )
+
+    fireEvent.change(input as HTMLInputElement, { target: { files: [file] } })
+
+    await waitFor(() => {
+      expect(screen.getByRole('status').textContent).toContain('Warning: Imported 1 entry')
+    })
+    expect(screen.getByRole('status').textContent).toContain(
+      '1 entry skipped because they were missing required fields',
+    )
+  })
+
+  it('imports legacy pipeline data with an in-app notice', async () => {
+    usePipelineStore.setState({
+      entries: [],
+      sortField: 'tier',
+      sortDir: 'asc',
+      filters: { tier: 'all', status: 'all', search: '' },
+    })
+    window.localStorage.setItem(
+      'pipeline-data',
+      JSON.stringify({
+        entries: [
+          {
+            ...baseEntry,
+            id: 'pipe-legacy',
+            company: 'Legacy Co',
+            url: 'javascript:alert(1)',
+          },
+        ],
+      }),
+    )
+
+    render(<PipelinePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Import Legacy Data/i }))
+
+    await waitFor(() => {
+      expect(usePipelineStore.getState().entries[0]?.company).toBe('Legacy Co')
+    })
+    expect(usePipelineStore.getState().entries[0]?.url).toBe('')
+    expect(window.localStorage.getItem('pipeline-data')).toBeNull()
+    expect(screen.getByRole('status').textContent).toContain('Imported 1 entry from legacy data')
+  })
+
+  it('reports malformed legacy pipeline data in-app', () => {
+    usePipelineStore.setState({
+      entries: [],
+      sortField: 'tier',
+      sortDir: 'asc',
+      filters: { tier: 'all', status: 'all', search: '' },
+    })
+    window.localStorage.setItem('pipeline-data', '{not json')
+
+    render(<PipelinePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Import Legacy Data/i }))
+
+    expect(screen.getByRole('alert').textContent).toContain('Error: Legacy import failed')
+  })
+
+  it('warns when legacy pipeline data has no importable entries', () => {
+    usePipelineStore.setState({
+      entries: [],
+      sortField: 'tier',
+      sortDir: 'asc',
+      filters: { tier: 'all', status: 'all', search: '' },
+    })
+    window.localStorage.setItem('pipeline-data', JSON.stringify({ entries: 'not-an-array' }))
+
+    render(<PipelinePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Import Legacy Data/i }))
+
+    expect(screen.getByRole('status').textContent).toContain('Warning: Legacy import skipped')
   })
 
   it('renders multiple entries and summarizes active pipeline counts', () => {
@@ -287,6 +465,7 @@ describe('PipelinePage', () => {
           role: 'Staff Platform Engineer',
           tier: '2',
           status: 'applied',
+          skillMatch: 'Kubernetes platform ownership',
         }),
         makeEntry({
           id: 'pipe-beta',
@@ -294,6 +473,7 @@ describe('PipelinePage', () => {
           role: 'Engineering Manager',
           tier: 'watch',
           status: 'applied',
+          nextStep: 'Schedule runtime architecture screen',
         }),
       ],
       sortField: 'tier',
@@ -323,11 +503,164 @@ describe('PipelinePage', () => {
     expect(screen.getByText('Acme Corp')).toBeTruthy()
     expect(screen.getByText('Beta Systems')).toBeTruthy()
 
-    fireEvent.change(screen.getByPlaceholderText('Search company or role...'), {
+    fireEvent.change(screen.getByLabelText('Search pipeline fields'), {
       target: { value: 'manager' },
     })
     expect(screen.queryByText('Acme Corp')).toBeNull()
     expect(screen.getByText('Beta Systems')).toBeTruthy()
+
+    fireEvent.change(screen.getByLabelText('Search pipeline fields'), {
+      target: { value: 'runtime architecture' },
+    })
+    expect(screen.queryByText('Acme Corp')).toBeNull()
+    expect(screen.getByText('Beta Systems')).toBeTruthy()
+
+    fireEvent.change(screen.getByLabelText('Search pipeline fields'), {
+      target: { value: 'kubernetes' },
+    })
+    expect(screen.getByText('Acme Corp')).toBeTruthy()
+    expect(screen.queryByText('Beta Systems')).toBeNull()
+  })
+
+  it('saves and reapplies named pipeline filter sets locally', () => {
+    usePipelineStore.setState({
+      entries: [
+        makeEntry({
+          id: 'pipe-acme',
+          company: 'Acme Corp',
+          role: 'Staff Platform Engineer',
+          tier: '1',
+          status: 'applied',
+          skillMatch: 'Kubernetes platform ownership',
+        }),
+        makeEntry({
+          id: 'pipe-beta',
+          company: 'Beta Systems',
+          role: 'Engineering Manager',
+          tier: 'watch',
+          status: 'researching',
+        }),
+      ],
+      sortField: 'tier',
+      sortDir: 'asc',
+      filters: { tier: 'all', status: 'all', search: '' },
+    })
+
+    render(<PipelinePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'T1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Applied' }))
+    fireEvent.change(screen.getByLabelText('Search pipeline fields'), {
+      target: { value: 'kubernetes' },
+    })
+    fireEvent.change(screen.getByLabelText('Filter set name'), {
+      target: { value: 'T1 applied platform' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Save/i }))
+
+    expect(screen.getByRole('status').textContent).toContain(
+      'Saved filter set "T1 applied platform"',
+    )
+    expect(window.localStorage.getItem('facet:pipeline:saved-filter-sets:v1')).toContain(
+      'T1 applied platform',
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'T1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Applied' }))
+    fireEvent.change(screen.getByLabelText('Search pipeline fields'), {
+      target: { value: '' },
+    })
+    expect(screen.getByText('Beta Systems')).toBeTruthy()
+
+    fireEvent.change(screen.getByLabelText('Saved filter sets'), {
+      target: { value: 't1-applied-platform' },
+    })
+
+    expect(screen.getByRole('status').textContent).toContain(
+      'Applied filter set "T1 applied platform"',
+    )
+    expect(screen.getByText('Acme Corp')).toBeTruthy()
+    expect(screen.queryByText('Beta Systems')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'T1' }))
+    expect(screen.queryByText(/Active:/)).toBeNull()
+  })
+
+  it('validates saved filter names and caps local filter sets', () => {
+    render(<PipelinePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Save/i }))
+    expect(screen.getByRole('status').textContent).toContain('Name this filter set')
+    expect(window.localStorage.getItem('facet:pipeline:saved-filter-sets:v1')).toBeNull()
+
+    const storedSets = Array.from({ length: 20 }, (_, index) => ({
+      id: `set-${index}`,
+      name: `Set ${index}`,
+      filters: { tiers: [], statuses: [], search: `query-${index}` },
+    }))
+    window.localStorage.setItem('facet:pipeline:saved-filter-sets:v1', JSON.stringify(storedSets))
+    cleanup()
+    render(<PipelinePage />)
+
+    fireEvent.change(screen.getByLabelText('Filter set name'), { target: { value: 'Set 21' } })
+    fireEvent.click(screen.getByRole('button', { name: /Save/i }))
+    expect(screen.getByRole('status').textContent).toContain('You can save up to 20 filter sets')
+    expect(
+      JSON.parse(window.localStorage.getItem('facet:pipeline:saved-filter-sets:v1') ?? '[]'),
+    ).toHaveLength(20)
+
+    fireEvent.change(screen.getByLabelText('Search pipeline fields'), {
+      target: { value: 'platform' },
+    })
+    fireEvent.change(screen.getByLabelText('Filter set name'), { target: { value: 'set 1' } })
+    fireEvent.click(screen.getByRole('button', { name: /Save/i }))
+    const updatedSets = JSON.parse(
+      window.localStorage.getItem('facet:pipeline:saved-filter-sets:v1') ?? '[]',
+    ) as Array<{ id: string; name: string; filters: { search: string } }>
+    expect(updatedSets).toHaveLength(20)
+    expect(updatedSets.find((set) => set.id === 'set-1')).toMatchObject({
+      name: 'Set 1',
+      filters: { search: 'platform' },
+    })
+  })
+
+  it('hydrates and normalizes saved filter sets from local storage', () => {
+    usePipelineStore.setState({
+      entries: [
+        makeEntry({ id: 'pipe-acme', company: 'Acme Corp', tier: '1', status: 'applied' }),
+        makeEntry({ id: 'pipe-beta', company: 'Beta Systems', tier: '2', status: 'researching' }),
+      ],
+      sortField: 'tier',
+      sortDir: 'asc',
+      filters: { tier: 'all', status: 'all', search: '' },
+    })
+    window.localStorage.setItem(
+      'facet:pipeline:saved-filter-sets:v1',
+      JSON.stringify([
+        {
+          id: 't1',
+          name: 'T1 applied',
+          filters: { tiers: ['1', '1', 'bogus'], statuses: ['applied', 'nope'], search: '' },
+        },
+        null,
+        { id: 'bad' },
+      ]),
+    )
+
+    render(<PipelinePage />)
+
+    fireEvent.change(screen.getByLabelText('Saved filter sets'), { target: { value: 't1' } })
+    expect(screen.getByText('Acme Corp')).toBeTruthy()
+    expect(screen.queryByText('Beta Systems')).toBeNull()
+  })
+
+  it('ignores malformed saved filter storage without breaking the page', () => {
+    window.localStorage.setItem('facet:pipeline:saved-filter-sets:v1', '{not json')
+
+    render(<PipelinePage />)
+
+    expect(screen.getByText('Acme Corp')).toBeTruthy()
+    expect(screen.queryByRole('option', { name: 'T1 applied' })).toBeNull()
   })
 
   it('disables pipeline investigation when the AI proxy is not configured', () => {
@@ -555,7 +888,7 @@ describe('PipelinePage', () => {
         endpoint: 'https://ai.example/proxy',
         pipelineEntryId: 'pipe-1',
         jobDescription: analyzedJobDescription,
-        identity: { model_revision: 1 },
+        identity: expect.objectContaining({ model_revision: 1 }),
       })
     })
 

@@ -161,6 +161,66 @@
   display: none;
 }
 
+/* ── Notices ── */
+
+.pipeline-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-surface);
+}
+
+.pipeline-notice strong,
+.pipeline-notice span {
+  display: block;
+}
+
+.pipeline-notice strong {
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.pipeline-notice span {
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.pipeline-notice-success {
+  border-color: color-mix(in srgb, var(--success) 40%, var(--border-subtle));
+}
+
+.pipeline-notice-warning {
+  border-color: color-mix(in srgb, var(--warning) 44%, var(--border-subtle));
+}
+
+.pipeline-notice-error {
+  border-color: color-mix(in srgb, var(--error) 44%, var(--border-subtle));
+}
+
+.pipeline-notice-dismiss {
+  padding: 4px 8px;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.pipeline-notice-dismiss:hover {
+  color: var(--text-primary);
+  border-color: var(--border-default);
+}
+
 /* ── Stats Strip ── */
 
 .pipeline-stats {
@@ -266,6 +326,55 @@
 
 .pipeline-search:focus {
   border-color: var(--accent-primary);
+}
+
+.pipeline-filter-presets {
+  padding-left: var(--space-3);
+  border-left: 1px solid var(--border-subtle);
+}
+
+.pipeline-filter-name,
+.pipeline-filter-select {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color var(--duration-fast) var(--easing);
+}
+
+.pipeline-filter-name {
+  width: 132px;
+  padding: 6px 8px;
+}
+
+.pipeline-filter-select {
+  min-width: 156px;
+  padding: 6px 8px;
+}
+
+.pipeline-filter-name::placeholder {
+  color: var(--text-tertiary);
+}
+
+.pipeline-filter-name:focus,
+.pipeline-filter-select:focus {
+  border-color: var(--accent-primary);
+}
+
+.pipeline-filter-save {
+  padding: 6px 10px;
+}
+
+.pipeline-active-filter-set {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--text-tertiary);
 }
 
 /* ── Table ── */
