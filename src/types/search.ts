@@ -1,3 +1,4 @@
+import type { ProfessionalSkillDepth } from '../identity/schema'
 import type { DurableMetadata } from './durable'
 import type { ArtifactStalenessReview } from './artifactMeta'
 import type { FeedbackBase, FeedbackRating } from './feedback'
@@ -19,15 +20,7 @@ export type SearchSkillCategory =
   | 'domain'
   | 'other'
 
-export type SearchSkillDepth =
-  | 'expert'
-  | 'strong'
-  | 'hands-on-working'
-  | 'architectural'
-  | 'conceptual'
-  | 'working'
-  | 'basic'
-  | 'avoid'
+export type SearchSkillDepth = ProfessionalSkillDepth
 
 export type SearchCompanySize =
   | 'startup'

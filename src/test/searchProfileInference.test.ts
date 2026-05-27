@@ -37,9 +37,34 @@ describe('searchProfileInference', () => {
             context: 'Used heavily in product and platform surfaces.',
           },
           {
+            name: 'Kubernetes',
+            category: 'platform',
+            depth: 'Architectural',
+          },
+          {
+            name: 'Rust',
+            category: 'backend',
+            depth: 'hands on working',
+          },
+          {
+            name: 'Go',
+            category: 'backend',
+            depth: 'CONCEPTUAL',
+          },
+          {
+            name: 'Terraform',
+            category: 'devops',
+            depth: 'hands_on_working',
+          },
+          {
             name: 'Mystery Skill',
             category: 'other',
             depth: 'legendary',
+          },
+          {
+            name: 'Bad Depth Type',
+            category: 'other',
+            depth: 3,
           },
         ],
         vectors: [{ vectorId: 'legacy-backend' }],
@@ -50,9 +75,16 @@ describe('searchProfileInference', () => {
         openQuestions: ['Remote preference?', '', 'Willing to travel?'],
       })
 
-    expect(normalized.skills).toHaveLength(1)
+    expect(normalized.skills).toHaveLength(5)
     expect(normalized.skills[0]?.id).toMatch(/^skl-/)
     expect(normalized.skills[0]?.name).toBe('TypeScript')
+    expect(normalized.skills.map((skill) => skill.depth)).toEqual([
+      'strong',
+      'architectural',
+      'hands-on-working',
+      'conceptual',
+      'hands-on-working',
+    ])
 
     expect(normalized.workSummary).toHaveLength(1)
     expect(normalized.openQuestions).toEqual(['Remote preference?', 'Willing to travel?'])
@@ -108,6 +140,9 @@ describe('searchProfileInference', () => {
     const requestBody = JSON.parse((init as RequestInit).body as string) as { system?: string }
     expect(requestBody.system).not.toContain('"vectors"')
     expect(requestBody.system).not.toContain('"vectorId"')
+    expect(requestBody.system).toContain(
+      '"depth": "expert|strong|hands-on-working|architectural|conceptual|working|basic|avoid"',
+    )
     expect(requestBody).toEqual(
       expect.objectContaining({
         feature: 'research.profile-inference',

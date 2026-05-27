@@ -41,10 +41,24 @@ const VALID_SKILL_CATEGORIES = new Set<SearchSkillCategory>([
 const VALID_SKILL_DEPTHS = new Set<SearchSkillDepth>([
   'expert',
   'strong',
+  'hands-on-working',
+  'architectural',
+  'conceptual',
   'working',
   'basic',
   'avoid',
 ])
+
+function normalizeSkillDepth(value: unknown): SearchSkillDepth | null {
+  if (!isString(value)) {
+    return null
+  }
+
+  const normalized = value.trim().toLowerCase().replace(/[\s_]+/g, '-')
+  return VALID_SKILL_DEPTHS.has(normalized as SearchSkillDepth)
+    ? (normalized as SearchSkillDepth)
+    : null
+}
 
 function normalizeStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) {
@@ -69,8 +83,8 @@ function normalizeSkills(value: unknown): SkillCatalogEntry[] {
 
     const record = skill as Record<string, unknown>
     const name = isString(record.name) ? record.name.trim() : ''
-    const depth = record.depth
-    if (!name || !VALID_SKILL_DEPTHS.has(depth as SearchSkillDepth)) {
+    const depth = normalizeSkillDepth(record.depth)
+    if (!name || !depth) {
       return []
     }
 
@@ -83,7 +97,7 @@ function normalizeSkills(value: unknown): SkillCatalogEntry[] {
         id: createId('skl'),
         name,
         category,
-        depth: depth as SearchSkillDepth,
+        depth,
         context: isString(record.context) ? record.context.trim() : undefined,
         positioning: isString(record.positioning)
           ? record.positioning.trim()
@@ -203,7 +217,7 @@ Response schema:
     {
       "name": "string",
       "category": "backend|frontend|platform|devops|cloud|data|ai-ml|security|architecture|leadership|product|domain|other",
-      "depth": "expert|strong|working|basic|avoid",
+      "depth": "expert|strong|hands-on-working|architectural|conceptual|working|basic|avoid",
       "context": "optional string",
       "positioning": "optional string"
     }
