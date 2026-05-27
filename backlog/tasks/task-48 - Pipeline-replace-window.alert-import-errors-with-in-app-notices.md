@@ -1,11 +1,11 @@
 ---
 id: TASK-48
 title: 'Pipeline: replace window.alert import/errors with in-app notices'
-status: In Progress
+status: Done
 assignee:
   - '@codex'
 created_date: '2026-03-10 03:54'
-updated_date: '2026-05-27 20:54'
+updated_date: '2026-05-27 21:23'
 labels:
   - remediation
   - pipeline
@@ -32,6 +32,8 @@ priority: medium
 
 <!-- SECTION:NOTES:BEGIN -->
 2026-05-27 Codex starting TASK-48 as part of m-4 completion push. Plan: inspect Pipeline import flows and existing notice/status patterns, replace window.alert success/error paths with in-app messaging, preserve JSON and legacy import behavior, add regression tests, run review/audit gates, and commit atomically.
+
+Implemented in-app Pipeline notices for JSON import success, warning, and error states; removed window.alert from import flow; added legacy import success/warning/error notices. Verified with npx vitest run src/test/PipelinePage.test.tsx src/test/BuildPage.test.tsx src/test/pipelineStore.test.ts, npx eslint touched files, npx tsc --noEmit --pretty false, and git diff --check.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
