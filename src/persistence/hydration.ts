@@ -42,6 +42,19 @@ const persistedResearchProfile = (profile: SearchProfile | null) =>
 // Recruiter cards shipped after unified workspace persistence, so there is no
 // standalone legacy local-storage key to migrate here.
 
+const restoreWorkspaceHydrationStore = (
+  label: string,
+  restore: () => void,
+  rollbackErrors: unknown[],
+) => {
+  try {
+    restore()
+  } catch (error) {
+    rollbackErrors.push(error)
+    console.error(`Failed to roll back ${label} during workspace hydration.`, error)
+  }
+}
+
 const readPersistedEnvelope = <TState>(key: string): PersistedEnvelope<TState> | null => {
   const raw = resolveStorage().getItem(key)
   if (typeof raw !== 'string') {
@@ -65,74 +78,22 @@ export const applyWorkspaceSnapshotToStores = (snapshot: FacetWorkspaceSnapshot)
     snapshot.artifacts.resume.payload,
     defaultResumeData,
   )
-  useResumeStore.setState({
-    data: cloneValue(resumeWorkspace.data),
-    resumes: cloneValue(resumeWorkspace.resumes),
-    snapshots: cloneValue(resumeWorkspace.snapshots),
-    activeResumeId: resumeWorkspace.activeResumeId,
-    past: [],
-    future: [],
-    canUndo: false,
-    canRedo: false,
-  })
-
-  usePipelineStore.setState((state) => ({
-    ...state,
-    entries: cloneValue(snapshot.artifacts.pipeline.payload.entries),
-  }))
-
-  useJDAnalysisStore.setState({
-    analyses: cloneValue(snapshot.artifacts.jdAnalysis.payload.analyses),
-  })
-
+  const resumeData = cloneValue(resumeWorkspace.data)
+  const resumeVariants = cloneValue(resumeWorkspace.resumes)
+  const resumeSnapshots = cloneValue(resumeWorkspace.snapshots)
+  const pipelineEntries = cloneValue(snapshot.artifacts.pipeline.payload.entries)
+  const jdAnalyses = cloneValue(snapshot.artifacts.jdAnalysis.payload.analyses)
   const prepDecks = cloneValue(snapshot.artifacts.prep.payload.decks)
-  usePrepStore.setState((state) => ({
-    ...state,
-    decks: prepDecks,
-    activeDeckId:
-      prepDecks.find((deck) => deck.id === state.activeDeckId)?.id ?? prepDecks[0]?.id ?? null,
-  }))
-
-  useCoverLetterStore
-    .getState()
-    .importWorkspaceData(
-      normalizeCoverLetterWorkspacePayload(snapshot.artifacts.coverLetters.payload),
-    )
-
+  const coverLetterWorkspace = normalizeCoverLetterWorkspacePayload(
+    snapshot.artifacts.coverLetters.payload,
+  )
   const linkedInDrafts = cloneValue(
     snapshot.artifacts.linkedin.payload.drafts,
   ) as LinkedInProfileDraft[]
-  useLinkedInStore.setState((state) => ({
-    ...state,
-    drafts: linkedInDrafts,
-    selectedDraftId:
-      linkedInDrafts.find((draft) => draft.id === state.selectedDraftId)?.id ??
-      linkedInDrafts[0]?.id ??
-      null,
-  }))
-
   const recruiterCards = normalizeRecruiterCards(snapshot.artifacts.recruiter.payload.cards)
-  useRecruiterStore.setState((state) => ({
-    ...state,
-    cards: recruiterCards,
-    selectedCardId:
-      recruiterCards.find((card) => card.id === state.selectedCardId)?.id ??
-      recruiterCards[0]?.id ??
-      null,
-  }))
-
   const debriefSessions = cloneValue(
     snapshot.artifacts.debrief.payload.sessions,
   ) as DebriefSession[]
-  useDebriefStore.setState((state) => ({
-    ...state,
-    sessions: debriefSessions,
-    selectedSessionId:
-      debriefSessions.find((session) => session.id === state.selectedSessionId)?.id ??
-      debriefSessions[0]?.id ??
-      null,
-  }))
-
   // migrateSearchState is version-agnostic and idempotent; applying it here keeps
   // workspace/import payloads aligned with direct legacy Zustand hydration.
   const migratedResearch = migrateSearchState(snapshot.artifacts.research.payload)
@@ -143,7 +104,7 @@ export const applyWorkspaceSnapshotToStores = (snapshot: FacetWorkspaceSnapshot)
       ? migratedResearch.activeThesisId
       : null
 
-  useSearchStore.setState({
+  const searchState = {
     profile: persistedResearchProfile(cloneValue(migratedResearch.profile)),
     requests: cloneValue(migratedResearch.requests),
     runs: cloneValue(migratedResearch.runs),
@@ -151,7 +112,151 @@ export const applyWorkspaceSnapshotToStores = (snapshot: FacetWorkspaceSnapshot)
     activeThesisId,
     feedbackEvents: cloneValue(migratedResearch.feedbackEvents),
     activeResearchJob: cloneValue(migratedResearch.activeResearchJob),
-  })
+  }
+
+  const previousResume = useResumeStore.getState()
+  const previousPipeline = usePipelineStore.getState()
+  const previousJDAnalysis = useJDAnalysisStore.getState()
+  const previousPrep = usePrepStore.getState()
+  const previousCoverLetter = useCoverLetterStore.getState()
+  const previousLinkedIn = useLinkedInStore.getState()
+  const previousRecruiter = useRecruiterStore.getState()
+  const previousDebrief = useDebriefStore.getState()
+  const previousSearch = useSearchStore.getState()
+
+  // Hydration is a best-effort in-memory transaction: runtime callers suppress
+  // persistence while this runs, and any failed apply reverts every store below.
+  try {
+    useResumeStore.setState({
+      data: resumeData,
+      resumes: resumeVariants,
+      snapshots: resumeSnapshots,
+      activeResumeId: resumeWorkspace.activeResumeId,
+      past: [],
+      future: [],
+      canUndo: false,
+      canRedo: false,
+    })
+
+    usePipelineStore.setState((state) => ({
+      ...state,
+      entries: pipelineEntries,
+    }))
+
+    useJDAnalysisStore.setState({
+      analyses: jdAnalyses,
+    })
+
+    usePrepStore.setState((state) => ({
+      ...state,
+      decks: prepDecks,
+      activeDeckId:
+        prepDecks.find((deck) => deck.id === state.activeDeckId)?.id ?? prepDecks[0]?.id ?? null,
+    }))
+
+    useCoverLetterStore.getState().importWorkspaceData(coverLetterWorkspace)
+
+    useLinkedInStore.setState((state) => ({
+      ...state,
+      drafts: linkedInDrafts,
+      selectedDraftId:
+        linkedInDrafts.find((draft) => draft.id === state.selectedDraftId)?.id ??
+        linkedInDrafts[0]?.id ??
+        null,
+    }))
+
+    useRecruiterStore.setState((state) => ({
+      ...state,
+      cards: recruiterCards,
+      selectedCardId:
+        recruiterCards.find((card) => card.id === state.selectedCardId)?.id ??
+        recruiterCards[0]?.id ??
+        null,
+    }))
+
+    useDebriefStore.setState((state) => ({
+      ...state,
+      sessions: debriefSessions,
+      selectedSessionId:
+        debriefSessions.find((session) => session.id === state.selectedSessionId)?.id ??
+        debriefSessions[0]?.id ??
+        null,
+    }))
+
+    useSearchStore.setState(searchState)
+  } catch (error) {
+    const rollbackErrors: unknown[] = []
+    restoreWorkspaceHydrationStore(
+      'resume store',
+      () => {
+        useResumeStore.setState(previousResume, true)
+      },
+      rollbackErrors,
+    )
+    restoreWorkspaceHydrationStore(
+      'pipeline store',
+      () => {
+        usePipelineStore.setState(previousPipeline, true)
+      },
+      rollbackErrors,
+    )
+    restoreWorkspaceHydrationStore(
+      'JD analysis store',
+      () => {
+        useJDAnalysisStore.setState(previousJDAnalysis, true)
+      },
+      rollbackErrors,
+    )
+    restoreWorkspaceHydrationStore(
+      'prep store',
+      () => {
+        usePrepStore.setState(previousPrep, true)
+      },
+      rollbackErrors,
+    )
+    restoreWorkspaceHydrationStore(
+      'cover letter store',
+      () => {
+        useCoverLetterStore.setState(previousCoverLetter, true)
+      },
+      rollbackErrors,
+    )
+    restoreWorkspaceHydrationStore(
+      'LinkedIn store',
+      () => {
+        useLinkedInStore.setState(previousLinkedIn, true)
+      },
+      rollbackErrors,
+    )
+    restoreWorkspaceHydrationStore(
+      'recruiter store',
+      () => {
+        useRecruiterStore.setState(previousRecruiter, true)
+      },
+      rollbackErrors,
+    )
+    restoreWorkspaceHydrationStore(
+      'debrief store',
+      () => {
+        useDebriefStore.setState(previousDebrief, true)
+      },
+      rollbackErrors,
+    )
+    restoreWorkspaceHydrationStore(
+      'research store',
+      () => {
+        useSearchStore.setState(previousSearch, true)
+      },
+      rollbackErrors,
+    )
+    if (rollbackErrors.length > 0) {
+      throw new AggregateError(
+        [error, ...rollbackErrors],
+        'Workspace hydration failed and rollback was incomplete.',
+      )
+    }
+    throw error
+  }
 }
 
 export const applyLocalPreferencesSnapshotToStores = (snapshot: FacetLocalPreferencesSnapshot) => {

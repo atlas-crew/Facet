@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defaultResumeData } from '../store/defaultData'
 import { useCoverLetterStore } from '../store/coverLetterStore'
 import { useDebriefStore } from '../store/debriefStore'
+import { useJDAnalysisStore } from '../store/jdAnalysisStore'
 import { useLinkedInStore } from '../store/linkedinStore'
 import { usePipelineStore } from '../store/pipelineStore'
 import { usePrepStore } from '../store/prepStore'
@@ -37,7 +38,10 @@ import {
 } from '../persistence/snapshot'
 import { assertValidWorkspaceSnapshot } from '../persistence/validation'
 import type { SearchProfile } from '../types/search'
-import { normalizeRecruiterCard, normalizeRecruiterCards } from '../utils/recruiterCardNormalization'
+import {
+  normalizeRecruiterCard,
+  normalizeRecruiterCards,
+} from '../utils/recruiterCardNormalization'
 import { buildWorkspaceSnapshot } from './fixtures/workspaceSnapshot'
 
 const LEGACY_KEYS = [
@@ -767,6 +771,95 @@ describe('persistence foundation', () => {
     expect(card).not.toHaveProperty('positioningAngles')
     expect(card).not.toHaveProperty('gapBridges')
     expect(card).not.toHaveProperty('notes')
+  })
+
+  it('rolls back workspace hydration when a later store application fails', () => {
+    useResumeStore.getState().updateMetaField('name', 'Existing Person')
+    const failingSetState = vi.spyOn(usePrepStore, 'setState').mockImplementationOnce(() => {
+      throw new Error('prep apply failed')
+    })
+    const snapshot = buildWorkspaceSnapshot({
+      artifacts: {
+        ...buildWorkspaceSnapshot().artifacts,
+        resume: {
+          ...buildWorkspaceSnapshot().artifacts.resume,
+          payload: {
+            ...buildWorkspaceSnapshot().artifacts.resume.payload,
+            data: {
+              ...buildWorkspaceSnapshot().artifacts.resume.payload.data,
+              meta: {
+                ...buildWorkspaceSnapshot().artifacts.resume.payload.data.meta,
+                name: 'Incoming Person',
+              },
+            },
+          },
+        },
+      },
+    })
+
+    expect(() => applyWorkspaceSnapshotToStores(snapshot)).toThrow('prep apply failed')
+
+    expect(useResumeStore.getState().data.meta.name).toBe('Existing Person')
+    expect(usePipelineStore.getState().entries).toEqual([])
+    expect(useJDAnalysisStore.getState().analyses).toEqual([])
+    failingSetState.mockRestore()
+  })
+
+  it('reports rollback failures alongside the original hydration failure', () => {
+    const prepApplyError = new Error('prep apply failed')
+    const originalResumeSetState = useResumeStore.setState
+    let resumeSetStateCalls = 0
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const resumeSetState = vi.spyOn(useResumeStore, 'setState').mockImplementation(((
+      nextState,
+      replace,
+    ) => {
+      resumeSetStateCalls += 1
+      if (resumeSetStateCalls === 2) {
+        throw new Error('resume rollback failed')
+      }
+
+      return Reflect.apply(originalResumeSetState, useResumeStore, [nextState, replace])
+    }) as typeof useResumeStore.setState)
+    const prepSetState = vi.spyOn(usePrepStore, 'setState').mockImplementationOnce(() => {
+      throw prepApplyError
+    })
+    const snapshot = buildWorkspaceSnapshot({
+      artifacts: {
+        ...buildWorkspaceSnapshot().artifacts,
+        resume: {
+          ...buildWorkspaceSnapshot().artifacts.resume,
+          payload: {
+            ...buildWorkspaceSnapshot().artifacts.resume.payload,
+            data: {
+              ...buildWorkspaceSnapshot().artifacts.resume.payload.data,
+              meta: {
+                ...buildWorkspaceSnapshot().artifacts.resume.payload.data.meta,
+                name: 'Incoming Person',
+              },
+            },
+          },
+        },
+      },
+    })
+    let thrownError: unknown
+
+    try {
+      applyWorkspaceSnapshotToStores(snapshot)
+    } catch (error) {
+      thrownError = error
+    } finally {
+      resumeSetState.mockRestore()
+      prepSetState.mockRestore()
+      consoleError.mockRestore()
+    }
+
+    expect(thrownError).toBeInstanceOf(AggregateError)
+    const aggregateError = thrownError as AggregateError
+    expect(aggregateError.errors).toEqual([
+      prepApplyError,
+      expect.objectContaining({ message: 'resume rollback failed' }),
+    ])
   })
 
   it('normalizes recruiter card payload shapes defensively', () => {
@@ -1687,6 +1780,13 @@ describe('persistence foundation', () => {
     expect(() =>
       assertValidWorkspaceSnapshot({
         ...valid,
+        snapshotVersion: 999 as 1,
+      }),
+    ).toThrow(/Unsupported workspace snapshot version: expected 1, got 999/)
+
+    expect(() =>
+      assertValidWorkspaceSnapshot({
+        ...valid,
         artifacts: {
           ...valid.artifacts,
           resume: undefined,
@@ -2101,6 +2201,7 @@ describe('persistence foundation', () => {
     const original = {
       nested: { count: 1 },
       createdAt,
+      metadata: new Map([['role', 'platform']]),
       optional: undefined as string | undefined,
     }
 
@@ -2110,6 +2211,8 @@ describe('persistence foundation', () => {
     expect(cloned.nested).not.toBe(original.nested)
     expect(cloned.createdAt).toBeInstanceOf(Date)
     expect(cloned.createdAt).toEqual(createdAt)
+    expect(cloned.metadata).toBeInstanceOf(Map)
+    expect(cloned.metadata.get('role')).toBe('platform')
     expect(cloned).toHaveProperty('optional', undefined)
 
     cloned.nested.count = 2
@@ -2213,6 +2316,7 @@ describe('persistence foundation', () => {
     const original = {
       nested: { count: 1 },
       createdAt: new Date('2026-03-11T12:00:00.000Z'),
+      metadata: new Map([['role', 'platform']]),
       optional: undefined as string | undefined,
     }
     const cloned = cloneValue(original) as typeof original & { createdAt: string }
@@ -2220,6 +2324,7 @@ describe('persistence foundation', () => {
     expect(cloned).toEqual({
       nested: { count: 1 },
       createdAt: '2026-03-11T12:00:00.000Z',
+      metadata: {},
     })
 
     cloned.nested.count = 2

@@ -886,6 +886,52 @@ describe('persistence runtime', () => {
     runtime.dispose()
   })
 
+  it('clears repeated autosave write failures after a later successful save', async () => {
+    vi.useFakeTimers()
+    const backing = createInMemoryPersistenceBackend()
+    let saveAttempts = 0
+    const backend: PersistenceBackend = {
+      ...backing,
+      saveWorkspaceSnapshot: async (snapshot) => {
+        saveAttempts += 1
+        if (saveAttempts <= 2) {
+          const error = new Error(`quota exceeded ${saveAttempts}`)
+          error.name = 'QuotaExceededError'
+          throw error
+        }
+
+        return backing.saveWorkspaceSnapshot(snapshot)
+      },
+    }
+    const runtime = createPersistenceRuntime({
+      backend,
+      localPreferencesBackend: createInMemoryLocalPreferencesBackend(),
+      saveDebounceMs: 10,
+    })
+
+    await runtime.start()
+
+    useResumeStore.getState().updateMetaField('name', 'Quota Draft One')
+    await vi.advanceTimersByTimeAsync(10)
+    expect(usePersistenceRuntimeStore.getState().status.phase).toBe('error')
+    expect(usePersistenceRuntimeStore.getState().status.lastError).toBe('quota exceeded 1')
+
+    useResumeStore.getState().updateMetaField('name', 'Quota Draft Two')
+    await vi.advanceTimersByTimeAsync(10)
+    expect(usePersistenceRuntimeStore.getState().status.phase).toBe('error')
+    expect(usePersistenceRuntimeStore.getState().status.lastError).toBe('quota exceeded 2')
+
+    useResumeStore.getState().updateMetaField('name', 'Recovered Save')
+    await vi.advanceTimersByTimeAsync(10)
+
+    const savedSnapshot = await backing.loadWorkspaceSnapshot('facet-local-workspace')
+    expect(savedSnapshot?.artifacts.resume.payload.data.meta.name).toBe('Recovered Save')
+    expect(usePersistenceRuntimeStore.getState().status.phase).toBe('saved')
+    expect(usePersistenceRuntimeStore.getState().status.lastError).toBeNull()
+
+    runtime.dispose()
+  })
+
   it('surfaces generic autosave failure status when the backend throws non-Error values', async () => {
     vi.useFakeTimers()
     const backend: PersistenceBackend = {
@@ -960,6 +1006,50 @@ describe('persistence runtime', () => {
     await vi.advanceTimersByTimeAsync(10)
 
     expect(getSaveCalls()).toBe(0)
+  })
+
+  it('does not let a disposed workspace runtime save into the next workspace', async () => {
+    vi.useFakeTimers()
+    const backing = createInMemoryPersistenceBackend()
+    const savedWorkspaceIds: string[] = []
+    const backend: PersistenceBackend = {
+      ...backing,
+      saveWorkspaceSnapshot: async (snapshot) => {
+        savedWorkspaceIds.push(snapshot.workspace.id)
+        return backing.saveWorkspaceSnapshot(snapshot)
+      },
+    }
+
+    const firstRuntime = createPersistenceRuntime({
+      workspaceId: 'ws-a',
+      workspaceName: 'Workspace A',
+      backend,
+      localPreferencesBackend: createInMemoryLocalPreferencesBackend(),
+      saveDebounceMs: 10,
+    })
+    await firstRuntime.start()
+    useResumeStore.getState().updateMetaField('name', 'Workspace A Draft')
+    firstRuntime.dispose()
+
+    const secondRuntime = createPersistenceRuntime({
+      workspaceId: 'ws-b',
+      workspaceName: 'Workspace B',
+      backend,
+      localPreferencesBackend: createInMemoryLocalPreferencesBackend(),
+      saveDebounceMs: 10,
+    })
+    await secondRuntime.start()
+    useResumeStore.getState().updateMetaField('name', 'Workspace B Draft')
+
+    await vi.advanceTimersByTimeAsync(10)
+
+    const staleSnapshot = await backing.loadWorkspaceSnapshot('ws-a')
+    const currentSnapshot = await backing.loadWorkspaceSnapshot('ws-b')
+    expect(savedWorkspaceIds).toEqual(['ws-b'])
+    expect(staleSnapshot).toBeNull()
+    expect(currentSnapshot?.artifacts.resume.payload.data.meta.name).toBe('Workspace B Draft')
+
+    secondRuntime.dispose()
   })
 
   it('recreates the singleton runtime after disposal', () => {
