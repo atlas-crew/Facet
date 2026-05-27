@@ -3,9 +3,11 @@ id: TASK-73
 title: >-
   Strengthen persistence resilience around clone fallback, hydration recovery,
   and storage failure handling
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-03-12 11:52'
+updated_date: '2026-05-27 15:35'
 labels:
   - remediation
   - persistence
@@ -33,6 +35,12 @@ Follow-up from TASK-70 persistence audit. Capture the broader resilience gaps th
 - [ ] #4 Hydration behavior is either made atomic or explicitly guarded and tested so partial store application cannot leave mixed workspace state.
 - [ ] #5 Snapshot-version evolution behavior is tested or the validator contract is explicitly documented and enforced for unsupported versions.
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-05-27 Codex starting TASK-73. Plan: inspect clone fallback, persistence runtime save/load ordering, storage backend failure handling, snapshot normalization/validation contracts, and referenced audits; implement the smallest resilience/test slice that satisfies ACs; run focused tests plus typecheck/lint/build and independent review/audit before close.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
