@@ -3,9 +3,11 @@ id: TASK-235
 title: >-
   Hydration normalizer: backfill missing RecruiterCard fields from legacy
   snapshots
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-05-06 20:28'
+updated_date: '2026-05-27 11:49'
 labels:
   - audience-tagging
   - persistence
@@ -53,3 +55,9 @@ A hydration normalizer would backfill missing fields once at load time, so downs
 - [ ] #5 Linters report no WARNINGS or ERRORS
 - [ ] #6 The project builds successfully
 <!-- DOD:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-05-27 Codex starting combined push with TASK-234/TASK-238. Plan: inspect recruiter card schema/store/snapshot hydration, add normalizer for legacy missing fields and dropped legacy keys, reduce renderer defensive defaults if safe, add legacy snapshot hydration coverage, then run gates/review/audit and close.
+<!-- SECTION:NOTES:END -->
