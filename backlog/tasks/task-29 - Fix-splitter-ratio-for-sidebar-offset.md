@@ -1,11 +1,11 @@
 ---
 id: TASK-29
 title: Fix splitter ratio calculation to account for sidebar width
-status: In Progress
+status: Done
 assignee:
   - '@codex'
 created_date: '2026-03-07 12:00'
-updated_date: '2026-05-27 20:54'
+updated_date: '2026-05-27 21:23'
 labels: []
 milestone: m-4
 dependencies: []
@@ -36,4 +36,6 @@ The panel splitter drag handler in BuildPage uses `event.clientX / window.innerW
 
 <!-- SECTION:NOTES:BEGIN -->
 2026-05-27 Codex starting TASK-29 as part of m-4 completion push. Plan: inspect BuildPage splitter drag logic, update sidebar-aware ratio calculation, add focused regression coverage if a suitable BuildPage/UI test hook exists, run focused validation, and commit atomically.
+
+Closed as satisfied in current build: BuildPage splitter ratio already subtracts the 48px sidebar width before dividing by the content width, and npx vitest run src/test/BuildPage.test.tsx passes (20 tests).
 <!-- SECTION:NOTES:END -->
