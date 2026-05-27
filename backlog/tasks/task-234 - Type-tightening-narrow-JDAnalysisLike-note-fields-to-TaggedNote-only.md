@@ -1,11 +1,11 @@
 ---
 id: TASK-234
 title: 'Type tightening: narrow JDAnalysisLike note fields to TaggedNote[] only'
-status: In Progress
+status: Done
 assignee:
   - '@codex'
 created_date: '2026-05-06 20:28'
-updated_date: '2026-05-27 11:49'
+updated_date: '2026-05-27 12:27'
 labels:
   - audience-tagging
   - types
@@ -44,12 +44,12 @@ Once all callers produce `TaggedNote[]` (post-Phase-7), the union is dead weight
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
-- [ ] #3 All tests pass successfully
-- [ ] #4 Automatic formatting was applied.
-- [ ] #5 Linters report no WARNINGS or ERRORS
-- [ ] #6 The project builds successfully
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
+- [x] #3 All tests pass successfully
+- [x] #4 Automatic formatting was applied.
+- [x] #5 Linters report no WARNINGS or ERRORS
+- [x] #6 The project builds successfully
 <!-- DOD:END -->
 
 ## Implementation Notes
@@ -57,3 +57,9 @@ Once all callers produce `TaggedNote[]` (post-Phase-7), the union is dead weight
 <!-- SECTION:NOTES:BEGIN -->
 2026-05-27 Codex starting combined push with TASK-235/TASK-238. Plan: audit applyRulesBasedAudiences/JDAnalysisLike callers, narrow note fields to TaggedNote[], preserve legacy-string migration through explicit boundary normalization, update focused tests, then run gates/review/audit and close.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+2026-05-27 completed in commit d2add7a. JDAnalysisLike note fields are now TaggedNote[] only; legacy string/bare-note migration moved to jdAnalysisStore normalization, which clears the rules stamp before reapplying default audiences. Direct applyRulesBasedAudiences callers now fail loudly on malformed note arrays. Verification: focused Vitest 174/174 pass, npm run typecheck, npm run lint, npm run build; source review PASS WITH ISSUES P3-only; diff test audit no P0/P1 after Gemini rerun.
+<!-- SECTION:FINAL_SUMMARY:END -->
