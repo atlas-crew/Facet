@@ -1,10 +1,11 @@
 ---
 id: TASK-238
 title: Align resume-mode inferred skill depths with identity depth contract
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-05-07 00:44'
-updated_date: '2026-05-07 00:48'
+updated_date: '2026-05-27 11:49'
 labels:
   - refactor
   - search-redesign
@@ -32,6 +33,12 @@ TASK-206 verified inferSearchProfile resume mode is still active through Researc
 - [ ] #1 Resume-mode skill depth output is either aligned with the identity depth contract or the intentional subset is documented with a type-level guard.
 - [ ] #2 Focused tests cover the chosen contract.
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-05-27 Codex starting combined push with TASK-234/TASK-235. Decision to verify before implementation: prefer aligning resume-mode inferred skill depths to the identity depth contract unless the live prompt/normalizer clearly needs a documented subset. Will update focused tests and gates/review/audit before close.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
