@@ -3,11 +3,11 @@ id: TASK-235
 title: >-
   Hydration normalizer: backfill missing RecruiterCard fields from legacy
   snapshots
-status: In Progress
+status: Done
 assignee:
   - '@codex'
 created_date: '2026-05-06 20:28'
-updated_date: '2026-05-27 11:49'
+updated_date: '2026-05-27 12:27'
 labels:
   - audience-tagging
   - persistence
@@ -48,12 +48,12 @@ A hydration normalizer would backfill missing fields once at load time, so downs
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
-- [ ] #3 All tests pass successfully
-- [ ] #4 Automatic formatting was applied.
-- [ ] #5 Linters report no WARNINGS or ERRORS
-- [ ] #6 The project builds successfully
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
+- [x] #3 All tests pass successfully
+- [x] #4 Automatic formatting was applied.
+- [x] #5 Linters report no WARNINGS or ERRORS
+- [x] #6 The project builds successfully
 <!-- DOD:END -->
 
 ## Implementation Notes
@@ -61,3 +61,9 @@ A hydration normalizer would backfill missing fields once at load time, so downs
 <!-- SECTION:NOTES:BEGIN -->
 2026-05-27 Codex starting combined push with TASK-234/TASK-238. Plan: inspect recruiter card schema/store/snapshot hydration, add normalizer for legacy missing fields and dropped legacy keys, reduce renderer defensive defaults if safe, add legacy snapshot hydration coverage, then run gates/review/audit and close.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+2026-05-27 completed in commit 93101a1. Added recruiterCardNormalization and wired workspace hydration through normalizeRecruiterCards. Legacy cards now backfill matchScoreMethodology/actionCta, drop positioningAngles/gapBridges/notes, validate durable metadata, filter malformed card payloads, and preserve forward-compatible unknown fields. Renderer helpers were left in place as harmless defense for direct-render callers; hydrated store data now satisfies the current card contract. Verification: focused Vitest 174/174 pass, npm run typecheck, npm run lint, npm run build; recruiter hydration diff test audit reports no prioritized gaps.
+<!-- SECTION:FINAL_SUMMARY:END -->
