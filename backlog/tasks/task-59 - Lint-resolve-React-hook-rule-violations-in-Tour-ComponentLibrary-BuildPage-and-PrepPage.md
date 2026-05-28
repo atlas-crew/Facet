@@ -3,9 +3,11 @@ id: TASK-59
 title: >-
   Lint: resolve React hook rule violations in Tour, ComponentLibrary, BuildPage,
   and PrepPage
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@codex'
 created_date: '2026-03-10 21:41'
+updated_date: '2026-05-28 05:52'
 labels:
   - lint
   - react
@@ -34,6 +36,12 @@ Fix the remaining React lint findings that may reflect real behavioral risk, esp
 - [ ] #3 Changes are covered by targeted tests or verification steps that exercise the affected interaction flows.
 - [ ] #4 Repo-wide eslint no longer reports React hook violations for this slice.
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Closed as already satisfied in current repo. Validation: npm run lint passes repo-wide, and targeted eslint over ComponentLibrary, Tour, BuildPage, and PrepPage exits cleanly with no React hook rule violations reported.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
