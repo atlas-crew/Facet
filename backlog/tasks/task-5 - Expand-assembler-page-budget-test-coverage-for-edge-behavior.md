@@ -1,7 +1,7 @@
 ---
 id: TASK-5
 title: Expand assembler/page-budget test coverage for edge behavior
-status: In Progress
+status: Done
 assignee:
   - '@codex'
 created_date: '2026-02-28 05:46'
