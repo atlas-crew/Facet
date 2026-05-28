@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@codex'
 created_date: '2026-02-28 05:46'
-updated_date: '2026-05-28 16:15'
+updated_date: '2026-05-28 16:41'
 labels:
   - remediation
   - refactor
@@ -23,11 +23,13 @@ Review feedback flags App.tsx/ComponentLibrary prop-drilling and inline mutation
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 App.tsx no longer defines inline data mutation callbacks for each entity type
+- [x] #1 App.tsx no longer defines inline data mutation callbacks for each entity type
 - [ ] #2 ComponentLibrary callback prop count is materially reduced
 - [ ] #3 Behavior parity is preserved for add/edit/reorder/toggle flows
 - [ ] #4 Verification commands pass
 <!-- AC:END -->
+
+
 
 ## Implementation Plan
 
