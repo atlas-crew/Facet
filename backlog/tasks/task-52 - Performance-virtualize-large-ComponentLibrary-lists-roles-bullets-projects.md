@@ -1,9 +1,11 @@
 ---
 id: TASK-52
 title: 'Performance: virtualize large ComponentLibrary lists (roles/bullets/projects)'
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-03-10 03:54'
+updated_date: '2026-05-28 14:20'
 labels:
   - performance
 milestone: m-1
@@ -26,6 +28,12 @@ For large resumes, rendering every card/bullet can be slow. Introduce list virtu
 - [ ] #3 No visual regressions in normal-sized datasets.
 - [ ] #4 Verification commands pass.
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Codex starting TASK-52. Plan: add an internal measured virtual-list primitive that falls back to the existing DOM for normal-sized lists; apply it to ComponentLibrary roles, per-role bullets, and projects above conservative thresholds so DnD/keyboard affordances remain intact for rendered items; add focused regression tests for normal-list parity and large-list DOM reduction; run independent review/audit plus lint/test/build; commit via cortex.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
