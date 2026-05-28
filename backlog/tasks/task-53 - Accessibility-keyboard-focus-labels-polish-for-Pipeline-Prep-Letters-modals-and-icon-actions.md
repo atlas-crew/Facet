@@ -3,7 +3,7 @@ id: TASK-53
 title: >-
   Accessibility: keyboard/focus/labels polish for Pipeline/Prep/Letters modals
   and icon actions
-status: In Progress
+status: Done
 assignee:
   - '@codex'
 created_date: '2026-03-10 03:54'
