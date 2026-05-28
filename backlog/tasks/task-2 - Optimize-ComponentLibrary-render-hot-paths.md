@@ -1,7 +1,7 @@
 ---
 id: TASK-2
 title: Optimize ComponentLibrary render hot paths
-status: In Progress
+status: Done
 assignee:
   - '@codex'
 created_date: '2026-02-28 05:46'
