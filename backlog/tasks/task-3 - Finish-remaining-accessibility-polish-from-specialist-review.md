@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@codex'
 created_date: '2026-02-28 05:46'
-updated_date: '2026-05-28 17:36'
+updated_date: '2026-05-28 17:41'
 labels:
   - remediation
   - accessibility
@@ -23,11 +23,13 @@ After core a11y fixes, review feedback still calls out keyboard guidance and ann
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Drag handles expose discoverable keyboard instructions
+- [x] #1 Drag handles expose discoverable keyboard instructions
 - [ ] #2 Changing Add Component type announces the new form context
 - [ ] #3 Toast notifications can be dismissed manually
 - [ ] #4 Verification commands pass
 <!-- AC:END -->
+
+
 
 ## Implementation Plan
 
