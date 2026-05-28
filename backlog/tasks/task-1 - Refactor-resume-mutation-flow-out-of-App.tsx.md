@@ -1,9 +1,11 @@
 ---
 id: TASK-1
 title: Refactor resume mutation flow out of App.tsx
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-02-28 05:46'
+updated_date: '2026-05-28 16:15'
 labels:
   - remediation
   - refactor
@@ -35,3 +37,9 @@ Review feedback flags App.tsx/ComponentLibrary prop-drilling and inline mutation
 3. Reduce ComponentLibrary prop footprint by passing grouped action APIs.
 4. Re-run lint/typecheck/test/build and document API changes.
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Starting TASK-1. Current App.tsx is already a re-export; the live mutation surface is BuildPage -> ComponentLibrary. I will treat the task as refactoring that current BuildPage/ComponentLibrary boundary: move component-library mutation wiring into a reusable build hook and collapse the many callback props into a grouped action API while preserving store-backed behavior.
+<!-- SECTION:NOTES:END -->
