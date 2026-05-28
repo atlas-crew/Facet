@@ -1,6 +1,7 @@
 import { lazy } from 'react'
 import { createRouter, createRootRoute, createRoute } from '@tanstack/react-router'
 import { AppShell } from './components/AppShell'
+import { RouteErrorFallback } from './components/RouteErrorFallback'
 import { BuildPage } from './routes/build/BuildPage'
 import { PipelinePage } from './routes/pipeline/PipelinePage'
 import { RecruiterPage } from './routes/recruiter/RecruiterPage'
@@ -234,6 +235,10 @@ const routeTree = rootRoute.addChildren([
 export const router = createRouter({
   routeTree,
   defaultPreloadStaleTime: 0,
+  defaultErrorComponent: RouteErrorFallback,
+  defaultOnCatch: (error) => {
+    console.error('[route-error-boundary]', error)
+  },
 })
 
 declare module '@tanstack/react-router' {

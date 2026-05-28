@@ -29,7 +29,13 @@ export function PdfPreview({ blobUrl, loading, error }: PdfPreviewProps) {
       {loading ? <div className="pdf-preview-status">Rendering PDF…</div> : null}
       {error ? (
         <div className="pdf-preview-status error" role="alert">
-          {error}
+          <strong>{isStale ? 'PDF render paused' : 'PDF render unavailable'}</strong>
+          <span>{error}</span>
+          <span className="pdf-preview-status-hint">
+            {isStale
+              ? 'The last successful preview is still visible. Keep editing to trigger another render.'
+              : 'Check recent template or theme changes, then edit the resume to retry rendering.'}
+          </span>
         </div>
       ) : null}
     </div>
