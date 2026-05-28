@@ -18,15 +18,12 @@ import {
 } from 'lucide-react'
 import { DropdownMenu } from '../../components/DropdownMenu'
 import type {
-  AddComponentPayload,
-  AddComponentType,
   ResumeThemeOverrides,
   ResumeThemePresetId,
-  PriorityByVector,
   JdAnalysisResult,
   ResumeData,
 } from '../../types'
-import { assembleResume, getPriorityForVector } from '../../engine/assembler'
+import { assembleResume } from '../../engine/assembler'
 import { renderResumeAsText } from '../../utils/textRenderer'
 import { renderResumeAsMarkdown } from '../../utils/markdownRenderer'
 import { buildBundle } from '../../utils/bundleExporter'
@@ -35,7 +32,6 @@ import { exportResumeConfig } from '../../engine/serializer'
 import { ComparisonDiff } from '../../components/ComparisonDiff'
 import { useResumeStore } from '../../store/resumeStore'
 import { toVectorKey, useUiStore } from '../../store/uiStore'
-import { componentKeys } from '../../utils/componentKeys'
 import { facetClientEnv } from '../../utils/facetEnv'
 import { VectorBar } from '../../components/VectorBar'
 import { UndoRedoControls } from '../../components/UndoRedoControls'
@@ -75,6 +71,7 @@ import { useJDAnalysisStore } from '../../store/jdAnalysisStore'
 import { useIdentityStore } from '../../store/identityStore'
 import { usePipelineStore } from '../../store/pipelineStore'
 import { useSuggestionActions } from '../../hooks/useSuggestionActions'
+import { useComponentLibraryActions } from '../../hooks/useComponentLibraryActions'
 import { usePresets } from '../../hooks/usePresets'
 import { createId, slugify } from '../../utils/idUtils'
 import {
@@ -95,7 +92,6 @@ import { buildProjectionFromJDAnalysis } from '../../utils/buildProjection'
 import { resumeOriginFromGeneration } from '../../utils/resumeEntities'
 
 const vectorFallbackColors = ['#2563EB', '#0D9488', '#7C3AED', '#EA580C', '#4F46E5', '#0891B2']
-const CURRENT_YEAR = new Date().getFullYear()
 const SIDEBAR_WIDTH = 48
 
 const EMPTY_MANUAL_OVERRIDES: Readonly<Record<string, Record<string, boolean>>> = Object.freeze({})
@@ -158,7 +154,8 @@ const describeGenerationModel = (generation: ResumeWorkspaceGenerationState) => 
   if (generation.mode === 'dynamic' || generation.source === 'pipeline') {
     return {
       label: 'Dynamic per-job',
-      detail: 'Pipeline context keeps this resume tied to one job while AI refreshes the variant metadata.',
+      detail:
+        'Pipeline context keeps this resume tied to one job while AI refreshes the variant metadata.',
     }
   }
 
@@ -185,14 +182,16 @@ const describeGenerationFlow = (generation: ResumeWorkspaceGenerationState) => {
   if (generation.mode === 'dynamic' || generation.source === 'pipeline') {
     return {
       label: 'Pipeline-driven dynamic job flow',
-      detail: 'This variant came from a pipeline entry and keeps the job description plus generated variant metadata linked together.',
+      detail:
+        'This variant came from a pipeline entry and keeps the job description plus generated variant metadata linked together.',
     }
   }
 
   if (generation.mode === 'multi-vector' && generation.vectorMode === 'auto') {
     return {
       label: 'AI-suggested multi-vector generation',
-      detail: 'JD analysis suggested the vector mix first, then Build carried those vectors into assembly suggestions.',
+      detail:
+        'JD analysis suggested the vector mix first, then Build carried those vectors into assembly suggestions.',
     }
   }
 
@@ -205,17 +204,6 @@ const describeGenerationFlow = (generation: ResumeWorkspaceGenerationState) => {
   }
 }
 
-const ID_MAP: Record<AddComponentType, string> = {
-  target_line: 'target-line',
-  profile: 'profile',
-  skill_group: 'skill',
-  project: 'project',
-  bullet: 'bullet',
-  role: 'role',
-  education: 'education',
-  certification: 'cert',
-}
-
 export function BuildPage() {
   const navigate = useNavigate()
   const {
@@ -225,53 +213,12 @@ export function BuildPage() {
     updateGeneration,
     undo,
     redo,
-    setOverride,
-    setRoleBulletOrder,
-    resetRoleBulletOrder,
     resetOverridesForVector,
-    reorderProjects,
-    reorderSkillGroups,
-    updateMetaField,
-    updateMetaLink,
-    addMetaLink,
-    removeMetaLink,
-    updateTargetLine,
     updateTargetLineVectors,
-    updateProfile,
-    updateProfileVectors,
-    updateProject,
-    updateProjectVectors,
-    updateSkillGroup,
-    updateSkillGroupVectors,
-    updateRole,
-    updateBullet,
-    updateBulletLabel,
     updateBulletVectors,
-    addTargetLine,
-    addProfile,
-    addSkillGroup,
-    addProject,
-    addBullet,
-    addRole,
-    addEducation,
-    updateEducation,
-    deleteEducation,
-    reorderEducation,
-    addCertification,
-    updateCertification,
-    updateCertificationVectors,
-    deleteCertification,
-    reorderCertifications,
     updateVariables,
     resetToDefaults,
-    updateTargetLineVariant: updateTargetLineVariantStore,
-    resetTargetLineVariant: resetTargetLineVariantStore,
-    updateProfileVariant: updateProfileVariantStore,
-    resetProfileVariant: resetProfileVariantStore,
     updateBulletVariant: updateBulletVariantStore,
-    resetBulletVariant: resetBulletVariantStore,
-    updateProjectVariant: updateProjectVariantStore,
-    resetProjectVariant: resetProjectVariantStore,
   } = useResumeStore()
 
   // 1. State Declarations
@@ -326,10 +273,13 @@ export function BuildPage() {
       window.clearTimeout(noticeTimeoutRef.current)
     }
     setNotice({ tone, message })
-    noticeTimeoutRef.current = window.setTimeout(() => {
-      setNotice(null)
-      noticeTimeoutRef.current = null
-    }, tone === 'error' ? 5000 : 2500)
+    noticeTimeoutRef.current = window.setTimeout(
+      () => {
+        setNotice(null)
+        noticeTimeoutRef.current = null
+      },
+      tone === 'error' ? 5000 : 2500,
+    )
   }, [])
 
   const variables = data.variables ?? EMPTY_VARIABLES
@@ -338,7 +288,10 @@ export function BuildPage() {
   const vectorKey = toVectorKey(selectedVector)
 
   const jdAnalysisEndpointRaw = facetClientEnv.anthropicProxyUrl
-  const jdAnalysisEndpoint = useMemo(() => sanitizeEndpointUrl(jdAnalysisEndpointRaw), [jdAnalysisEndpointRaw])
+  const jdAnalysisEndpoint = useMemo(
+    () => sanitizeEndpointUrl(jdAnalysisEndpointRaw),
+    [jdAnalysisEndpointRaw],
+  )
 
   const themeState = useMemo(() => normalizeThemeState(data.theme), [data.theme])
   const resolvedTheme = useMemo(() => resolveTheme(themeState), [themeState])
@@ -352,10 +305,13 @@ export function BuildPage() {
     () => manualOverrides[vectorKey] ?? {},
     [manualOverrides, vectorKey],
   )
-  const activeBulletOrders = useMemo(
-    () => bulletOrders[vectorKey] ?? {},
-    [bulletOrders, vectorKey],
-  )
+  const activeBulletOrders = useMemo(() => bulletOrders[vectorKey] ?? {}, [bulletOrders, vectorKey])
+  const libraryActions = useComponentLibraryActions({
+    data,
+    selectedVector,
+    vectorKey,
+    overridesForVector,
+  })
   const persistPipelineResumeGeneration = useCallback(
     (
       generation: ResumeWorkspaceGenerationState,
@@ -366,14 +322,17 @@ export function BuildPage() {
         return generation
       }
 
-      const pipelineEntry = usePipelineStore.getState().entries.find((entry) => entry.id === entryId)
+      const pipelineEntry = usePipelineStore
+        .getState()
+        .entries.find((entry) => entry.id === entryId)
       if (!pipelineEntry) {
         return generation
       }
 
       const presetId =
         options.presetId ?? generation.presetId ?? getPipelineResumePresetId(pipelineEntry)
-      const variantId = generation.variantId ?? pipelineEntry.resumeGeneration?.variantId ?? createId('resumevar')
+      const variantId =
+        generation.variantId ?? pipelineEntry.resumeGeneration?.variantId ?? createId('resumevar')
       const variantLabel = buildPipelineResumeVariantLabel({
         entryId: pipelineEntry.id,
         company: pipelineEntry.company,
@@ -394,7 +353,7 @@ export function BuildPage() {
           suggestedVectorIds: generation.suggestedVectorIds,
           lastGeneratedAt: options.markGenerated
             ? new Date().toISOString()
-            : pipelineEntry.resumeGeneration?.lastGeneratedAt ?? null,
+            : (pipelineEntry.resumeGeneration?.lastGeneratedAt ?? null),
         },
         {
           resumeVariant: variantLabel,
@@ -472,7 +431,9 @@ export function BuildPage() {
     updateData,
     showNotice,
     onPresetSaved: (preset) => {
-      const currentGeneration = normalizeResumeWorkspaceGeneration(useResumeStore.getState().data.generation)
+      const currentGeneration = normalizeResumeWorkspaceGeneration(
+        useResumeStore.getState().data.generation,
+      )
       const nextGeneration = persistPipelineResumeGeneration(currentGeneration, {
         presetId: preset.id,
       })
@@ -488,18 +449,25 @@ export function BuildPage() {
     if (!suggestionModeActive || !jdAnalysisResult) return undefined
     return Object.fromEntries(
       (jdAnalysisResult.bullet_adjustments ?? [])
-        .filter(adj => !ignoredSuggestionIds.has(adj.bullet_id))
-        .map(adj => [adj.bullet_id, { recommendedPriority: adj.recommended_priority, reason: adj.reason }])
+        .filter((adj) => !ignoredSuggestionIds.has(adj.bullet_id))
+        .map((adj) => [
+          adj.bullet_id,
+          { recommendedPriority: adj.recommended_priority, reason: adj.reason },
+        ]),
     )
   }, [suggestionModeActive, jdAnalysisResult, ignoredSuggestionIds])
 
   const targetLineSuggestion = useMemo(() => {
-    if (!suggestionModeActive || !jdAnalysisResult?.suggested_target_line || ignoredSuggestionIds.has('target-line')) {
+    if (
+      !suggestionModeActive ||
+      !jdAnalysisResult?.suggested_target_line ||
+      ignoredSuggestionIds.has('target-line')
+    ) {
       return undefined
     }
     return {
       recommendedPriority: 'include' as const,
-      reason: 'Matched JD recommendation'
+      reason: 'Matched JD recommendation',
     }
   }, [suggestionModeActive, jdAnalysisResult, ignoredSuggestionIds])
 
@@ -516,7 +484,11 @@ export function BuildPage() {
   }, [suggestionModeActive, jdAnalysisResult, ignoredSuggestionIds, data.target_lines])
 
   const matchScore = useMemo(() => {
-    if (selectedVector !== 'all' && currentMatchReport && buildMatchVectorId(currentMatchReport) === selectedVector) {
+    if (
+      selectedVector !== 'all' &&
+      currentMatchReport &&
+      buildMatchVectorId(currentMatchReport) === selectedVector
+    ) {
       return currentMatchReport.matchScore
     }
     if (!jdAnalysisResult) return null
@@ -575,7 +547,7 @@ export function BuildPage() {
   // Comparison assembly — only computed when a comparison vector is active
   const comparisonVectorKey = comparisonVector ? toVectorKey(comparisonVector) : null
   const comparisonOverrides = useMemo(
-    () => (comparisonVectorKey ? manualOverrides[comparisonVectorKey] ?? {} : {}),
+    () => (comparisonVectorKey ? (manualOverrides[comparisonVectorKey] ?? {}) : {}),
     [manualOverrides, comparisonVectorKey],
   )
   const comparisonBulletOrders = useMemo(
@@ -604,9 +576,9 @@ export function BuildPage() {
     theme: resolvedTheme,
   })
 
-  const bulletCount = useMemo(() => 
-    assembledResult.resume.roles.reduce((acc, role) => acc + role.bullets.length, 0),
-    [assembledResult.resume.roles]
+  const bulletCount = useMemo(
+    () => assembledResult.resume.roles.reduce((acc, role) => acc + role.bullets.length, 0),
+    [assembledResult.resume.roles],
   )
   const generationState = useMemo(
     () => normalizeResumeWorkspaceGeneration(data.generation),
@@ -631,11 +603,15 @@ export function BuildPage() {
   const pipelineEntry = useMemo(
     () =>
       generationState.pipelineEntryId
-        ? usePipelineStore.getState().entries.find((entry) => entry.id === generationState.pipelineEntryId) ?? null
+        ? (usePipelineStore
+            .getState()
+            .entries.find((entry) => entry.id === generationState.pipelineEntryId) ?? null)
         : null,
     [generationState.pipelineEntryId],
   )
-  const pipelineEntryLabel = pipelineEntry ? `${pipelineEntry.company} · ${pipelineEntry.role}` : null
+  const pipelineEntryLabel = pipelineEntry
+    ? `${pipelineEntry.company} · ${pipelineEntry.role}`
+    : null
   const onOpenPipelineEntry = useCallback(() => {
     if (!generationState.pipelineEntryId) return
     void navigate({ to: '/pipeline', search: { entry: generationState.pipelineEntryId } })
@@ -645,9 +621,7 @@ export function BuildPage() {
       return generationState.variantLabel
     }
 
-    return generationState.mode === 'dynamic'
-      ? 'Job-linked variant'
-      : 'Current workspace baseline'
+    return generationState.mode === 'dynamic' ? 'Job-linked variant' : 'Current workspace baseline'
   }, [generationState.mode, generationState.variantLabel])
   const contextHelpByLabel = useMemo<Record<string, string>>(
     () => ({
@@ -665,9 +639,12 @@ export function BuildPage() {
             ? `${generationSourceLabel}: Linked to ${pipelineEntryLabel}. Click the entry name below to open the originating job flow in Pipeline.`
             : `${generationSourceLabel}: No matching pipeline entry is available in this workspace.`
           : `${generationSourceLabel}: Source tracks how this workspace entered Build before your current edits.`,
-      Preset: 'Preset state appears only when a saved preset is active or the current draft has unsaved preset changes.',
-      Suggestions: 'Suggestions appear after JD analysis when there are JD-guided changes ready to review.',
-      'JD Analysis': 'Build consumes the canonical JD analysis attached to the originating pipeline entry.',
+      Preset:
+        'Preset state appears only when a saved preset is active or the current draft has unsaved preset changes.',
+      Suggestions:
+        'Suggestions appear after JD analysis when there are JD-guided changes ready to review.',
+      'JD Analysis':
+        'Build consumes the canonical JD analysis attached to the originating pipeline entry.',
     }),
     [
       generationFlowSummary.detail,
@@ -731,17 +708,14 @@ export function BuildPage() {
     },
     [data.vectors],
   )
-  const closeJdModal = useCallback(
-    (options: { discardAnalysis?: boolean } = {}) => {
-      setJdModalOpen(false)
-      if (options.discardAnalysis === true) {
-        setJdAnalysisResult(null)
-        setVectorPlan(null)
-        setManualVectorPlanIds([])
-      }
-    },
-    [],
-  )
+  const closeJdModal = useCallback((options: { discardAnalysis?: boolean } = {}) => {
+    setJdModalOpen(false)
+    if (options.discardAnalysis === true) {
+      setJdAnalysisResult(null)
+      setVectorPlan(null)
+      setManualVectorPlanIds([])
+    }
+  }, [])
 
   const applyCanonicalJdAnalysis = useCallback(
     (
@@ -749,7 +723,11 @@ export function BuildPage() {
       currentGeneration = generationState,
     ) => {
       const projection = buildProjectionFromJDAnalysis(analysis, data)
-      const nextVectorPlan = buildInitialResumeVectorPlan(projection, data.vectors, currentGeneration)
+      const nextVectorPlan = buildInitialResumeVectorPlan(
+        projection,
+        data.vectors,
+        currentGeneration,
+      )
       setJdAnalysisResult(projection)
       setVectorPlan(nextVectorPlan)
       setManualVectorPlanIds(nextVectorPlan.vectorIds)
@@ -778,7 +756,9 @@ export function BuildPage() {
     const sourceDetail = (() => {
       if (generationState.source === 'pipeline') {
         if (pipelineEntryLabel) return pipelineEntryLabel
-        return generationState.pipelineEntryId ? 'Pipeline entry unavailable' : 'No pipeline entry linked'
+        return generationState.pipelineEntryId
+          ? 'Pipeline entry unavailable'
+          : 'No pipeline entry linked'
       }
       return generationState.source === 'identity'
         ? 'Identity generation loaded'
@@ -807,7 +787,11 @@ export function BuildPage() {
       {
         label: 'Preset',
         value: activePresetName ?? (presetDirty ? 'Unsaved preset' : 'No saved preset'),
-        detail: presetDirty ? 'Unsaved changes' : hasActivePreset ? 'Preset synced' : 'Preset state synced',
+        detail: presetDirty
+          ? 'Unsaved changes'
+          : hasActivePreset
+            ? 'Preset synced'
+            : 'Preset state synced',
         help: contextHelpByLabel.Preset,
       },
       {
@@ -837,21 +821,21 @@ export function BuildPage() {
       },
     ]
   }, [
-      activePresetName,
-      hasActivePreset,
-      contextHelpByLabel,
-      generationModeLabel,
-      jdAnalysisResult,
-      presetDirty,
-      suggestionCount,
-      suggestionModeActive,
-      generationSourceLabel,
-      generationState.pipelineEntryId,
-      generationState.source,
-      generationState.vectorMode,
-      onOpenPipelineEntry,
-      pipelineEntryLabel,
-    ])
+    activePresetName,
+    hasActivePreset,
+    contextHelpByLabel,
+    generationModeLabel,
+    jdAnalysisResult,
+    presetDirty,
+    suggestionCount,
+    suggestionModeActive,
+    generationSourceLabel,
+    generationState.pipelineEntryId,
+    generationState.source,
+    generationState.vectorMode,
+    onOpenPipelineEntry,
+    pipelineEntryLabel,
+  ])
 
   // Pipeline → Build handoff
   useEffect(() => {
@@ -862,7 +846,9 @@ export function BuildPage() {
       setJdModalOpen(true)
       const handoffVectorId = handoff.primaryVectorId
       const pipelineEntry = handoff.pipelineEntryId
-        ? usePipelineStore.getState().entries.find((entry) => entry.id === handoff.pipelineEntryId) ?? null
+        ? (usePipelineStore
+            .getState()
+            .entries.find((entry) => entry.id === handoff.pipelineEntryId) ?? null)
         : null
       const nextGeneration = {
         mode: handoff.mode,
@@ -873,9 +859,14 @@ export function BuildPage() {
         primaryVectorId: handoff.primaryVectorId,
         vectorIds: handoff.vectorIds,
         suggestedVectorIds: handoff.suggestedVectorIds,
-        ...((handoff.resumeGeneration || pipelineEntry?.resumeGeneration || pipelineEntry?.resumeVariant)
+        ...(handoff.resumeGeneration ||
+        pipelineEntry?.resumeGeneration ||
+        pipelineEntry?.resumeVariant
           ? {
-              variantId: handoff.resumeGeneration?.variantId ?? pipelineEntry?.resumeGeneration?.variantId ?? null,
+              variantId:
+                handoff.resumeGeneration?.variantId ??
+                pipelineEntry?.resumeGeneration?.variantId ??
+                null,
               variantLabel:
                 handoff.resumeGeneration?.variantLabel ??
                 (handoff.source === 'pipeline' && pipelineEntry
@@ -895,7 +886,10 @@ export function BuildPage() {
         ? useJDAnalysisStore.getState().findByPipelineEntry(handoff.pipelineEntryId)
         : null
       if (canonicalAnalysis) {
-        applyCanonicalJdAnalysis(canonicalAnalysis, normalizeResumeWorkspaceGeneration(nextGeneration))
+        applyCanonicalJdAnalysis(
+          canonicalAnalysis,
+          normalizeResumeWorkspaceGeneration(nextGeneration),
+        )
       } else {
         setJdAnalysisResult(null)
         setVectorPlan(null)
@@ -911,7 +905,9 @@ export function BuildPage() {
         handoffEntryIdRef.current = handoff.pipelineEntryId
       }
     }
-    return () => { handoffEntryIdRef.current = null }
+    return () => {
+      handoffEntryIdRef.current = null
+    }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // 8. Event Handlers
@@ -921,7 +917,10 @@ export function BuildPage() {
     }
 
     const onMouseMove = (event: MouseEvent) => {
-      const next = Math.min(0.7, Math.max(0.3, (event.clientX - SIDEBAR_WIDTH) / (window.innerWidth - SIDEBAR_WIDTH)))
+      const next = Math.min(
+        0.7,
+        Math.max(0.3, (event.clientX - SIDEBAR_WIDTH) / (window.innerWidth - SIDEBAR_WIDTH)),
+      )
       setPanelRatio(next)
     }
 
@@ -935,24 +934,6 @@ export function BuildPage() {
       window.removeEventListener('mouseup', onMouseUp)
     }
   }, [draggingSplit, setPanelRatio])
-
-  const toggleComponentWithPriority = useCallback((componentKey: string, vectors: PriorityByVector) => {
-    const autoIncluded = getPriorityForVector(vectors, selectedVector) !== 'exclude'
-    const currentOverride = overridesForVector[componentKey]
-    const currentIncluded = currentOverride ?? autoIncluded
-    const nextIncluded = !currentIncluded
-    
-    setOverride(vectorKey, componentKey, nextIncluded === autoIncluded ? null : nextIncluded)
-  }, [selectedVector, vectorKey, overridesForVector, setOverride])
-
-  const toggleEducationOverride = useCallback((id: string) => {
-    const componentKey = componentKeys.education(id)
-    const currentOverride = overridesForVector[componentKey]
-    const currentIncluded = currentOverride ?? true
-    const nextIncluded = !currentIncluded
-
-    setOverride(vectorKey, componentKey, nextIncluded ? null : false)
-  }, [overridesForVector, setOverride, vectorKey])
 
   const onUpdateTheme = (overrides: ResumeThemeOverrides) => {
     updateData((current) => ({
@@ -999,7 +980,10 @@ export function BuildPage() {
           }),
         }
       })
-      showNotice('success', `Optimized density to fit ${targetPages} page(s) (${result.iterations} steps)`)
+      showNotice(
+        'success',
+        `Optimized density to fit ${targetPages} page(s) (${result.iterations} steps)`,
+      )
     } catch {
       showNotice('error', 'Density optimization failed')
     } finally {
@@ -1030,66 +1014,75 @@ export function BuildPage() {
     showNotice('success', 'Pipeline JD analysis loaded. Review the vector plan before continuing.')
   }
 
-  const onSetVectorPlanMode = useCallback((mode: ResumeGenerationMode) => {
-    if (!vectorPlan) {
-      return
-    }
+  const onSetVectorPlanMode = useCallback(
+    (mode: ResumeGenerationMode) => {
+      if (!vectorPlan) {
+        return
+      }
 
-    const nextPlan = { ...vectorPlan, mode }
-    const nextManualIds = deriveFallbackVectorSelection(nextPlan, manualVectorPlanIds, mode)
-    setVectorPlan(nextPlan)
-    setManualVectorPlanIds(nextManualIds)
-  }, [deriveFallbackVectorSelection, manualVectorPlanIds, vectorPlan])
+      const nextPlan = { ...vectorPlan, mode }
+      const nextManualIds = deriveFallbackVectorSelection(nextPlan, manualVectorPlanIds, mode)
+      setVectorPlan(nextPlan)
+      setManualVectorPlanIds(nextManualIds)
+    },
+    [deriveFallbackVectorSelection, manualVectorPlanIds, vectorPlan],
+  )
 
-  const onSetVectorPlanVectorMode = useCallback((vectorMode: ResumeGenerationVectorMode) => {
-    if (!vectorPlan) {
-      return
-    }
+  const onSetVectorPlanVectorMode = useCallback(
+    (vectorMode: ResumeGenerationVectorMode) => {
+      if (!vectorPlan) {
+        return
+      }
 
-    const nextPlan = { ...vectorPlan, vectorMode }
-    const nextManualIds = deriveFallbackVectorSelection(
-      nextPlan,
-      manualVectorPlanIds,
-      nextPlan.mode,
-      vectorMode,
-    )
-    setVectorPlan(nextPlan)
-    setManualVectorPlanIds(nextManualIds)
-  }, [deriveFallbackVectorSelection, manualVectorPlanIds, vectorPlan])
+      const nextPlan = { ...vectorPlan, vectorMode }
+      const nextManualIds = deriveFallbackVectorSelection(
+        nextPlan,
+        manualVectorPlanIds,
+        nextPlan.mode,
+        vectorMode,
+      )
+      setVectorPlan(nextPlan)
+      setManualVectorPlanIds(nextManualIds)
+    },
+    [deriveFallbackVectorSelection, manualVectorPlanIds, vectorPlan],
+  )
 
-  const onSelectPlannedVector = useCallback((vectorId: string) => {
-    if (!vectorPlan) {
-      return
-    }
+  const onSelectPlannedVector = useCallback(
+    (vectorId: string) => {
+      if (!vectorPlan) {
+        return
+      }
 
-    if (vectorPlan.mode === 'single') {
+      if (vectorPlan.mode === 'single') {
+        const nextPlan = {
+          ...vectorPlan,
+          primaryVectorId: vectorId,
+        }
+        setVectorPlan(nextPlan)
+        setManualVectorPlanIds([vectorId])
+        return
+      }
+
+      const nextIds = manualVectorPlanIds.includes(vectorId)
+        ? manualVectorPlanIds.filter((id) => id !== vectorId)
+        : [...manualVectorPlanIds, vectorId]
+      if (nextIds.length === 0) {
+        showNotice('error', 'Select at least one vector for multi-vector generation.')
+        return
+      }
+
       const nextPlan = {
         ...vectorPlan,
-        primaryVectorId: vectorId,
+        primaryVectorId:
+          vectorPlan.primaryVectorId && nextIds.includes(vectorPlan.primaryVectorId)
+            ? vectorPlan.primaryVectorId
+            : nextIds[0],
       }
       setVectorPlan(nextPlan)
-      setManualVectorPlanIds([vectorId])
-      return
-    }
-
-    const nextIds = manualVectorPlanIds.includes(vectorId)
-      ? manualVectorPlanIds.filter((id) => id !== vectorId)
-      : [...manualVectorPlanIds, vectorId]
-    if (nextIds.length === 0) {
-      showNotice('error', 'Select at least one vector for multi-vector generation.')
-      return
-    }
-
-    const nextPlan = {
-      ...vectorPlan,
-      primaryVectorId:
-        vectorPlan.primaryVectorId && nextIds.includes(vectorPlan.primaryVectorId)
-          ? vectorPlan.primaryVectorId
-          : nextIds[0],
-    }
-    setVectorPlan(nextPlan)
-    setManualVectorPlanIds(nextIds)
-  }, [manualVectorPlanIds, showNotice, vectorPlan])
+      setManualVectorPlanIds(nextIds)
+    },
+    [manualVectorPlanIds, showNotice, vectorPlan],
+  )
 
   const onContinueFromJdAnalysis = useCallback(() => {
     if (!jdAnalysisResult || !vectorPlan) {
@@ -1181,7 +1174,10 @@ export function BuildPage() {
       showNotice('error', 'PDF is still rendering. Please try again in a moment.')
       return
     }
-    downloadBlob(cachedPdfBlob, buildResumePdfFileName(data.meta.name, selectedVector, data.vectors))
+    downloadBlob(
+      cachedPdfBlob,
+      buildResumePdfFileName(data.meta.name, selectedVector, data.vectors),
+    )
     showNotice('success', 'PDF downloaded')
   }, [cachedPdfBlob, data.meta.name, selectedVector, data.vectors, showNotice])
 
@@ -1212,7 +1208,14 @@ export function BuildPage() {
     } catch {
       showNotice('error', 'Failed to create DOCX')
     }
-  }, [assembledResult.resume, data.meta.name, selectedVector, data.vectors, resolvedTheme, showNotice])
+  }, [
+    assembledResult.resume,
+    data.meta.name,
+    selectedVector,
+    data.vectors,
+    resolvedTheme,
+    showNotice,
+  ])
 
   const onDownloadBundle = useCallback(async () => {
     if (!cachedPdfBlob) {
@@ -1238,7 +1241,11 @@ export function BuildPage() {
   const handleGlobalKeyDown = useCallback(
     (event: globalThis.KeyboardEvent) => {
       const target = event.target as HTMLElement
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') {
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'SELECT'
+      ) {
         if (event.key === 'Escape') {
           target.blur()
         }
@@ -1267,14 +1274,34 @@ export function BuildPage() {
         else if (variablesOpen) setVariablesOpen(false)
         else if (suggestionModeActive) setSuggestionModeActive(false)
         else if (comparisonVector) setComparisonVector(null)
-      } else if (!cmdOrCtrl && !event.shiftKey && !event.altKey && event.key >= '1' && event.key <= '9') {
+      } else if (
+        !cmdOrCtrl &&
+        !event.shiftKey &&
+        !event.altKey &&
+        event.key >= '1' &&
+        event.key <= '9'
+      ) {
         const index = Number.parseInt(event.key, 10) - 1
         if (data.vectors[index]) setSelectedVector(data.vectors[index].id)
       } else if (event.key === '0') {
         setSelectedVector('all')
       }
     },
-    [undo, redo, data.vectors, setSelectedVector, jdModalOpen, reframeResult, variablesOpen, suggestionModeActive, comparisonVector, setComparisonVector, setSuggestionModeActive, onDownloadPdf, closeJdModal],
+    [
+      undo,
+      redo,
+      data.vectors,
+      setSelectedVector,
+      jdModalOpen,
+      reframeResult,
+      variablesOpen,
+      suggestionModeActive,
+      comparisonVector,
+      setComparisonVector,
+      setSuggestionModeActive,
+      onDownloadPdf,
+      closeJdModal,
+    ],
   )
 
   useEffect(() => {
@@ -1299,7 +1326,12 @@ export function BuildPage() {
   }
 
   const onViewSwitcherKeyDown = (event: KeyboardEvent) => {
-    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight' || event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+    if (
+      event.key === 'ArrowLeft' ||
+      event.key === 'ArrowRight' ||
+      event.key === 'ArrowUp' ||
+      event.key === 'ArrowDown'
+    ) {
       event.preventDefault()
       setViewMode(viewMode === 'pdf' ? 'live' : 'pdf')
     } else if (event.key === 'Home') {
@@ -1308,54 +1340,6 @@ export function BuildPage() {
     } else if (event.key === 'End') {
       event.preventDefault()
       setViewMode('live')
-    }
-  }
-
-  const onAddComponentBound = (type: AddComponentType, payload: AddComponentPayload) => {
-    const id = createId(ID_MAP[type])
-    const baseVectors = payload.vectors ?? { [vectorKey]: 'include' }
-
-    switch (type) {
-      case 'target_line':
-        addTargetLine({ id, vectors: baseVectors, text: (payload.text ?? '').trim() })
-        break
-      case 'profile':
-        addProfile({ id, vectors: baseVectors, text: (payload.text ?? '').trim() })
-        break
-      case 'skill_group': {
-        addSkillGroup({
-          id,
-          label: payload.label?.trim() || 'New Skill Group',
-          content: (payload.content ?? '').trim(),
-        })
-        break
-      }
-      case 'project':
-        addProject({ id, name: payload.name?.trim() || 'New Project', url: payload.url?.trim() || undefined, vectors: baseVectors, text: (payload.text ?? '').trim() })
-        break
-      case 'bullet': {
-        const targetRoleId = payload.roleId ?? data.roles[0]?.id
-        if (!targetRoleId) return
-        addBullet(targetRoleId, { id, vectors: baseVectors, text: (payload.text ?? '').trim() })
-        break
-      }
-      case 'role':
-        addRole({ id, company: 'New Company', title: 'Role Title', dates: 'Jan 2024 – Present', vectors: { [vectorKey]: 'include' }, bullets: [] })
-        break
-      case 'education':
-        addEducation({
-          id,
-          school: payload.name?.trim() || 'New School',
-          location: payload.label?.trim() || 'Location',
-          degree: payload.text?.trim() || 'Degree',
-          year: payload.url?.trim() || CURRENT_YEAR.toString(),
-          // Retained for schema compatibility; education no longer participates in vector filtering.
-          vectors: {},
-        })
-        break
-      case 'certification':
-        addCertification({ id, name: payload.name?.trim() || 'New Certification', issuer: payload.issuer?.trim() || 'Issuer', date: payload.date?.trim() || undefined, credential_id: payload.content?.trim() || undefined, url: payload.url?.trim() || undefined, vectors: baseVectors })
-        break
     }
   }
 
@@ -1395,7 +1379,9 @@ export function BuildPage() {
     } else {
       setData(nextData)
       setSelectedVector(resolveSelectedVectorAfterReplaceImport(selectedVector, nextData.vectors))
-      setComparisonVector(resolveComparisonVectorAfterReplaceImport(comparisonVector, nextData.vectors))
+      setComparisonVector(
+        resolveComparisonVectorAfterReplaceImport(comparisonVector, nextData.vectors),
+      )
     }
 
     const importLabel =
@@ -1417,13 +1403,6 @@ export function BuildPage() {
     )
   }
 
-  const onAddMetaLinkBound = () => addMetaLink()
-  const onRemoveMetaLinkBound = (index: number) => removeMetaLink(index)
-
-  const handleRoleBulletReorder = (roleId: string, order: string[]) => {
-    setRoleBulletOrder(vectorKey, roleId, order)
-  }
-
   // 9. Rendering Logic
   if (!data.meta.name && data.roles.length === 0) {
     return (
@@ -1437,7 +1416,11 @@ export function BuildPage() {
             per-job variant.
           </p>
           <div className="empty-state-actions">
-            <button className="btn-primary" type="button" onClick={() => setImportExportMode('import')}>
+            <button
+              className="btn-primary"
+              type="button"
+              onClick={() => setImportExportMode('import')}
+            >
               <Upload size={16} />
               Import Config
             </button>
@@ -1455,7 +1438,11 @@ export function BuildPage() {
 
   const previewToolbar = (
     <div className="preview-action-bar">
-      <div className="top-bar-actions preview-action-bar-controls" role="toolbar" aria-label="Build actions">
+      <div
+        className="top-bar-actions preview-action-bar-controls"
+        role="toolbar"
+        aria-label="Build actions"
+      >
         <UndoRedoControls />
 
         {!comparisonResult && (
@@ -1518,15 +1505,33 @@ export function BuildPage() {
         )}
 
         <DropdownMenu label="More tools" icon={MoreHorizontal} iconOnly>
-          <DropdownMenu.Item icon={Upload} label="Import" shortcut="⌘I" onClick={() => setImportExportMode('import')} />
-          <DropdownMenu.Item icon={FileJson} label="Export" shortcut="⌘E" onClick={() => setImportExportMode('export')} />
+          <DropdownMenu.Item
+            icon={Upload}
+            label="Import"
+            shortcut="⌘I"
+            onClick={() => setImportExportMode('import')}
+          />
+          <DropdownMenu.Item
+            icon={FileJson}
+            label="Export"
+            shortcut="⌘E"
+            onClick={() => setImportExportMode('export')}
+          />
           <DropdownMenu.Divider />
           <DropdownMenu.Item icon={Copy} label="Copy as Text" onClick={onCopyText} />
           <DropdownMenu.Item icon={FileDown} label="Copy as Markdown" onClick={onCopyMarkdown} />
-          <DropdownMenu.Item icon={FileText} label="Download DOCX" onClick={() => void onDownloadDocx()} />
+          <DropdownMenu.Item
+            icon={FileText}
+            label="Download DOCX"
+            onClick={() => void onDownloadDocx()}
+          />
           <DropdownMenu.Item icon={Package} label="Download Bundle" onClick={onDownloadBundle} />
           <DropdownMenu.Divider />
-          <DropdownMenu.Item icon={Paintbrush} label="Variables" onClick={() => setVariablesOpen(true)} />
+          <DropdownMenu.Item
+            icon={Paintbrush}
+            label="Variables"
+            onClick={() => setVariablesOpen(true)}
+          />
           <DropdownMenu.Divider />
           {presets.length > 0 ? (
             <>
@@ -1598,7 +1603,11 @@ export function BuildPage() {
                 <div key={item.label} className="build-context-card">
                   <span className="build-context-heading">
                     <span className="build-context-label">{item.label}</span>
-                    <HelpHint text={item.help} ariaLabel={`${item.label} help`} placement="bottom" />
+                    <HelpHint
+                      text={item.help}
+                      ariaLabel={`${item.label} help`}
+                      placement="bottom"
+                    />
                   </span>
                   <strong className="build-context-value">{item.value}</strong>
                   {item.detailAction ? (
@@ -1680,48 +1689,10 @@ export function BuildPage() {
                   bulletOrderByRole={effectiveBulletOrders}
                   activeVectorBulletOrderByRole={activeBulletOrders}
                   defaultBulletOrderByRole={data.bulletOrders?.all ?? {}}
-                  onToggleComponent={toggleComponentWithPriority}
-                  onUpdateTargetLine={updateTargetLine}
-                  onUpdateTargetLineVectors={updateTargetLineVectors}
-                  onUpdateTargetLineVariant={(id, text) => updateTargetLineVariantStore(id, selectedVector as string, text)}
-                  onResetTargetLineVariant={(id) => resetTargetLineVariantStore(id, selectedVector as string)}
-                  onUpdateProfile={updateProfile}
-                  onUpdateProfileVectors={updateProfileVectors}
-                  onUpdateProfileVariant={(id, text) => updateProfileVariantStore(id, selectedVector as string, text)}
-                  onResetProfileVariant={(id) => resetProfileVariantStore(id, selectedVector as string)}
-                  onUpdateProject={updateProject}
-                  onUpdateProjectVectors={updateProjectVectors}
-                  onUpdateProjectVariant={(id, text) => updateProjectVariantStore(id, selectedVector as string, text)}
-                  onResetProjectVariant={(id) => resetProjectVariantStore(id, selectedVector as string)}
-                  onReorderProjects={reorderProjects}
-                  onUpdateSkillGroup={updateSkillGroup}
-                  onUpdateSkillGroupVectors={updateSkillGroupVectors}
-                  onReorderSkillGroups={reorderSkillGroups}
-                  onUpdateRole={updateRole}
-                  onUpdateBullet={updateBullet}
-                  onUpdateBulletLabel={updateBulletLabel}
-                  onUpdateBulletVectors={updateBulletVectors}
-                  onUpdateBulletVariant={(roleId, bulletId, text) => updateBulletVariantStore(roleId, bulletId, selectedVector as string, text)}
-                  onResetBulletVariant={(roleId, bulletId) => resetBulletVariantStore(roleId, bulletId, selectedVector as string)}
-                  onToggleBullet={(roleId, bulletId, vectors) => toggleComponentWithPriority(componentKeys.bullet(roleId, bulletId), vectors)}
-                  onReorderBullets={handleRoleBulletReorder}
-                  onResetRoleBulletOrder={(roleId) => resetRoleBulletOrder(vectorKey, roleId)}
+                  actions={libraryActions}
                   onReframeBullet={onReframeBullet}
                   reframeLoadingId={reframeLoadingId}
                   aiEnabled={!!jdAnalysisEndpoint}
-                  onUpdateEducation={updateEducation}
-                  onToggleEducation={toggleEducationOverride}
-                  onDeleteEducation={deleteEducation}
-                  onReorderEducation={reorderEducation}
-                  onUpdateCertification={updateCertification}
-                  onUpdateCertificationVectors={updateCertificationVectors}
-                  onDeleteCertification={deleteCertification}
-                  onReorderCertifications={reorderCertifications}
-                  onAddComponent={onAddComponentBound}
-                  onUpdateMetaField={updateMetaField}
-                  onUpdateMetaLink={updateMetaLink}
-                  onAddMetaLink={onAddMetaLinkBound}
-                  onRemoveMetaLink={onRemoveMetaLinkBound}
                   bulletSuggestions={bulletSuggestions}
                   onAcceptBulletSuggestion={onAcceptBulletSuggestion}
                   onIgnoreBulletSuggestion={onIgnoreBulletSuggestion}
@@ -1779,7 +1750,9 @@ export function BuildPage() {
               className="preview-panel-body"
               id="preview-panel"
               role={comparisonResult ? undefined : 'tabpanel'}
-              aria-labelledby={comparisonResult ? undefined : viewMode === 'pdf' ? 'tab-pdf' : 'tab-live'}
+              aria-labelledby={
+                comparisonResult ? undefined : viewMode === 'pdf' ? 'tab-pdf' : 'tab-live'
+              }
               aria-label={comparisonResult ? 'Comparison view' : undefined}
             >
               {comparisonResult ? (
@@ -1799,7 +1772,9 @@ export function BuildPage() {
                       leftResult={assembledResult}
                       rightResult={comparisonResult}
                       leftLabel={data.vectors.find((v) => v.id === selectedVector)?.label ?? 'All'}
-                      rightLabel={data.vectors.find((v) => v.id === comparisonVector)?.label ?? 'All'}
+                      rightLabel={
+                        data.vectors.find((v) => v.id === comparisonVector)?.label ?? 'All'
+                      }
                     />
                   </div>
                   <div className="comparison-panel">
@@ -1815,14 +1790,15 @@ export function BuildPage() {
                         <X size={14} />
                       </button>
                     </div>
-                    <LivePreview
-                      assembled={comparisonResult.resume}
-                      theme={resolvedTheme}
-                    />
+                    <LivePreview assembled={comparisonResult.resume} theme={resolvedTheme} />
                   </div>
                 </div>
               ) : viewMode === 'pdf' ? (
-                <PdfPreview blobUrl={previewBlobUrl} loading={pdfRenderPending} error={pdfRenderError} />
+                <PdfPreview
+                  blobUrl={previewBlobUrl}
+                  loading={pdfRenderPending}
+                  error={pdfRenderError}
+                />
               ) : (
                 <LivePreview
                   assembled={assembledResult.resume}
@@ -1848,7 +1824,12 @@ export function BuildPage() {
       )}
 
       {jdModalOpen && (
-        <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="jd-analyzer-title">
+        <div
+          className="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="jd-analyzer-title"
+        >
           <div className="modal-card jd-modal" ref={jdModalRef} tabIndex={-1}>
             <header className="modal-header">
               <h3 id="jd-analyzer-title">Job Description Analysis</h3>
@@ -1863,8 +1844,8 @@ export function BuildPage() {
             </header>
             <div className="jd-modal-body">
               <p className="modal-intro">
-                Review the pipeline-linked job description and apply the canonical JD analysis created from Pipeline.
-                Build does not run JD analysis itself.
+                Review the pipeline-linked job description and apply the canonical JD analysis
+                created from Pipeline. Build does not run JD analysis itself.
               </p>
               <textarea
                 className="component-input jd-input"
@@ -1878,18 +1859,14 @@ export function BuildPage() {
                   <p className="warning-text" role="status">
                     Long JD truncated.
                   </p>
-                ) }
+                )}
                 {jdError && (
                   <p className="error-text" role="alert">
                     {jdError}
                   </p>
                 )}
                 {jdAnalysisResult ? (
-                  <button
-                    className="btn-primary"
-                    type="button"
-                    onClick={onApplyPipelineJdAnalysis}
-                  >
+                  <button className="btn-primary" type="button" onClick={onApplyPipelineJdAnalysis}>
                     Refresh from Pipeline Analysis
                   </button>
                 ) : (
@@ -1917,8 +1894,8 @@ export function BuildPage() {
                             <div className="jd-plan-fieldset" role="note">
                               <strong>Dynamic pipeline mode</strong>
                               <p>
-                                Pipeline handoffs stay in dynamic mode. Use the vector selection below to narrow the
-                                generated resume focus for this job.
+                                Pipeline handoffs stay in dynamic mode. Use the vector selection
+                                below to narrow the generated resume focus for this job.
                               </p>
                             </div>
                           ) : (
@@ -1968,12 +1945,15 @@ export function BuildPage() {
                           <fieldset className="jd-plan-fieldset">
                             <legend>Vectors</legend>
                             {vectorPlan.vectorMode !== 'manual' && (
-                              <p id="resume-plan-vectors-hint">Switch to Manual to edit selection.</p>
+                              <p id="resume-plan-vectors-hint">
+                                Switch to Manual to edit selection.
+                              </p>
                             )}
                             {plannedVectorIds.length === 0 && (
                               <p className="warning-text" role="status">
-                                No current resume vectors match this JD yet. Add or select at least one vector in the
-                                workspace, then rerun analysis or switch the plan manually.
+                                No current resume vectors match this JD yet. Add or select at least
+                                one vector in the workspace, then rerun analysis or switch the plan
+                                manually.
                               </p>
                             )}
                             {data.vectors.map((vector) => {
@@ -1981,7 +1961,9 @@ export function BuildPage() {
                               const suggested = vectorPlan.suggestedVectorIds.includes(vector.id)
                               const inputType = vectorPlan.mode === 'single' ? 'radio' : 'checkbox'
                               const inputName =
-                                vectorPlan.mode === 'single' ? 'resume-plan-vectors-single' : undefined
+                                vectorPlan.mode === 'single'
+                                  ? 'resume-plan-vectors-single'
+                                  : undefined
                               const isLastSelectedVector =
                                 vectorPlan.vectorMode === 'manual' &&
                                 vectorPlan.mode === 'multi-vector' &&
@@ -1994,13 +1976,19 @@ export function BuildPage() {
                                     type={inputType}
                                     name={inputName}
                                     aria-describedby={
-                                      vectorPlan.vectorMode !== 'manual' ? 'resume-plan-vectors-hint' : undefined
+                                      vectorPlan.vectorMode !== 'manual'
+                                        ? 'resume-plan-vectors-hint'
+                                        : undefined
                                     }
                                     checked={checked}
-                                    disabled={vectorPlan.vectorMode !== 'manual' || isLastSelectedVector}
+                                    disabled={
+                                      vectorPlan.vectorMode !== 'manual' || isLastSelectedVector
+                                    }
                                     onChange={() => onSelectPlannedVector(vector.id)}
                                   />
-                                  <span>{suggested ? `${vector.label} (AI suggested)` : vector.label}</span>
+                                  <span>
+                                    {suggested ? `${vector.label} (AI suggested)` : vector.label}
+                                  </span>
                                 </label>
                               )
                             })}
@@ -2015,7 +2003,7 @@ export function BuildPage() {
                         skillGaps={jdAnalysisResult.skill_gaps}
                         onQuickAdd={(type, payload) => {
                           try {
-                            onAddComponentBound(type, payload)
+                            libraryActions.addComponent(type, payload)
                             closeJdModal()
                             showNotice('success', 'Added missing competency')
                           } catch (err) {
@@ -2040,7 +2028,11 @@ export function BuildPage() {
                       >
                         Continue to assembly suggestions
                       </button>
-                      <button className="btn-secondary" type="button" onClick={() => closeJdModal()}>
+                      <button
+                        className="btn-secondary"
+                        type="button"
+                        onClick={() => closeJdModal()}
+                      >
                         Close
                       </button>
                     </div>
@@ -2053,15 +2045,16 @@ export function BuildPage() {
       )}
 
       {reframeResult && (
-        <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="reframe-title">
+        <div
+          className="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="reframe-title"
+        >
           <div className="modal-card reframe-modal" ref={reframeModalRef} tabIndex={-1}>
             <header className="modal-header">
               <h3 id="reframe-title">AI Reframe for {reframeResult.vectorLabel}</h3>
-              <button
-                className="btn-ghost"
-                type="button"
-                onClick={() => setReframeResult(null)}
-              >
+              <button className="btn-ghost" type="button" onClick={() => setReframeResult(null)}>
                 <X size={18} />
               </button>
             </header>
@@ -2143,9 +2136,9 @@ export function BuildPage() {
           aria-live={notice.tone === 'error' ? 'assertive' : 'polite'}
         >
           <span className="toast-message">{notice.message}</span>
-          <button 
-            type="button" 
-            className="toast-dismiss" 
+          <button
+            type="button"
+            className="toast-dismiss"
             onClick={() => setNotice(null)}
             aria-label="Dismiss notification"
           >
