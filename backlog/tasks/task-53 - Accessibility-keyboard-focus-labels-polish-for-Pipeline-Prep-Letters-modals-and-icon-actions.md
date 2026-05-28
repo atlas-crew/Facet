@@ -3,9 +3,11 @@ id: TASK-53
 title: >-
   Accessibility: keyboard/focus/labels polish for Pipeline/Prep/Letters modals
   and icon actions
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-03-10 03:54'
+updated_date: '2026-05-28 14:07'
 labels:
   - accessibility
   - remediation
@@ -27,6 +29,12 @@ Extend a11y polish beyond the build library: ensure modals trap focus consistent
 - [ ] #3 Focus indication meets contrast/visibility expectations in dark theme.
 - [ ] #4 Verification commands pass.
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Codex starting TASK-53. Plan: inspect shared focus trap/modal primitives and Pipeline/Prep/Letters modal/icon surfaces; implement the narrowest shared a11y hardening for focus trap, Escape close, launcher focus restore, icon labels, and visible focus rings; add regression tests; run review/audit/lint/build; commit via cortex.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
