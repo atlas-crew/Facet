@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@codex'
 created_date: '2026-02-28 05:46'
-updated_date: '2026-05-28 16:42'
+updated_date: '2026-05-28 16:43'
 labels:
   - remediation
   - performance
@@ -38,3 +38,9 @@ Specialist review notes avoidable re-renders from per-role derived maps and unst
 3. Avoid recreating empty-object fallbacks in memo dependencies.
 4. Verify no regressions via lint/typecheck/test/build.
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Starting TASK-2 after closing TASK-1. I will target the Build -> ComponentLibrary -> BulletList hot path: stabilize empty override/order fallbacks, avoid fresh comparison assembly dependency objects, memoize role-level bullet derivations, and keep behavior verified with focused tests plus lint/typecheck/build.
+<!-- SECTION:NOTES:END -->
