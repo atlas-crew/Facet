@@ -18,31 +18,38 @@ const hasOwn = (record: Record<string, unknown>, key: string): boolean =>
   Object.prototype.hasOwnProperty.call(record, key)
 
 const resolvePriorityForVector = (
-  priorities: PriorityByVector,
+  priorities: PriorityByVector | null | undefined,
   selectedVector: VectorSelection,
 ): ComponentPriority | null => {
   if (selectedVector === 'all') {
-    return Object.values(priorities).some((priority) => priority === 'include') ? 'include' : null
+    return Object.values(priorities ?? {}).some((priority) => priority === 'include')
+      ? 'include'
+      : null
   }
 
-  return priorities[selectedVector] ?? null
+  return priorities?.[selectedVector] ?? null
 }
 
 export const getPriorityForVector = (
-  priorities: PriorityByVector,
+  priorities: PriorityByVector | null | undefined,
   selectedVector: VectorSelection,
 ): ComponentPriority => resolvePriorityForVector(priorities, selectedVector) ?? 'exclude'
 
 const resolveTextVariant = (
-  text: string,
+  text: string | null | undefined,
   variants: TextVariantMap | undefined,
   selectedVector: VectorSelection,
   variables: Record<string, string> = {},
 ): string => {
+  const baseText = text ?? ''
+  const selectedVariant = variants?.[selectedVector]
   const resolvedText =
-    selectedVector !== 'all' && variants?.[selectedVector]
-      ? variants[selectedVector]
-      : text
+    selectedVector !== 'all' &&
+    variants &&
+    hasOwn(variants as Record<string, unknown>, selectedVector) &&
+    typeof selectedVariant === 'string'
+      ? selectedVariant
+      : baseText
 
   return resolveVariables(resolvedText, variables)
 }
@@ -127,7 +134,8 @@ const pickHighestPriorityText = (
     return undefined
   }
 
-  return [...candidates].sort((left, right) => left.sourceIndex - right.sourceIndex).at(0)?.component
+  return [...candidates].sort((left, right) => left.sourceIndex - right.sourceIndex).at(0)
+    ?.component
 }
 
 const skillGroupSortOrder = (
@@ -158,7 +166,9 @@ const resolveSkillGroupConfig = (
   const vectorConfigs = group.vectors ?? {}
 
   if (selectedVector === 'all') {
-    const includedConfigs = Object.values(vectorConfigs).filter((config) => config.priority !== 'exclude')
+    const includedConfigs = Object.values(vectorConfigs).filter(
+      (config) => config.priority !== 'exclude',
+    )
     if (includedConfigs.length > 0) {
       const minOrder = Math.min(...includedConfigs.map((config) => config.order))
       return {
@@ -177,9 +187,10 @@ const resolveSkillGroupConfig = (
 
   const explicitConfig = vectorConfigs[selectedVector]
   if (explicitConfig) {
+    const order = explicitConfig.order
     return {
       include: explicitConfig.priority !== 'exclude',
-      order: explicitConfig.order,
+      order: Number.isFinite(order) ? order : Number.MAX_SAFE_INTEGER,
       content: explicitConfig.content ?? group.content,
     }
   }
@@ -191,21 +202,27 @@ const resolveSkillGroupConfig = (
   }
 }
 
-export const assembleResume = (
-  data: ResumeData,
-  options: AssemblyOptions = {},
-): AssemblyResult => {
+export const assembleResume = (data: ResumeData, options: AssemblyOptions = {}): AssemblyResult => {
   const selectedVector = options.selectedVector ?? 'all'
   const manualOverrides = options.manualOverrides ?? {}
   const bulletOrderByRole = options.bulletOrderByRole ?? {}
   const targetPages = options.targetPages ?? DEFAULT_TARGET_PAGES
   const trimToPageBudget = options.trimToPageBudget ?? true
   const variables = options.variables ?? data.variables ?? {}
+  const rawMeta: Partial<ResumeData['meta']> = data.meta ?? {}
+  const meta = {
+    ...rawMeta,
+    name: rawMeta.name ?? '',
+    email: rawMeta.email ?? '',
+    phone: rawMeta.phone ?? '',
+    location: rawMeta.location ?? '',
+    links: rawMeta.links ?? [],
+  }
 
   const targetLineCandidates: RankedTextComponent[] = []
   const profileCandidates: RankedTextComponent[] = []
 
-  for (const [index, targetLine] of data.target_lines.entries()) {
+  for (const [index, targetLine] of (data.target_lines ?? []).entries()) {
     const keys = buildComponentKeys('target_line', targetLine.id)
     const autoPriority = resolvePriorityForVector(targetLine.vectors, selectedVector)
     const override = resolveManualOverride(manualOverrides, keys)
@@ -222,7 +239,7 @@ export const assembleResume = (
     })
   }
 
-  for (const [index, profile] of data.profiles.entries()) {
+  for (const [index, profile] of (data.profiles ?? []).entries()) {
     const keys = buildComponentKeys('profile', profile.id)
     const autoPriority = resolvePriorityForVector(profile.vectors, selectedVector)
     const override = resolveManualOverride(manualOverrides, keys)
@@ -239,14 +256,22 @@ export const assembleResume = (
     })
   }
 
-  const skillGroups = data.skill_groups
-    .map((group, index) => ({
-      id: group.id,
-      label: group.label,
-      config: resolveSkillGroupConfig(group, selectedVector),
-      sourceIndex: index,
-    }))
-    .filter((group) => group.config.include)
+  const skillGroups = (data.skill_groups ?? [])
+    .map((group, index) => {
+      const config = resolveSkillGroupConfig(group, selectedVector)
+      const override = resolveManualOverride(
+        manualOverrides,
+        buildComponentKeys('skill_group', group.id),
+      )
+      return {
+        id: group.id,
+        label: group.label,
+        config,
+        include: override ?? config.include,
+        sourceIndex: index,
+      }
+    })
+    .filter((group) => group.include)
     .sort((left, right) => {
       const orderDelta = left.config.order - right.config.order
       if (orderDelta !== 0) {
@@ -255,20 +280,23 @@ export const assembleResume = (
 
       return left.sourceIndex - right.sourceIndex
     })
-    .map(({ id, label, config }) => ({ 
-      id, 
-      label: resolveVariables(label, variables), 
-      content: resolveVariables(config.content, variables) 
+    .map(({ id, label, config }) => ({
+      id,
+      label: resolveVariables(label, variables),
+      content: resolveVariables(config.content, variables),
     }))
 
-  const roles = data.roles
+  const roles = (data.roles ?? [])
     .map((role) => {
-      const roleOverride = resolveManualOverride(manualOverrides, buildComponentKeys('role', role.id))
+      const roleOverride = resolveManualOverride(
+        manualOverrides,
+        buildComponentKeys('role', role.id),
+      )
       if (roleOverride === false) {
         return null
       }
 
-      const includedBullets = role.bullets
+      const includedBullets = (role.bullets ?? [])
         .map((bullet, bulletIndex) => {
           const keys = buildComponentKeys('bullet', bullet.id, role.id)
           const autoPriority = resolvePriorityForVector(bullet.vectors, selectedVector)
@@ -305,7 +333,7 @@ export const assembleResume = (
     })
     .filter((role): role is Exclude<typeof role, null> => role !== null)
 
-  const projects = data.projects
+  const projects = (data.projects ?? [])
     .map((project) => {
       const keys = buildComponentKeys('project', project.id)
       const autoPriority = resolvePriorityForVector(project.vectors, selectedVector)
@@ -323,9 +351,12 @@ export const assembleResume = (
     })
     .filter((project): project is Exclude<typeof project, null> => project !== null)
 
-  const education = data.education
+  const education = (data.education ?? [])
     .map((entry) => {
-      const override = resolveManualOverride(manualOverrides, buildComponentKeys('education', entry.id))
+      const override = resolveManualOverride(
+        manualOverrides,
+        buildComponentKeys('education', entry.id),
+      )
       if (override === false) {
         return null
       }
@@ -363,9 +394,9 @@ export const assembleResume = (
   const assembled = {
     selectedVector,
     header: {
-      ...data.meta,
-      name: resolveVariables(data.meta.name, variables),
-      location: resolveVariables(data.meta.location, variables),
+      ...meta,
+      name: resolveVariables(meta.name, variables),
+      location: resolveVariables(meta.location, variables),
     },
     targetLine: pickHighestPriorityText(targetLineCandidates),
     profile: pickHighestPriorityText(profileCandidates),
