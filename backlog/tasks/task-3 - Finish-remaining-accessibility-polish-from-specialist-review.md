@@ -45,3 +45,9 @@ Starting TASK-3. I will target the existing ComponentLibrary/Build accessibility
 
 Completed TASK-3 as an accessibility proof/closeout slice. The drag-instruction wiring, add-modal live announcement, and manual toast dismiss affordance were already present in the product code; this change adds focused regression coverage for those acceptance criteria. Validation: npm run typecheck; npx vitest run src/test/ComponentLibrary.accessibility.test.tsx src/test/BulletList.test.tsx src/test/BuildPage.test.tsx; scoped eslint; touched-file format check; npm run lint; npm run test; npm run build. Independent diff test audit .agents/reviews/task3-a11y/test-audit-20260528-133925.md reports no prioritized gaps.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Closed the remaining Component Library accessibility polish by pinning the existing behaviors with focused tests: drag handles resolve aria-describedby to keyboard instructions, Add Component type changes announce the new form in a polite live region, and Build toast notifications can be dismissed manually. This was a tests-only closeout slice; no production code changes were required. Verification passed for typecheck, focused tests, scoped eslint, touched-file formatting, full lint, full test suite, and production build. Independent diff test audit found no prioritized gaps.
+<!-- SECTION:FINAL_SUMMARY:END -->
