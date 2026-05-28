@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@codex'
 created_date: '2026-02-28 05:46'
-updated_date: '2026-05-28 19:11'
+updated_date: '2026-05-28 20:01'
 labels:
   - remediation
   - testing
@@ -23,11 +23,13 @@ Test audit identified untested edge behavior in engine assembly and page-budget 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Line-estimation functions are directly covered for key boundary cases
+- [x] #1 Line-estimation functions are directly covered for key boundary cases
 - [ ] #2 Assembler covers skill ordering and profile/override edge selection
 - [ ] #3 Header and education passthrough are asserted
 - [ ] #4 Verification commands pass
 <!-- AC:END -->
+
+
 
 ## Implementation Plan
 
