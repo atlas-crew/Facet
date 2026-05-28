@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@codex'
 created_date: '2026-02-28 05:46'
-updated_date: '2026-05-28 16:43'
+updated_date: '2026-05-28 17:09'
 labels:
   - remediation
   - performance
@@ -24,11 +24,13 @@ Specialist review notes avoidable re-renders from per-role derived maps and unst
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Derived per-role inclusion/variant maps are not recreated on unrelated renders
+- [x] #1 Derived per-role inclusion/variant maps are not recreated on unrelated renders
 - [ ] #2 Assembly memo dependencies do not invalidate on fresh empty-object literals
 - [ ] #3 No behavior regressions in toggles/reordering/variant switching
 - [ ] #4 Verification commands pass
 <!-- AC:END -->
+
+
 
 ## Implementation Plan
 
