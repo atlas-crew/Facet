@@ -237,6 +237,25 @@ describe('PrepPage', () => {
     expect(document.activeElement).toBe(homeworkTab)
   })
 
+  it('traps focus in the generate drawer and restores focus to the launcher', async () => {
+    render(<PrepPage />)
+
+    const generateButton = screen.getByRole('button', { name: /^Generate$/ })
+    generateButton.focus()
+    fireEvent.click(generateButton)
+
+    const drawer = screen.getByRole('dialog', { name: 'Generate prep deck' })
+    const closeButton = screen.getByRole('button', { name: 'Close drawer' })
+    await waitFor(() => expect(document.activeElement).toBe(closeButton))
+
+    fireEvent.keyDown(drawer, { key: 'Escape' })
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Generate prep deck' })).toBeNull()
+    })
+    expect(document.activeElement).toBe(generateButton)
+  })
+
   it('falls back to a single edit empty state when no active deck exists', () => {
     usePrepStore.setState({ decks: [], activeDeckId: null, activeMode: 'live' })
 

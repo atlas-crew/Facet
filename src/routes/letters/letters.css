@@ -14,8 +14,11 @@
 
 .letters-sidebar {
   min-height: 0;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--accent-primary) 4%, var(--bg-surface)) 0%, var(--bg-surface) 100%);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent-primary) 4%, var(--bg-surface)) 0%,
+    var(--bg-surface) 100%
+  );
   border: 1px solid var(--border-subtle);
   border-radius: 12px;
   box-shadow: var(--shadow-sm);
@@ -73,8 +76,9 @@
 .letters-btn-icon:focus-visible,
 .letters-template-item:focus-visible,
 .letters-btn:focus-visible {
-  outline: 2px solid var(--accent-primary);
+  outline: 2px solid var(--focus-ring-color);
   outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--focus-ring-halo);
 }
 
 .letters-text-danger:hover {
@@ -156,8 +160,11 @@
   max-width: 800px;
   width: 100%;
   margin: 0 auto;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--accent-primary) 4%, var(--bg-surface)) 0%, var(--bg-surface) 100%);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent-primary) 4%, var(--bg-surface)) 0%,
+    var(--bg-surface) 100%
+  );
   border: 1px solid var(--border-subtle);
   border-radius: 12px;
   box-shadow: var(--shadow-xs);
@@ -259,7 +266,7 @@
 }
 
 .letters-save-status::before {
-  content: "";
+  content: '';
   width: 7px;
   height: 7px;
   border-radius: 999px;
@@ -299,10 +306,11 @@
 }
 
 .letters-title-input:focus-visible {
-  outline: 2px solid var(--accent-primary);
+  outline: 2px solid var(--focus-ring-color);
   border-bottom-color: transparent;
   border-radius: 4px;
   padding: 4px;
+  box-shadow: 0 0 0 4px var(--focus-ring-halo);
 }
 
 .letters-title-input::placeholder {
@@ -362,8 +370,11 @@
   padding: var(--space-4);
   border: 1px solid var(--border-subtle);
   border-radius: 12px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--accent-primary) 3%, var(--bg-surface)) 0%, var(--bg-surface) 100%);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent-primary) 3%, var(--bg-surface)) 0%,
+    var(--bg-surface) 100%
+  );
   box-shadow: var(--shadow-xs);
 }
 
@@ -429,18 +440,19 @@
 
 .letters-editor-nav button:hover,
 .letters-editor-nav button:focus-visible,
-.letters-editor-nav button[aria-current="location"] {
+.letters-editor-nav button[aria-current='location'] {
   background: color-mix(in srgb, var(--accent-primary) 14%, transparent);
   color: var(--text-primary);
 }
 
-.letters-editor-nav button[aria-current="location"] {
+.letters-editor-nav button[aria-current='location'] {
   color: var(--accent-primary);
 }
 
 .letters-editor-nav button:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--accent-primary) 70%, transparent);
+  outline: 2px solid var(--focus-ring-color);
   outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--focus-ring-halo);
 }
 
 .letters-section-actions,
@@ -515,8 +527,9 @@
 .letters-main select:focus-visible,
 .letters-generator textarea:focus-visible,
 .letters-generator input:focus-visible {
-  outline: 2px solid var(--accent-primary);
+  outline: 2px solid var(--focus-ring-color);
   outline-offset: -1px;
+  box-shadow: 0 0 0 4px var(--focus-ring-halo);
 }
 
 .letters-disclosure {
@@ -641,8 +654,11 @@
 
 .letters-paragraph-item {
   display: block;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--accent-primary) 3%, var(--bg-surface)) 0%, var(--bg-surface) 100%);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent-primary) 3%, var(--bg-surface)) 0%,
+    var(--bg-surface) 100%
+  );
   border: 1px solid var(--border-subtle);
   border-radius: 12px;
   padding: var(--space-4);
@@ -714,8 +730,11 @@
   padding: var(--space-6);
   border: 1px solid var(--border-subtle);
   border-radius: 12px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--accent-primary) 4%, var(--bg-surface)) 0%, var(--bg-surface) 100%);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent-primary) 4%, var(--bg-surface)) 0%,
+    var(--bg-surface) 100%
+  );
   box-shadow: var(--shadow-sm);
   color: var(--text-tertiary);
   font-size: 14px;

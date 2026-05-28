@@ -9,7 +9,12 @@ interface PipelineAnalyticsProps {
 }
 
 const RESPONDED: Set<PipelineStatus> = new Set([
-  'screening', 'interviewing', 'offer', 'accepted', 'rejected', 'closed',
+  'screening',
+  'interviewing',
+  'offer',
+  'accepted',
+  'rejected',
+  'closed',
 ])
 
 function pct(n: number, d: number): number {
@@ -22,7 +27,14 @@ function rateClass(rate: number): string {
   return 'kpi-red'
 }
 
-const BAR_COLORS = ['pipeline-bar-fill-blue', 'pipeline-bar-fill-cyan', 'pipeline-bar-fill-purple', 'pipeline-bar-fill-green', 'pipeline-bar-fill-amber', 'pipeline-bar-fill-red']
+const BAR_COLORS = [
+  'pipeline-bar-fill-blue',
+  'pipeline-bar-fill-cyan',
+  'pipeline-bar-fill-purple',
+  'pipeline-bar-fill-green',
+  'pipeline-bar-fill-amber',
+  'pipeline-bar-fill-red',
+]
 
 export function PipelineAnalytics({ entries, onClose }: PipelineAnalyticsProps) {
   const analytics = useMemo(() => {
@@ -39,7 +51,9 @@ export function PipelineAnalytics({ entries, onClose }: PipelineAnalyticsProps) 
 
     // Avg rounds
     const rounds = entries.filter((e) => e.rounds != null && e.rounds > 0).map((e) => e.rounds!)
-    const avgRounds = rounds.length ? (rounds.reduce((s, v) => s + v, 0) / rounds.length).toFixed(1) : null
+    const avgRounds = rounds.length
+      ? (rounds.reduce((s, v) => s + v, 0) / rounds.length).toFixed(1)
+      : null
 
     // By application method
     const byMethod = new Map<string, { total: number; responded: number }>()
@@ -118,7 +132,11 @@ export function PipelineAnalytics({ entries, onClose }: PipelineAnalyticsProps) 
     <div className="pipeline-analytics">
       <div className="pipeline-analytics-header">
         <h2>Analytics</h2>
-        <button className="pipeline-btn pipeline-btn-ghost pipeline-btn-sm" onClick={onClose}>
+        <button
+          className="pipeline-btn pipeline-btn-ghost pipeline-btn-sm"
+          onClick={onClose}
+          aria-label="Close pipeline analytics"
+        >
           <X size={16} />
         </button>
       </div>
@@ -137,13 +155,13 @@ export function PipelineAnalytics({ entries, onClose }: PipelineAnalyticsProps) 
           <span className="pipeline-kpi-label">Avg Days to Response</span>
         </div>
         <div className="pipeline-kpi">
-          <span className="pipeline-kpi-value">
-            {analytics.avgRounds ?? '\u2014'}
-          </span>
+          <span className="pipeline-kpi-value">{analytics.avgRounds ?? '\u2014'}</span>
           <span className="pipeline-kpi-label">Avg Rounds</span>
         </div>
         <div className="pipeline-kpi">
-          <span className={`pipeline-kpi-value ${rateClass(pct(analytics.offers, analytics.applied))}`}>
+          <span
+            className={`pipeline-kpi-value ${rateClass(pct(analytics.offers, analytics.applied))}`}
+          >
             {analytics.applied > 0 ? `${pct(analytics.offers, analytics.applied)}%` : '\u2014'}
           </span>
           <span className="pipeline-kpi-label">App → Offer</span>

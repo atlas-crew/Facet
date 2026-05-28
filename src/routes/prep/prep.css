@@ -503,6 +503,16 @@
   border-color: var(--accent-primary);
 }
 
+.prep-input:focus-visible,
+.prep-textarea:focus-visible,
+.prep-card-title-input:focus-visible,
+.prep-search-input:focus-visible,
+.prep-live-search-input:focus-visible {
+  outline: 2px solid var(--focus-ring-color);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 4px var(--focus-ring-halo);
+}
+
 .prep-textarea {
   min-height: 88px;
   resize: vertical;
@@ -832,6 +842,15 @@
 
 .prep-search-input:focus {
   border-color: var(--accent-primary);
+}
+
+.prep-btn:focus-visible,
+.prep-icon-btn:focus-visible,
+.prep-link-btn:focus-visible,
+.prep-mode-tab:focus-visible {
+  outline: 2px solid var(--focus-ring-color);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--focus-ring-halo);
 }
 
 .prep-filter-pills {

@@ -32,6 +32,7 @@ import { PREP_ANSWER_TEMPLATE_MAX_LENGTH } from '../../utils/prepAnswerTemplate'
 import { formatPrepRoundNumberLabel } from '../../utils/prepRoundLabel'
 import { getJdAnalysisDriftStatus } from '../../utils/jdAnalysis'
 import { sanitizeEndpointUrl } from '../../utils/idUtils'
+import { useFocusTrap } from '../../utils/useFocusTrap'
 import {
   buildPrepCompanyResearchNotes,
   buildPrepPipelineEntryContext,
@@ -549,6 +550,7 @@ export function PrepPage() {
   const gapModalCardRef = useRef<HTMLDivElement>(null)
   const gapAnswerFieldRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null)
   const identityDraftConfirmCardRef = useRef<HTMLDivElement>(null)
+  const generateDrawerRef = useRef<HTMLElement>(null)
   const modalReturnFocusRef = useRef<HTMLElement | null>(null)
 
   const {
@@ -1305,6 +1307,10 @@ export function PrepPage() {
     setShowMoreDebriefFields(false)
     setIsDebriefEditorOpen(true)
   }, [activeDeck, activeDeckRoundNumber])
+  const closeGenerateDrawer = useCallback(() => {
+    setIsGenerateDrawerOpen(false)
+  }, [])
+  useFocusTrap(isGenerateDrawerOpen, generateDrawerRef, closeGenerateDrawer)
   const updateDebriefIntelField = useCallback((field: string, value: string) => {
     setDebriefDraft((current) => ({
       ...current,
@@ -2117,10 +2123,11 @@ export function PrepPage() {
             type="button"
             className="prep-generate-drawer-scrim"
             aria-label="Close generation drawer"
-            onClick={() => setIsGenerateDrawerOpen(false)}
+            onClick={closeGenerateDrawer}
           />
           <aside
             className="prep-generate-drawer"
+            ref={generateDrawerRef}
             role="dialog"
             aria-modal="true"
             aria-label="Generate prep deck"
@@ -2137,7 +2144,7 @@ export function PrepPage() {
                 type="button"
                 className="prep-icon-btn"
                 aria-label="Close drawer"
-                onClick={() => setIsGenerateDrawerOpen(false)}
+                onClick={closeGenerateDrawer}
               >
                 <X size={16} />
               </button>

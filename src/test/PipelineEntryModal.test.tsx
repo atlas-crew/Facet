@@ -1,12 +1,16 @@
 // @vitest-environment jsdom
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { PipelineEntryModal } from '../routes/pipeline/PipelineEntryModal'
+import { PasteJdModal } from '../routes/pipeline/PasteJdModal'
+import { PipelineAnalytics } from '../routes/pipeline/PipelineAnalytics'
 import { useResumeStore } from '../store/resumeStore'
 import { defaultResumeData } from '../store/defaultData'
 
 describe('PipelineEntryModal', () => {
+  afterEach(cleanup)
+
   beforeEach(() => {
     useResumeStore.setState({
       data: JSON.parse(JSON.stringify(defaultResumeData)),
@@ -69,8 +73,41 @@ describe('PipelineEntryModal', () => {
     )
 
     expect(screen.getByLabelText('Legacy Resume Variant Label')).toBeTruthy()
-    expect((screen.getByRole('combobox', { name: 'Vector' }) as HTMLSelectElement).disabled).toBe(true)
+    expect((screen.getByRole('combobox', { name: 'Vector' }) as HTMLSelectElement).disabled).toBe(
+      true,
+    )
     expect(screen.getByRole('note', { name: 'Generated resume variant' })).toBeTruthy()
     expect(screen.getByText('Acme Corp · Staff Platform Engineer')).toBeTruthy()
+  })
+
+  it('labels the icon close button and restores focus when dismissed', async () => {
+    const launcher = document.createElement('button')
+    launcher.textContent = 'Open pipeline modal'
+    document.body.appendChild(launcher)
+    launcher.focus()
+
+    const onClose = vi.fn()
+    const { unmount } = render(
+      <PipelineEntryModal entry={null} onSave={vi.fn()} onClose={onClose} />,
+    )
+
+    const closeButton = screen.getByRole('button', { name: 'Close pipeline entry dialog' })
+    await waitFor(() => expect(document.activeElement).toBe(closeButton))
+
+    fireEvent.keyDown(screen.getByRole('dialog', { name: 'Add Entry' }), { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledTimes(1)
+
+    unmount()
+    expect(document.activeElement).toBe(launcher)
+    launcher.remove()
+  })
+
+  it('labels pipeline icon-only close actions', () => {
+    const { unmount } = render(<PasteJdModal onClose={vi.fn()} onParse={vi.fn()} />)
+    expect(screen.getByRole('button', { name: 'Close paste job description dialog' })).toBeTruthy()
+
+    unmount()
+    render(<PipelineAnalytics entries={[]} onClose={vi.fn()} />)
+    expect(screen.getByRole('button', { name: 'Close pipeline analytics' })).toBeTruthy()
   })
 })

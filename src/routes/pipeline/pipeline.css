@@ -108,6 +108,12 @@
   color: var(--text-primary);
 }
 
+.pipeline-btn:focus-visible {
+  outline: 2px solid var(--focus-ring-color);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--focus-ring-halo);
+}
+
 .pipeline-btn-primary {
   background: var(--accent-primary);
   border-color: var(--accent-primary);
@@ -500,15 +506,42 @@
   white-space: nowrap;
 }
 
-.pipeline-badge-researching { background: color-mix(in srgb, var(--accent-primary) 14%, transparent); color: var(--accent-primary); }
-.pipeline-badge-applied { background: color-mix(in srgb, var(--accent-cyan) 14%, transparent); color: var(--accent-cyan); }
-.pipeline-badge-screening { background: color-mix(in srgb, var(--warning) 14%, transparent); color: var(--warning); }
-.pipeline-badge-interviewing { background: color-mix(in srgb, var(--accent-violet) 14%, transparent); color: var(--accent-violet); }
-.pipeline-badge-offer { background: color-mix(in srgb, var(--success) 14%, transparent); color: var(--success); }
-.pipeline-badge-accepted { background: color-mix(in srgb, var(--success) 20%, transparent); color: var(--success); }
-.pipeline-badge-rejected { background: color-mix(in srgb, var(--error) 14%, transparent); color: var(--error); }
-.pipeline-badge-withdrawn { background: color-mix(in srgb, var(--text-tertiary) 14%, transparent); color: var(--text-tertiary); }
-.pipeline-badge-closed { background: color-mix(in srgb, var(--text-tertiary) 14%, transparent); color: var(--text-tertiary); }
+.pipeline-badge-researching {
+  background: color-mix(in srgb, var(--accent-primary) 14%, transparent);
+  color: var(--accent-primary);
+}
+.pipeline-badge-applied {
+  background: color-mix(in srgb, var(--accent-cyan) 14%, transparent);
+  color: var(--accent-cyan);
+}
+.pipeline-badge-screening {
+  background: color-mix(in srgb, var(--warning) 14%, transparent);
+  color: var(--warning);
+}
+.pipeline-badge-interviewing {
+  background: color-mix(in srgb, var(--accent-violet) 14%, transparent);
+  color: var(--accent-violet);
+}
+.pipeline-badge-offer {
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+  color: var(--success);
+}
+.pipeline-badge-accepted {
+  background: color-mix(in srgb, var(--success) 20%, transparent);
+  color: var(--success);
+}
+.pipeline-badge-rejected {
+  background: color-mix(in srgb, var(--error) 14%, transparent);
+  color: var(--error);
+}
+.pipeline-badge-withdrawn {
+  background: color-mix(in srgb, var(--text-tertiary) 14%, transparent);
+  color: var(--text-tertiary);
+}
+.pipeline-badge-closed {
+  background: color-mix(in srgb, var(--text-tertiary) 14%, transparent);
+  color: var(--text-tertiary);
+}
 
 .pipeline-status-select {
   appearance: none;
@@ -535,10 +568,22 @@
   border-radius: 4px;
 }
 
-.pipeline-tier-1 { background: var(--accent-primary-subtle); color: var(--accent-primary); }
-.pipeline-tier-2 { background: var(--bg-inset); color: var(--text-secondary); }
-.pipeline-tier-3 { background: var(--bg-inset); color: var(--text-tertiary); }
-.pipeline-tier-watch { background: color-mix(in srgb, var(--warning) 14%, transparent); color: var(--warning); }
+.pipeline-tier-1 {
+  background: var(--accent-primary-subtle);
+  color: var(--accent-primary);
+}
+.pipeline-tier-2 {
+  background: var(--bg-inset);
+  color: var(--text-secondary);
+}
+.pipeline-tier-3 {
+  background: var(--bg-inset);
+  color: var(--text-tertiary);
+}
+.pipeline-tier-watch {
+  background: color-mix(in srgb, var(--warning) 14%, transparent);
+  color: var(--warning);
+}
 
 /* ── Detail Row ── */
 
@@ -669,9 +714,10 @@
 }
 
 .pipeline-card-toggle:focus-visible {
-  outline: 2px solid var(--accent-primary);
+  outline: 2px solid var(--focus-ring-color);
   outline-offset: 2px;
   border-radius: 4px;
+  box-shadow: 0 0 0 4px var(--focus-ring-halo);
 }
 
 .pipeline-collapsible-summary {
@@ -1173,9 +1219,15 @@
   display: block;
 }
 
-.pipeline-kpi-value.kpi-green { color: var(--success); }
-.pipeline-kpi-value.kpi-amber { color: var(--warning); }
-.pipeline-kpi-value.kpi-red { color: var(--error); }
+.pipeline-kpi-value.kpi-green {
+  color: var(--success);
+}
+.pipeline-kpi-value.kpi-amber {
+  color: var(--warning);
+}
+.pipeline-kpi-value.kpi-red {
+  color: var(--error);
+}
 
 .pipeline-kpi-label {
   font-size: 11px;
@@ -1226,12 +1278,24 @@
   transition: width var(--duration-normal) var(--easing);
 }
 
-.pipeline-bar-fill-blue { background: var(--accent-primary); }
-.pipeline-bar-fill-green { background: var(--success); }
-.pipeline-bar-fill-amber { background: var(--warning); }
-.pipeline-bar-fill-red { background: var(--error); }
-.pipeline-bar-fill-purple { background: var(--accent-violet); }
-.pipeline-bar-fill-cyan { background: var(--accent-cyan); }
+.pipeline-bar-fill-blue {
+  background: var(--accent-primary);
+}
+.pipeline-bar-fill-green {
+  background: var(--success);
+}
+.pipeline-bar-fill-amber {
+  background: var(--warning);
+}
+.pipeline-bar-fill-red {
+  background: var(--error);
+}
+.pipeline-bar-fill-purple {
+  background: var(--accent-violet);
+}
+.pipeline-bar-fill-cyan {
+  background: var(--accent-cyan);
+}
 
 .pipeline-bar-value {
   min-width: 40px;
@@ -1304,6 +1368,14 @@
 .pipeline-form-select:focus,
 .pipeline-form-textarea:focus {
   border-color: var(--accent-primary);
+}
+
+.pipeline-form-input:focus-visible,
+.pipeline-form-select:focus-visible,
+.pipeline-form-textarea:focus-visible {
+  outline: 2px solid var(--focus-ring-color);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 4px var(--focus-ring-halo);
 }
 
 .pipeline-form-textarea {
