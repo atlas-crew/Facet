@@ -1,9 +1,11 @@
 ---
 id: TASK-5
 title: Expand assembler/page-budget test coverage for edge behavior
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-02-28 05:46'
+updated_date: '2026-05-28 19:11'
 labels:
   - remediation
   - testing
