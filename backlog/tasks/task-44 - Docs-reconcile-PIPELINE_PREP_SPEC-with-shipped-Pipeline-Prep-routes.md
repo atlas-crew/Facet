@@ -3,7 +3,7 @@ id: TASK-44
 title: >-
   Reconcile stale documentation: PIPELINE_PREP_SPEC +
   vector-resume-v0.2-feature-reference
-status: In Progress
+status: Done
 assignee:
   - '@codex'
 created_date: '2026-03-10 03:54'
