@@ -1,7 +1,7 @@
 ---
 id: TASK-3
 title: Finish remaining accessibility polish from specialist review
-status: In Progress
+status: Done
 assignee:
   - '@codex'
 created_date: '2026-02-28 05:46'
