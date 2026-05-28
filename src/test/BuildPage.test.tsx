@@ -712,6 +712,20 @@ describe('BuildPage', () => {
     expect(revokeObjectUrl).not.toHaveBeenCalled()
   })
 
+  it('lets users dismiss toast notifications manually', () => {
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:download')
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+
+    render(<BuildPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Download PDF/i }))
+
+    expect(screen.getByText('PDF downloaded')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /Dismiss notification/i }))
+    expect(screen.queryByText('PDF downloaded')).toBeNull()
+  })
+
   it('downloads the active resume as DOCX from the compact preview menu', async () => {
     const createObjectUrl = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:docx-download')
     vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
