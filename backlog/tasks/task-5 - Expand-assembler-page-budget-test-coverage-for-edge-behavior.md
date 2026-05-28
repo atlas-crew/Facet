@@ -37,3 +37,9 @@ Test audit identified untested edge behavior in engine assembly and page-budget 
 3. Add override precedence tests for key specificity.
 4. Run lint/typecheck/test/build.
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Starting TASK-5. I will keep this to focused engine test hardening: inspect existing assembler/page-budget coverage, add boundary tests for line estimation/page usage, assembly edge tests for skill ordering/profile/override/passthrough behavior, run focused and full verification, then request independent diff test audit before closeout.
+<!-- SECTION:NOTES:END -->
