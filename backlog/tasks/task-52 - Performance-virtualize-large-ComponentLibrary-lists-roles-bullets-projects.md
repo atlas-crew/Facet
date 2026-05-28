@@ -1,7 +1,7 @@
 ---
 id: TASK-52
 title: 'Performance: virtualize large ComponentLibrary lists (roles/bullets/projects)'
-status: In Progress
+status: Done
 assignee:
   - '@codex'
 created_date: '2026-03-10 03:54'
