@@ -2264,6 +2264,19 @@ select.component-input {
   border-radius: 6px;
 }
 
+.health-issue-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.health-issue-pointer {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: currentColor;
+  opacity: 0.78;
+}
+
 .health-issue-item.type-error {
   background: rgba(239, 68, 68, 0.1);
   color: #ef4444;
