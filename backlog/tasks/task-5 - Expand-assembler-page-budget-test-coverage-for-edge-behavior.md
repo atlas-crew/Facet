@@ -25,9 +25,11 @@ Test audit identified untested edge behavior in engine assembly and page-budget 
 <!-- AC:BEGIN -->
 - [x] #1 Line-estimation functions are directly covered for key boundary cases
 - [x] #2 Assembler covers skill ordering and profile/override edge selection
-- [ ] #3 Header and education passthrough are asserted
+- [x] #3 Header and education passthrough are asserted
 - [ ] #4 Verification commands pass
 <!-- AC:END -->
+
+
 
 
 
