@@ -26,8 +26,10 @@ After core a11y fixes, review feedback still calls out keyboard guidance and ann
 - [x] #1 Drag handles expose discoverable keyboard instructions
 - [x] #2 Changing Add Component type announces the new form context
 - [x] #3 Toast notifications can be dismissed manually
-- [ ] #4 Verification commands pass
+- [x] #4 Verification commands pass
 <!-- AC:END -->
+
+
 
 
 
