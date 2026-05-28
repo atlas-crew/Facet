@@ -1,7 +1,7 @@
 ---
 id: TASK-1
 title: Refactor resume mutation flow out of App.tsx
-status: In Progress
+status: Done
 assignee:
   - '@codex'
 created_date: '2026-02-28 05:46'
