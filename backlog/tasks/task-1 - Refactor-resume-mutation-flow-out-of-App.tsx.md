@@ -29,14 +29,6 @@ Review feedback flags App.tsx/ComponentLibrary prop-drilling and inline mutation
 - [x] #4 Verification commands pass
 <!-- AC:END -->
 
-
-
-
-
-
-
-
-
 ## Implementation Plan
 
 <!-- SECTION:PLAN:BEGIN -->
@@ -50,4 +42,6 @@ Review feedback flags App.tsx/ComponentLibrary prop-drilling and inline mutation
 
 <!-- SECTION:NOTES:BEGIN -->
 Starting TASK-1. Current App.tsx is already a re-export; the live mutation surface is BuildPage -> ComponentLibrary. I will treat the task as refactoring that current BuildPage/ComponentLibrary boundary: move component-library mutation wiring into a reusable build hook and collapse the many callback props into a grouped action API while preserving store-backed behavior.
+
+Implemented TASK-1 by extracting Build/ComponentLibrary mutation wiring into useComponentLibraryActions, replacing the long ComponentLibrary callback prop surface with a grouped actions API, and adding focused hook coverage for toggles, variants, add payload mapping, fallback paths, and vector-scoped bullet ordering. Independent source review passed clean on the remediated diff; scoped test audit passed with no prioritized gaps. Verification: npm run typecheck; npx vitest run src/test/useComponentLibraryActions.test.tsx src/test/BuildPage.test.tsx; npx eslint src/hooks/useComponentLibraryActions.ts src/components/ComponentLibrary.tsx src/routes/build/BuildPage.tsx src/test/useComponentLibraryActions.test.tsx; npm run lint; npm run test; npm run build; npm run format:files:check -- src/hooks/useComponentLibraryActions.ts src/components/ComponentLibrary.tsx src/routes/build/BuildPage.tsx src/test/useComponentLibraryActions.test.tsx. Repo-wide npm run format:check still fails on pre-existing formatting drift outside this task.
 <!-- SECTION:NOTES:END -->
