@@ -1,9 +1,11 @@
 ---
 id: TASK-3
 title: Finish remaining accessibility polish from specialist review
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-02-28 05:46'
+updated_date: '2026-05-28 17:36'
 labels:
   - remediation
   - accessibility
