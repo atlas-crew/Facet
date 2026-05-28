@@ -3,10 +3,11 @@ id: TASK-44
 title: >-
   Reconcile stale documentation: PIPELINE_PREP_SPEC +
   vector-resume-v0.2-feature-reference
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-03-10 03:54'
-updated_date: '2026-05-08 23:25'
+updated_date: '2026-05-28 15:16'
 labels:
   - documentation
   - stale
@@ -87,7 +88,11 @@ NAVIGATOR.md needs its Reference table updated to point to the new file.
 - [ ] #11 Old vector-resume-v0.2-feature-reference.md is either rewritten in place or moved to docs/archive/ (per implementer judgment) with no orphaned NAVIGATOR entries
 <!-- AC:END -->
 
+## Implementation Plan
 
+<!-- SECTION:PLAN:BEGIN -->
+1. Archive the stale pre-implementation Pipeline/Prep spec if current docs already supersede it, then remove or update live references.\n2. Replace the v0.2 feature inventory with a current docs/reference/feature-reference.md covering current route surfaces and shared subsystems.\n3. Verify referenced files, stores, generators, and test files against the repo; keep persistence/AI proxy sections as pointers to canonical docs.\n4. Run doc validation/format checks, independent docs review, update TASK-44 checklist, and commit via cortex.
+<!-- SECTION:PLAN:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
