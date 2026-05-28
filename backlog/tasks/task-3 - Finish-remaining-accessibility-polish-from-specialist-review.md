@@ -37,3 +37,9 @@ After core a11y fixes, review feedback still calls out keyboard guidance and ann
 3. Add user-controlled dismiss for toast notices while preserving auto-expire behavior.
 4. Re-run accessibility-focused manual checks plus lint/typecheck/test/build.
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Starting TASK-3. I will target the existing ComponentLibrary/Build accessibility polish surface: verify current drag-handle aria wiring, add discoverable keyboard instructions where missing, announce Add Component type changes with a polite live region, add a manual dismiss affordance for toast notices, then cover the behavior with focused tests plus lint/typecheck/build and independent review/audit.
+<!-- SECTION:NOTES:END -->
