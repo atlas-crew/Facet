@@ -1,9 +1,11 @@
 ---
 id: TASK-56
 title: 'Lint: exclude generated coverage artifacts from eslint'
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@codex'
 created_date: '2026-03-10 21:41'
+updated_date: '2026-05-28 05:52'
 labels:
   - lint
   - tooling
@@ -30,6 +32,12 @@ Repo-wide eslint is currently picking up generated files under coverage/, which 
 - [ ] #2 Lint configuration documents or clearly encodes why generated artifacts are excluded.
 - [ ] #3 Validation includes a repo-wide eslint run showing coverage/* warnings are gone.
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Closed as already satisfied in current repo. eslint.config.js has globalIgnores for coverage and coverage/** with an explanatory comment. Validation: npm run lint and npm run lint -- --quiet both pass with no coverage-generated findings. A direct eslint invocation against historical coverage paths now reports those files do not exist in this checkout, so generated coverage artifacts are not in the repo lint surface.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
