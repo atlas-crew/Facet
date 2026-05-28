@@ -3,11 +3,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { ThemeEditorPanel } from '../components/ThemeEditorPanel'
+import { defaultResumeData } from '../store/defaultData'
 import { THEME_PRESETS } from '../themes/theme'
+import type { ResumeData } from '../types'
 
 afterEach(cleanup)
 
-function renderPanel() {
+function renderPanel(options: { showDesignHealth?: boolean; resumeData?: ResumeData } = {}) {
   const onSetPreset = vi.fn()
   const onSetOverride = vi.fn()
   const onAdjustDensityStep = vi.fn()
@@ -20,8 +22,9 @@ function renderPanel() {
     <ThemeEditorPanel
       activePreset="ferguson-v12"
       resolvedTheme={THEME_PRESETS['ferguson-v12']}
+      resumeData={options.resumeData}
       showHeatmap={false}
-      showDesignHealth={false}
+      showDesignHealth={options.showDesignHealth ?? false}
       isOptimizingDensity={false}
       onSetPreset={onSetPreset}
       onSetOverride={onSetOverride}
@@ -75,4 +78,38 @@ describe('ThemeEditorPanel preset gallery', () => {
     expect(onAdjustDensityStep).toHaveBeenNthCalledWith(1, 'tighten')
     expect(onAdjustDensityStep).toHaveBeenNthCalledWith(2, 'loosen')
   }, 10000)
+
+  it('surfaces actionable design health pointers for resume field issues', () => {
+    renderPanel({
+      showDesignHealth: true,
+      resumeData: {
+        ...defaultResumeData,
+        meta: {
+          ...defaultResumeData.meta,
+          phone: '',
+          links: [{ label: 'Portfolio', url: 'not a link' }],
+        },
+      },
+    })
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Visual Aids' }))
+
+    expect(screen.getByText('Contact info is incomplete: missing Phone.')).toBeTruthy()
+    expect(screen.getByText('Resume content: Phone')).toBeTruthy()
+    expect(screen.getByText(/Header link "Portfolio" is not formatted/)).toBeTruthy()
+    expect(screen.getByText('Resume content: Header links')).toBeTruthy()
+  })
+
+  it('does not scan resume content while design health is hidden', () => {
+    const resumeData = { ...defaultResumeData } as ResumeData
+    Object.defineProperty(resumeData, 'roles', {
+      get() {
+        throw new Error('roles should not be read while design health is hidden')
+      },
+    })
+
+    expect(() => renderPanel({ showDesignHealth: false, resumeData })).not.toThrow()
+    expect(() => fireEvent.click(screen.getByRole('tab', { name: 'Visual Aids' }))).not.toThrow()
+    expect(screen.queryByText(/roles should not be read/)).toBeNull()
+  })
 })

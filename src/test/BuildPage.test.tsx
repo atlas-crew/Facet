@@ -19,13 +19,15 @@ const {
   facetClientEnvMock,
   pdfPreviewMock,
   renderResumeAsDocxMock,
+  themeEditorPanelPropsMock,
   vectorBarPropsMock,
   navigateMock,
 } = vi.hoisted(() => ({
   reframeBulletForVectorMock: vi.fn(),
-  pdfPreviewMock: vi.fn(),
-  renderResumeAsDocxMock: vi.fn(),
-  vectorBarPropsMock: vi.fn(),
+    pdfPreviewMock: vi.fn(),
+    renderResumeAsDocxMock: vi.fn(),
+    themeEditorPanelPropsMock: vi.fn(),
+    vectorBarPropsMock: vi.fn(),
   navigateMock: vi.fn(),
   usePresetsMock: vi.fn(),
   facetClientEnvMock: {
@@ -272,7 +274,10 @@ vi.mock('../components/Tour', () => ({
 }))
 
 vi.mock('../components/ThemeEditorPanel', () => ({
-  ThemeEditorPanel: () => <div data-testid="theme-editor-panel" />,
+  ThemeEditorPanel: (props: Record<string, unknown>) => {
+    themeEditorPanelPropsMock(props)
+    return <div data-testid="theme-editor-panel" />
+  },
 }))
 
 vi.mock('../components/ComparisonDiff', () => ({
@@ -282,6 +287,7 @@ vi.mock('../components/ComparisonDiff', () => ({
 describe('BuildPage', () => {
   beforeEach(() => {
     reframeBulletForVectorMock.mockReset()
+    themeEditorPanelPropsMock.mockReset()
     vectorBarPropsMock.mockReset()
     navigateMock.mockReset()
     pdfPreviewMock.mockReset()
@@ -412,6 +418,22 @@ describe('BuildPage', () => {
 
     expect(screen.queryByRole('button', { name: /Generate for Job/i })).toBeNull()
     expect(screen.queryByRole('dialog', { name: 'Job Description Analysis' })).toBeNull()
+  })
+
+  it('passes current resume data to the theme editor for content-aware health checks', () => {
+    const data = JSON.parse(JSON.stringify(defaultResumeData))
+    data.meta.phone = ''
+    useResumeStore.getState().setData(data)
+
+    render(<BuildPage />)
+
+    expect(themeEditorPanelPropsMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        resumeData: expect.objectContaining({
+          meta: expect.objectContaining({ phone: '' }),
+        }),
+      }),
+    )
   })
 
   it('keeps numeric vector shortcuts aligned after moving View All Bullets', () => {

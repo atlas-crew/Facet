@@ -16,7 +16,13 @@ import {
   Type,
 } from 'lucide-react'
 
-import type { ResumeTheme, ResumeThemeOverrides, ResumeThemePresetId, TemplateId } from '../types'
+import type {
+  ResumeData,
+  ResumeTheme,
+  ResumeThemeOverrides,
+  ResumeThemePresetId,
+  TemplateId,
+} from '../types'
 import { HelpHint } from './HelpHint'
 import {
   THEME_BULLET_OPTIONS,
@@ -33,6 +39,7 @@ import { calculateDesignHealth } from '../utils/designHealth'
 interface ThemeEditorPanelProps {
   activePreset: ResumeThemePresetId
   resolvedTheme: ResumeTheme
+  resumeData?: ResumeData
   showHeatmap: boolean
   showDesignHealth: boolean
   isOptimizingDensity: boolean
@@ -209,6 +216,7 @@ const sectionUsesRule = (style: ResumeTheme['sectionHeaderStyle']): boolean =>
 export function ThemeEditorPanel({
   activePreset,
   resolvedTheme,
+  resumeData,
   showHeatmap,
   showDesignHealth,
   isOptimizingDensity,
@@ -221,7 +229,10 @@ export function ThemeEditorPanel({
   onToggleDesignHealth,
 }: ThemeEditorPanelProps) {
   const [activeTab, setActiveTab] = useState<ThemeTabId>('presets')
-  const health = useMemo(() => calculateDesignHealth(resolvedTheme), [resolvedTheme])
+  const health = useMemo(
+    () => (showDesignHealth ? calculateDesignHealth(resolvedTheme, resumeData) : { score: 100, issues: [] }),
+    [resolvedTheme, resumeData, showDesignHealth],
+  )
 
   const renderNumberField = (fieldKey: NumericThemeKey) => {
     const field = NUMBER_FIELDS_BY_KEY[fieldKey]
@@ -324,7 +335,9 @@ export function ThemeEditorPanel({
               <ShieldCheck size={16} />
               <span>Show Design Health Score</span>
             </label>
-            <p id="health-help" className="field-help">Analyzes font sizes and margins for ATS and print safety.</p>
+            <p id="health-help" className="field-help">
+              Analyzes design choices and resume content for ATS and print safety.
+            </p>
           </div>
 
           {showDesignHealth && (
@@ -363,7 +376,10 @@ export function ThemeEditorPanel({
                   {health.issues.map((issue, idx) => (
                     <li key={idx} className={`health-issue-item type-${issue.type}`}>
                       {issue.type === 'error' ? <AlertTriangle size={14} /> : <Info size={14} />}
-                      <span>{issue.message}</span>
+                      <span className="health-issue-copy">
+                        <span>{issue.message}</span>
+                        <span className="health-issue-pointer">{issue.pointer}</span>
+                      </span>
                     </li>
                   ))}
                 </ul>

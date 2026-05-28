@@ -1740,6 +1740,7 @@ export function BuildPage() {
                 <ThemeEditorPanel
                   activePreset={themeState.preset}
                   resolvedTheme={resolvedTheme}
+                  resumeData={data}
                   onSetPreset={onSelectThemePreset}
                   onSetOverride={(key, value) => onUpdateTheme({ [key]: value })}
                   onAdjustDensityStep={() => {}}
