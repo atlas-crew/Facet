@@ -23,8 +23,10 @@ interface VirtualizedListProps<T> {
   overscan?: number
   ariaLabel?: string
   testId?: string
-  forceVisibleKeys?: string[]
+  forceVisibleKeys?: readonly string[]
 }
+
+const EMPTY_FORCE_VISIBLE_KEYS: readonly string[] = Object.freeze([])
 
 interface RowMetric {
   index: number
@@ -109,7 +111,7 @@ export function VirtualizedList<T>({
   overscan = 4,
   ariaLabel,
   testId,
-  forceVisibleKeys = [],
+  forceVisibleKeys = EMPTY_FORCE_VISIBLE_KEYS,
 }: VirtualizedListProps<T>) {
   const [scrollTop, setScrollTop] = useState(0)
   const [measuredSizes, setMeasuredSizes] = useState<Record<string, number>>({})

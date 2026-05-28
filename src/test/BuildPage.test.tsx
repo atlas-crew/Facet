@@ -21,13 +21,17 @@ const {
   renderResumeAsDocxMock,
   themeEditorPanelPropsMock,
   vectorBarPropsMock,
+  componentLibraryPropsMock,
+  comparisonDiffPropsMock,
   navigateMock,
 } = vi.hoisted(() => ({
   reframeBulletForVectorMock: vi.fn(),
-    pdfPreviewMock: vi.fn(),
-    renderResumeAsDocxMock: vi.fn(),
-    themeEditorPanelPropsMock: vi.fn(),
-    vectorBarPropsMock: vi.fn(),
+  pdfPreviewMock: vi.fn(),
+  renderResumeAsDocxMock: vi.fn(),
+  themeEditorPanelPropsMock: vi.fn(),
+  vectorBarPropsMock: vi.fn(),
+  componentLibraryPropsMock: vi.fn(),
+  comparisonDiffPropsMock: vi.fn(),
   navigateMock: vi.fn(),
   usePresetsMock: vi.fn(),
   facetClientEnvMock: {
@@ -238,7 +242,10 @@ vi.mock('../components/UndoRedoControls', () => ({
 }))
 
 vi.mock('../components/ComponentLibrary', () => ({
-  ComponentLibrary: () => <div data-testid="component-library" />,
+  ComponentLibrary: (props: unknown) => {
+    componentLibraryPropsMock(props)
+    return <div data-testid="component-library" />
+  },
 }))
 
 vi.mock('../components/PdfPreview', () => ({
@@ -281,7 +288,10 @@ vi.mock('../components/ThemeEditorPanel', () => ({
 }))
 
 vi.mock('../components/ComparisonDiff', () => ({
-  ComparisonDiff: () => <div data-testid="comparison-diff" />,
+  ComparisonDiff: (props: unknown) => {
+    comparisonDiffPropsMock(props)
+    return <div data-testid="comparison-diff" />
+  },
 }))
 
 describe('BuildPage', () => {
@@ -289,6 +299,8 @@ describe('BuildPage', () => {
     reframeBulletForVectorMock.mockReset()
     themeEditorPanelPropsMock.mockReset()
     vectorBarPropsMock.mockReset()
+    componentLibraryPropsMock.mockReset()
+    comparisonDiffPropsMock.mockReset()
     navigateMock.mockReset()
     pdfPreviewMock.mockReset()
     pdfPreviewMock.mockReturnValue({
@@ -418,6 +430,58 @@ describe('BuildPage', () => {
 
     expect(screen.queryByRole('button', { name: /Generate for Job/i })).toBeNull()
     expect(screen.queryByRole('dialog', { name: 'Job Description Analysis' })).toBeNull()
+  })
+
+  it('passes stable empty order and override props to the component library', () => {
+    const { rerender } = render(<BuildPage />)
+
+    const firstProps = componentLibraryPropsMock.mock.calls.at(-1)?.[0] as {
+      includedByKey: Record<string, boolean>
+      bulletOrderByRole: Record<string, string[]>
+      activeVectorBulletOrderByRole: Record<string, string[]>
+      defaultBulletOrderByRole: Record<string, string[]>
+    }
+
+    rerender(<BuildPage />)
+
+    const secondProps = componentLibraryPropsMock.mock.calls.at(-1)?.[0] as typeof firstProps
+
+    expect(secondProps.includedByKey).toBe(firstProps.includedByKey)
+    expect(secondProps.bulletOrderByRole).toBe(firstProps.bulletOrderByRole)
+    expect(secondProps.activeVectorBulletOrderByRole).toBe(firstProps.activeVectorBulletOrderByRole)
+    expect(secondProps.defaultBulletOrderByRole).toBe(firstProps.defaultBulletOrderByRole)
+  })
+
+  it('passes configured default bullet orders through the component library boundary', () => {
+    const data = JSON.parse(JSON.stringify(defaultResumeData))
+    data.bulletOrders = { all: { acme: ['acme-b2', 'acme-b1', 'acme-b3'] } }
+    useResumeStore.getState().setData(data)
+
+    render(<BuildPage />)
+
+    const props = componentLibraryPropsMock.mock.calls.at(-1)?.[0] as {
+      defaultBulletOrderByRole: Record<string, string[]>
+    }
+
+    expect(props.defaultBulletOrderByRole).toBe(data.bulletOrders.all)
+  })
+
+  it('keeps comparison assembly stable across unrelated rerenders', () => {
+    useUiStore.setState({ comparisonVector: 'platform' })
+
+    const { rerender } = render(<BuildPage />)
+
+    const firstProps = comparisonDiffPropsMock.mock.calls.at(-1)?.[0] as {
+      leftResult: unknown
+      rightResult: unknown
+    }
+
+    rerender(<BuildPage />)
+
+    const secondProps = comparisonDiffPropsMock.mock.calls.at(-1)?.[0] as typeof firstProps
+
+    expect(secondProps.leftResult).toBe(firstProps.leftResult)
+    expect(secondProps.rightResult).toBe(firstProps.rightResult)
   })
 
   it('passes current resume data to the theme editor for content-aware health checks', () => {

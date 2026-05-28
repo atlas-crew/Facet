@@ -45,6 +45,8 @@ const BULLET_ESTIMATED_HEIGHT = 260
 const BULLET_VIRTUALIZED_HEIGHT = 720
 
 const getBulletKey = (bullet: { id: string }) => bullet.id
+const EMPTY_SUGGESTIONS: Readonly<Record<string, ComponentSuggestion>> = Object.freeze({})
+const EMPTY_FORCE_VISIBLE_KEYS: readonly string[] = Object.freeze([])
 
 interface BulletListProps {
   role: Role
@@ -322,14 +324,54 @@ export function BulletList({
   onResetBulletVariant,
   reframeLoadingId,
   aiEnabled,
-  suggestions = {},
+  suggestions = EMPTY_SUGGESTIONS,
   onAcceptSuggestion,
   onIgnoreSuggestion,
 }: BulletListProps) {
   const bulletIds = useMemo(() => role.bullets.map((bullet) => bullet.id), [role.bullets])
+  // These maps trade a small eager pass over a role's bullets for stable virtualized row props.
+  // Keep the derivations cheap; expensive work belongs in the visible row renderer.
+  const bulletIncludedById = useMemo(() => {
+    const next: Record<string, boolean> = {}
+
+    for (const bullet of role.bullets) {
+      const key = `role:${role.id}:bullet:${bullet.id}`
+      const autoIncluded = getPriorityForVector(bullet.vectors, selectedVector) !== 'exclude'
+      next[bullet.id] =
+        includedByKey[key] ??
+        includedByKey[`role:${role.id}:${bullet.id}`] ??
+        includedByKey[`bullet:${bullet.id}`] ??
+        includedByKey[bullet.id] ??
+        autoIncluded
+    }
+
+    return next
+  }, [includedByKey, role.bullets, role.id, selectedVector])
+  const bulletHasVariantById = useMemo(() => {
+    const next: Record<string, boolean> = {}
+
+    for (const bullet of role.bullets) {
+      next[bullet.id] = selectedVector !== 'all' && Boolean(bullet.variants?.[selectedVector])
+    }
+
+    return next
+  }, [role.bullets, selectedVector])
+  const bulletDisplayTextById = useMemo(() => {
+    const next: Record<string, string> = {}
+
+    for (const bullet of role.bullets) {
+      next[bullet.id] = resolveDisplayText(bullet.text, bullet.variants, selectedVector)
+    }
+
+    return next
+  }, [role.bullets, selectedVector])
   const [expanded, setExpanded] = useState(true)
   const [announcement, setAnnouncement] = useState('')
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
+  const forceVisibleKeys = useMemo(
+    () => (activeDragId ? [activeDragId] : EMPTY_FORCE_VISIBLE_KEYS),
+    [activeDragId],
+  )
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, {
@@ -404,6 +446,54 @@ export function BulletList({
   const handleIgnore = useCallback(
     (bulletId: string) => onIgnoreSuggestion?.(role.id, bulletId),
     [onIgnoreSuggestion, role.id],
+  )
+  const renderPlaceholder = useCallback(
+    (bullet: { id: string }) => <SortableBulletPlaceholder id={bullet.id} />,
+    [],
+  )
+  const renderBullet = useCallback(
+    (bullet: Role['bullets'][number]) => (
+      <SortableBullet
+        key={bullet.id}
+        id={bullet.id}
+        label={bullet.label}
+        text={bulletDisplayTextById[bullet.id]}
+        vectors={bullet.vectors}
+        included={bulletIncludedById[bullet.id]}
+        hasVariant={bulletHasVariantById[bullet.id]}
+        vectorDefs={vectorDefs}
+        selectedVector={selectedVector}
+        onToggle={handleToggle}
+        onChangeText={handleChangeText}
+        onLabelChange={handleLabelChange}
+        onVectorsChange={handleVectorsChange}
+        onReframe={handleReframeBound}
+        onResetVariant={handleResetVariant}
+        isLoading={reframeLoadingId === bullet.id}
+        aiEnabled={aiEnabled}
+        suggestion={suggestions[bullet.id]}
+        onAcceptSuggestion={handleAccept}
+        onIgnoreSuggestion={handleIgnore}
+      />
+    ),
+    [
+      aiEnabled,
+      bulletDisplayTextById,
+      bulletHasVariantById,
+      bulletIncludedById,
+      handleAccept,
+      handleChangeText,
+      handleIgnore,
+      handleLabelChange,
+      handleReframeBound,
+      handleResetVariant,
+      handleToggle,
+      handleVectorsChange,
+      reframeLoadingId,
+      selectedVector,
+      suggestions,
+      vectorDefs,
+    ],
   )
 
   const collapseId = `role-collapse-${role.id}`
@@ -548,46 +638,9 @@ export function BulletList({
                 gap={8}
                 ariaLabel={`Virtualized bullets for ${role.company || role.title || 'role'}`}
                 testId={`bullet-list-${role.id}`}
-                forceVisibleKeys={activeDragId ? [activeDragId] : []}
-                renderPlaceholder={(bullet) => <SortableBulletPlaceholder id={bullet.id} />}
-                renderItem={(bullet) => {
-                  const key = `role:${role.id}:bullet:${bullet.id}`
-                  const autoIncluded =
-                    getPriorityForVector(bullet.vectors, selectedVector) !== 'exclude'
-                  const included =
-                    includedByKey[key] ??
-                    includedByKey[`role:${role.id}:${bullet.id}`] ??
-                    includedByKey[`bullet:${bullet.id}`] ??
-                    includedByKey[bullet.id] ??
-                    autoIncluded
-                  const hasVariant =
-                    selectedVector !== 'all' && Boolean(bullet.variants?.[selectedVector])
-
-                  return (
-                    <SortableBullet
-                      key={bullet.id}
-                      id={bullet.id}
-                      label={bullet.label}
-                      text={resolveDisplayText(bullet.text, bullet.variants, selectedVector)}
-                      vectors={bullet.vectors}
-                      included={included}
-                      hasVariant={hasVariant}
-                      vectorDefs={vectorDefs}
-                      selectedVector={selectedVector}
-                      onToggle={handleToggle}
-                      onChangeText={handleChangeText}
-                      onLabelChange={handleLabelChange}
-                      onVectorsChange={handleVectorsChange}
-                      onReframe={handleReframeBound}
-                      onResetVariant={handleResetVariant}
-                      isLoading={reframeLoadingId === bullet.id}
-                      aiEnabled={aiEnabled}
-                      suggestion={suggestions[bullet.id]}
-                      onAcceptSuggestion={handleAccept}
-                      onIgnoreSuggestion={handleIgnore}
-                    />
-                  )
-                }}
+                forceVisibleKeys={forceVisibleKeys}
+                renderPlaceholder={renderPlaceholder}
+                renderItem={renderBullet}
               />
             </SortableContext>
             <DragOverlay>

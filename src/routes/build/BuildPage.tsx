@@ -48,7 +48,7 @@ import { FacetWordmark } from '../../components/FacetWordmark'
 import { HelpHint } from '../../components/HelpHint'
 import { mergeResumeData } from '../../engine/importMerge'
 import type { ResumeConfigSourceKind } from '../../engine/serializer'
-import { resolveEffectiveBulletOrders } from '../../utils/bulletOrder'
+import { EMPTY_ROLE_ORDER, resolveEffectiveBulletOrders } from '../../utils/bulletOrder'
 import { buildResumeDocxFileName, buildResumePdfFileName } from '../../utils/pdfFormatting'
 import { reframeBulletForVector } from '../../utils/bulletReframing'
 import type {
@@ -95,6 +95,7 @@ const vectorFallbackColors = ['#2563EB', '#0D9488', '#7C3AED', '#EA580C', '#4F46
 const SIDEBAR_WIDTH = 48
 
 const EMPTY_MANUAL_OVERRIDES: Readonly<Record<string, Record<string, boolean>>> = Object.freeze({})
+const EMPTY_VECTOR_OVERRIDES: Readonly<Record<string, boolean>> = Object.freeze({})
 const EMPTY_BULLET_ORDERS: Readonly<Record<string, Record<string, string[]>>> = Object.freeze({})
 const EMPTY_VARIABLES: Readonly<Record<string, string>> = Object.freeze({})
 
@@ -302,10 +303,14 @@ export function BuildPage() {
   )
 
   const overridesForVector = useMemo(
-    () => manualOverrides[vectorKey] ?? {},
+    () => manualOverrides[vectorKey] ?? EMPTY_VECTOR_OVERRIDES,
     [manualOverrides, vectorKey],
   )
-  const activeBulletOrders = useMemo(() => bulletOrders[vectorKey] ?? {}, [bulletOrders, vectorKey])
+  const activeBulletOrders = useMemo(
+    () => bulletOrders[vectorKey] ?? EMPTY_ROLE_ORDER,
+    [bulletOrders, vectorKey],
+  )
+  const defaultBulletOrders = useMemo(() => bulletOrders.all ?? EMPTY_ROLE_ORDER, [bulletOrders])
   const libraryActions = useComponentLibraryActions({
     data,
     selectedVector,
@@ -547,11 +552,17 @@ export function BuildPage() {
   // Comparison assembly — only computed when a comparison vector is active
   const comparisonVectorKey = comparisonVector ? toVectorKey(comparisonVector) : null
   const comparisonOverrides = useMemo(
-    () => (comparisonVectorKey ? (manualOverrides[comparisonVectorKey] ?? {}) : {}),
+    () =>
+      comparisonVectorKey
+        ? (manualOverrides[comparisonVectorKey] ?? EMPTY_VECTOR_OVERRIDES)
+        : EMPTY_VECTOR_OVERRIDES,
     [manualOverrides, comparisonVectorKey],
   )
   const comparisonBulletOrders = useMemo(
-    () => (comparisonVector ? resolveEffectiveBulletOrders(bulletOrders, comparisonVector) : {}),
+    () =>
+      comparisonVector
+        ? resolveEffectiveBulletOrders(bulletOrders, comparisonVector)
+        : EMPTY_ROLE_ORDER,
     [bulletOrders, comparisonVector],
   )
   const comparisonResult = useMemo(() => {
@@ -1688,7 +1699,7 @@ export function BuildPage() {
                   includedByKey={overridesForVector}
                   bulletOrderByRole={effectiveBulletOrders}
                   activeVectorBulletOrderByRole={activeBulletOrders}
-                  defaultBulletOrderByRole={data.bulletOrders?.all ?? {}}
+                  defaultBulletOrderByRole={defaultBulletOrders}
                   actions={libraryActions}
                   onReframeBullet={onReframeBullet}
                   reframeLoadingId={reframeLoadingId}

@@ -3,16 +3,23 @@ import type { VectorSelection } from '../types'
 export type RoleOrder = Record<string, string[]>
 export type VectorBulletOrders = Record<string, RoleOrder>
 
+// Shared immutable sentinel for memo dependencies; callers must treat empty order maps as read-only.
+export const EMPTY_ROLE_ORDER: RoleOrder = Object.freeze({})
+
 export const resolveEffectiveBulletOrders = (
   bulletOrders: VectorBulletOrders,
   selectedVector: VectorSelection,
 ): RoleOrder => {
-  const defaultOrders = bulletOrders.all ?? {}
+  const defaultOrders = bulletOrders.all ?? EMPTY_ROLE_ORDER
   if (selectedVector === 'all') {
     return defaultOrders
   }
 
-  const vectorOrders = bulletOrders[selectedVector] ?? {}
+  const vectorOrders = bulletOrders[selectedVector] ?? EMPTY_ROLE_ORDER
+  if (vectorOrders === EMPTY_ROLE_ORDER || Object.keys(vectorOrders).length === 0) {
+    return defaultOrders
+  }
+
   const roleIds = new Set([...Object.keys(defaultOrders), ...Object.keys(vectorOrders)])
   const next: RoleOrder = {}
 

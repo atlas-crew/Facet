@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { hasCustomVectorOrder, resolveEffectiveBulletOrders } from '../utils/bulletOrder'
+import {
+  EMPTY_ROLE_ORDER,
+  hasCustomVectorOrder,
+  resolveEffectiveBulletOrders,
+} from '../utils/bulletOrder'
 
 describe('bulletOrder utils', () => {
   it('uses default order as fallback when a vector does not define one', () => {
@@ -16,6 +20,34 @@ describe('bulletOrder utils', () => {
       roleA: ['b1', 'b2'],
       roleB: ['b3', 'b4'],
     })
+  })
+
+  it('returns a stable empty order when no role order applies', () => {
+    const first = resolveEffectiveBulletOrders({}, 'backend')
+    const second = resolveEffectiveBulletOrders({}, 'backend')
+    const allVectors = resolveEffectiveBulletOrders({}, 'all')
+
+    expect(first).toBe(second)
+    expect(first).toBe(allVectors)
+    expect(first).toBe(EMPTY_ROLE_ORDER)
+    expect(first).toEqual({})
+    expect(Object.isFrozen(EMPTY_ROLE_ORDER)).toBe(true)
+  })
+
+  it('keeps default orders when a selected vector has no custom order', () => {
+    const orders = { all: { roleA: ['b1', 'b2'] } }
+    const result = resolveEffectiveBulletOrders(orders, 'frontend')
+
+    expect(result).toEqual({ roleA: ['b1', 'b2'] })
+    expect(result).toBe(orders.all)
+    expect(result).not.toBe(EMPTY_ROLE_ORDER)
+  })
+
+  it('keeps default orders when a selected vector defines an empty custom order', () => {
+    const orders = { all: { roleA: ['b1', 'b2'] }, frontend: {} }
+    const result = resolveEffectiveBulletOrders(orders, 'frontend')
+
+    expect(result).toBe(orders.all)
   })
 
   it('detects custom vector ordering relative to default', () => {

@@ -5,7 +5,6 @@ import type {
   AddComponentType,
   PriorityByVector,
   ResumeData,
-  Role,
   VectorSelection,
   ComponentSuggestion,
 } from '../types'
@@ -225,6 +224,44 @@ export function ComponentLibrary({
       })
       .filter((r): r is NonNullable<typeof r> => r !== null)
   }, [data.roles, searchQuery])
+  const orderedRoles = useMemo(
+    () =>
+      filteredRoles.map((role) => {
+        const orderedBullets = reorderById(role.bullets, bulletOrderByRole[role.id])
+        return orderedBullets === role.bullets ? role : { ...role, bullets: orderedBullets }
+      }),
+    [bulletOrderByRole, filteredRoles],
+  )
+
+  const selectedVectorLabel = useMemo(
+    () => data.vectors.find((vector) => vector.id === selectedVector)?.label ?? selectedVector,
+    [data.vectors, selectedVector],
+  )
+  const customOrderBulletOrders = useMemo<Record<string, Record<string, string[]>>>(
+    () =>
+      selectedVector === 'all'
+        ? { all: defaultBulletOrderByRole }
+        : { all: defaultBulletOrderByRole, [selectedVector]: activeVectorBulletOrderByRole },
+    [activeVectorBulletOrderByRole, defaultBulletOrderByRole, selectedVector],
+  )
+  const roleOrderMetaById = useMemo(() => {
+    const next: Record<string, { customOrderLabel?: string; canResetOrder: boolean }> = {}
+    const resetOrderByRole =
+      selectedVector === 'all'
+        ? customOrderBulletOrders.all
+        : customOrderBulletOrders[selectedVector]
+
+    for (const role of orderedRoles) {
+      next[role.id] = {
+        customOrderLabel: hasCustomVectorOrder(selectedVector, role.id, customOrderBulletOrders)
+          ? `Custom order for ${selectedVectorLabel}`
+          : undefined,
+        canResetOrder: Boolean(resetOrderByRole?.[role.id]),
+      }
+    }
+
+    return next
+  }, [customOrderBulletOrders, orderedRoles, selectedVector, selectedVectorLabel])
 
   const filteredProjects = useFilteredList(data.projects, searchQuery, (project) => [
     project.name,
@@ -742,34 +779,16 @@ export function ComponentLibrary({
         'roles-bullets',
         'Roles & Bullets',
         <div className="library-grid role-grid" data-testid="roles-bullets-list">
-          {filteredRoles.map((role) => {
-            const orderedRole: Role = {
-              ...role,
-              bullets: reorderById(role.bullets, bulletOrderByRole[role.id]),
-            }
-
+          {orderedRoles.map((orderedRole) => {
+            const orderMeta = roleOrderMetaById[orderedRole.id]
             return (
               <BulletList
                 key={orderedRole.id}
                 role={orderedRole}
                 vectorDefs={data.vectors}
                 selectedVector={selectedVector}
-                customOrderLabel={
-                  hasCustomVectorOrder(selectedVector, orderedRole.id, {
-                    all: defaultBulletOrderByRole,
-                    [selectedVector]: activeVectorBulletOrderByRole,
-                  })
-                    ? `Custom order for ${
-                        data.vectors.find((vector) => vector.id === selectedVector)?.label ??
-                        selectedVector
-                      }`
-                    : undefined
-                }
-                canResetOrder={
-                  selectedVector === 'all'
-                    ? Boolean(defaultBulletOrderByRole[orderedRole.id])
-                    : Boolean(activeVectorBulletOrderByRole[orderedRole.id])
-                }
+                customOrderLabel={orderMeta.customOrderLabel}
+                canResetOrder={orderMeta.canResetOrder}
                 onResetOrder={resetRoleBulletOrder}
                 onUpdateRole={updateRole}
                 includedByKey={includedByKey}
