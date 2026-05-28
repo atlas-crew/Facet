@@ -1,10 +1,16 @@
 # Facet Feature Reference
 
+> Archived v0.2 snapshot. This file is retained as historical context only and
+> does not describe the current shipped product surface. Use
+> `docs/reference/feature-reference.md` for the maintained feature inventory.
+
 ## Purpose
+
 This document reflects the currently shipped feature surface in Facet and points to
 the primary implementation files for each area.
 
 ## Scope
+
 Current production-facing capabilities:
 
 - Route-based workspace shell with Build, Pipeline, Research, Prep, Letters, and Help views
@@ -21,6 +27,7 @@ Current production-facing capabilities:
 ## Feature Behavior
 
 ### 1) Application Shell and Navigation
+
 - The app uses a route-based shell rather than a single `App.tsx` entry screen.
 - `/` redirects to `/build`.
 - Main navigation exposes Build, Pipeline, Research, Prep, Letters, and Help.
@@ -28,12 +35,14 @@ Current production-facing capabilities:
 - Appearance mode cycles between system, light, and dark.
 
 Primary files:
+
 - `src/router.tsx`
 - `src/components/AppShell.tsx`
 - `src/store/uiStore.ts`
 - `src/routes/help/HelpPage.tsx`
 
 ### 2) Build Workspace
+
 - Resume editing remains the core workspace.
 - Users can edit metadata, target lines, profiles, projects, bullets, education,
   certifications, variables, and vector mappings.
@@ -48,6 +57,7 @@ Primary files:
   density adjustments.
 
 Primary files:
+
 - `src/routes/build/BuildPage.tsx`
 - `src/components/ComponentLibrary.tsx`
 - `src/components/ImportExport.tsx`
@@ -65,6 +75,7 @@ Primary files:
 - `src/templates/resume.typ`
 
 ### 3) Pipeline Tracking
+
 - Pipeline entries capture company, role, URL, compensation, status, notes, job
   description, vector linkage, and activity history.
 - Users can add/edit/delete entries, filter by tier/status/search, and sort by
@@ -74,6 +85,7 @@ Primary files:
 - Pipeline entries can hand off into Build analysis and Prep generation flows.
 
 Primary files:
+
 - `src/routes/pipeline/PipelinePage.tsx`
 - `src/routes/pipeline/PipelineFilters.tsx`
 - `src/routes/pipeline/PipelineTable.tsx`
@@ -84,6 +96,7 @@ Primary files:
 - `src/store/handoffStore.ts`
 
 ### 4) Research
+
 - Research can infer a search profile from resume data when AI is configured.
 - Search requests track vector priorities, filters, and exclusions.
 - Search runs persist status, logs, token usage, and grouped results.
@@ -91,6 +104,7 @@ Primary files:
 - Users can push promising results directly into the pipeline and jump back into Build.
 
 Primary files:
+
 - `src/routes/research/ResearchPage.tsx`
 - `src/routes/research/researchUtils.ts`
 - `src/store/searchStore.ts`
@@ -98,6 +112,7 @@ Primary files:
 - `src/utils/searchProfileInference.ts`
 
 ### 5) Prep
+
 - Prep decks organize interview material by company, role, vector, and linked
   pipeline entry.
 - Users can create blank decks, edit cards, duplicate/remove cards, filter by
@@ -107,6 +122,7 @@ Primary files:
   description, company research, and assembled resume context.
 
 Primary files:
+
 - `src/routes/prep/PrepPage.tsx`
 - `src/routes/prep/PrepCardGrid.tsx`
 - `src/routes/prep/PrepPracticeMode.tsx`
@@ -116,6 +132,7 @@ Primary files:
 - `src/utils/prepImport.ts`
 
 ### 6) Letters
+
 - Cover letter workspaces are template-based.
 - Users can create, edit, and delete reusable templates with paragraph-level vector
   controls.
@@ -124,12 +141,14 @@ Primary files:
 - Generated and manual templates persist in the cover letter store.
 
 Primary files:
+
 - `src/routes/letters/LettersPage.tsx`
 - `src/store/coverLetterStore.ts`
 - `src/utils/coverLetterGenerator.ts`
 - `src/components/VectorPriorityEditor.tsx`
 
 ### 7) Persistence, Backup, and Sync
+
 - The app starts through a shared persistence runtime before rendering the main workspace.
 - Durable workspace content includes resume data, pipeline entries, prep decks,
   cover letter templates, and research state.
@@ -142,6 +161,7 @@ Primary files:
 - The persistence contract is tenant-aware and can swap between local and remote backends.
 
 Primary files:
+
 - `src/components/AppShell.tsx`
 - `src/components/WorkspaceBackupDialog.tsx`
 - `src/components/WorkspaceBackupReminder.tsx`
@@ -156,6 +176,7 @@ Primary files:
 - `src/persistence/README.md`
 
 ## Data Model Notes
+
 - Durable workspace artifacts include:
   - resume data
   - pipeline entries
@@ -171,6 +192,7 @@ Primary files:
   bullet-order overrides, and variable substitutions.
 
 ## Runtime Configuration
+
 - Build-time AI features are enabled via `VITE_ANTHROPIC_PROXY_URL`.
 - This affects JD analysis/reframing, research profile inference/search, prep
   generation, and cover letter generation.
@@ -179,6 +201,7 @@ Primary files:
   `src/persistence/README.md`.
 
 ## Verification
+
 Run:
 
 ```bash
@@ -197,6 +220,7 @@ npm run build
 ```
 
 ## Test Coverage Pointers
+
 - `src/test/importMerge.test.ts`
 - `src/test/serializer.test.ts`
 - `src/test/jdAnalyzer.test.ts`

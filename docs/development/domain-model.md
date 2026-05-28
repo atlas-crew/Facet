@@ -70,7 +70,7 @@ The app uses **TanStack Router** (code-based routing). The current route surface
 - `/home` — Dashboard hub.
 - `/account` — Account settings, hosted entitlements, AI access status.
 - `/help` — In-app help docs.
-- `/legal` — Terms and privacy.
+- `/terms` and `/privacy` — Hosted legal pages.
 
 The root route renders `AppShell` (`src/components/AppShell.tsx`) which provides:
 
@@ -81,7 +81,11 @@ The root route renders `AppShell` (`src/components/AppShell.tsx`) which provides
 
 Router config lives in `src/router.tsx`. Route components live in `src/routes/{name}/`.
 
-See `docs/PIPELINE_PREP_SPEC.md` for the full architecture spec covering Pipeline and Prep feature implementation, data models, store design, component breakdown, and integration points.
+See `docs/reference/feature-reference.md` for the current route and feature
+inventory. The pre-implementation Pipeline/Prep spec was archived at
+`docs/archive/PIPELINE_PREP_SPEC.md`; current ownership boundaries live in
+`docs/architecture/facet-workspace-topology.md` and
+`docs/architecture/identity-canonical-data.md`.
 
 ---
 
@@ -93,7 +97,11 @@ Two-panel split: **Component Library** (left, ~45%) and **Live Preview** (right,
 
 ## JD Analyzer
 
-`src/utils/jdAnalyzer.ts` sends job descriptions to an external Claude API proxy (configured via `VITE_ANTHROPIC_PROXY_URL`) for analysis. The analyzer returns:
+JD analysis now flows through the shared JDAnalysis model and supporting utilities
+such as `src/utils/jdAnalysis.ts`, `src/utils/jobMatch.ts`, and
+`src/utils/buildProjection.ts`. AI-backed analysis uses the configured proxy
+endpoint (`VITE_ANTHROPIC_PROXY_URL`) when generation is available. The analysis
+surface returns:
 
 - Vector recommendations
 - Bullet priority adjustments

@@ -135,10 +135,10 @@ Documentation for contributors and developers working on the Facet codebase.
 
 ## Reference
 
-| Document                                                               | Description                                                                                       |
-| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| [Feature Reference](reference/vector-resume-v0.2-feature-reference.md) | Current feature inventory for the shipped Facet product surface                                   |
-| [AI Feature Audit](reference/ai-feature-audit.md)                      | Inventory of AI-enabled product surfaces, model aliases, proxy feature lanes, and caller defaults |
+| Document                                            | Description                                                                                       |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| [Feature Reference](reference/feature-reference.md) | Current feature inventory for the shipped Facet product surface                                   |
+| [AI Feature Audit](reference/ai-feature-audit.md)   | Inventory of AI-enabled product surfaces, model aliases, proxy feature lanes, and caller defaults |
 
 ---
 

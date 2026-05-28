@@ -27,15 +27,15 @@ The tiers below describe which skills are _worth knowing about_ on this repo. Th
 
 Foundational skills that apply to almost every turn. Recall these by name when you start work, even if the harness does not surface them.
 
-| Skill                            | Why on this repo                                                                                                                                                |
-| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Skill                            | Why on this repo                                                                                                                                                                                           |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `agent-loops`                    | Operational backbone for any implementation task. Sequences atomic commits, lint gates, and verification through `cortex git commit`; routes deferred fixes to backlog. Load before starting code changes. |
-| `verification-before-completion` | Pairs with `delegation-verification.md`. Never claim "fixed/passing/done" without running the verifying command.                                                |
-| `atomic-commits`                 | This project enforces atomic commits via global git rules. Use when the working tree has more than one logical change.                                          |
-| `testing-anti-patterns`          | Vitest + jsdom makes it easy to write tests that pass without verifying behavior. Read before adding tests.                                                     |
-| `systematic-debugging`           | Four-phase bug framework (root cause → pattern → hypothesis → fix). Pairs with `root-cause-tracing` for deep stacks.                                            |
-| `backlog-md`                     | This repo has a tracked `backlog/` directory. Plans and analyses for ongoing work belong there, not as loose `*.md` files at the repo root.                     |
-| `codanna-codebase-intelligence`  | This repo has a `.codanna/` index. Prefer semantic search and call graphs over `grep`/`find` for symbol-level questions.                                        |
+| `verification-before-completion` | Pairs with `delegation-verification.md`. Never claim "fixed/passing/done" without running the verifying command.                                                                                           |
+| `atomic-commits`                 | This project enforces atomic commits via global git rules. Use when the working tree has more than one logical change.                                                                                     |
+| `testing-anti-patterns`          | Vitest + jsdom makes it easy to write tests that pass without verifying behavior. Read before adding tests.                                                                                                |
+| `systematic-debugging`           | Four-phase bug framework (root cause → pattern → hypothesis → fix). Pairs with `root-cause-tracing` for deep stacks.                                                                                       |
+| `backlog-md`                     | This repo has a tracked `backlog/` directory. Plans and analyses for ongoing work belong there, not as loose `*.md` files at the repo root.                                                                |
+| `codanna-codebase-intelligence`  | This repo has a `.codanna/` index. Prefer semantic search and call graphs over `grep`/`find` for symbol-level questions.                                                                                   |
 
 ---
 
@@ -45,27 +45,27 @@ Foundational skills that apply to almost every turn. Recall these by name when y
 
 Local skills that encode this repo's actual architectural commitments and code-area rules. When their triggers fire, **these take precedence over generic stack skills** — they describe what is binding here, not what is generally a good idea.
 
-| Skill                        | When to load                                                                                                                                                                                                                                                                                  |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `facet-feature-placement`    | At the **start** of any new feature, refactor, or scoping question — before deciding which workspace owns it or where new state lives. Covers the Search → Pipeline → Prep flow, the AI-inference-vs-user-input rule, and prep carry-over scopes.                                              |
-| `facet-architecture-guard`   | When touching identity, pipeline entries, the workspace people index, JD analysis, research, or any LLM generator that produces fields about the candidate. Enforces the four load-bearing commitments (identity-canonical-data, pipeline-as-canonical, evidence-vs-narrative, research-as-discovery). |
-| `facet-persistence-changes`  | When adding fields to any Zustand store, editing files under `src/persistence/`, changing snapshot/artifact schemas, writing migrations, or touching the remote backend / hosted-mode flow. Covers the three persistence tiers and per-artifact `schemaVersion` vs Zustand version vs workspace snapshot version. |
-| `facet-assembly-engine`      | When working in `src/engine/`, `src/templates/`, or any code that calls `assembleResume`, `applyPageBudget`, or interacts with vectors, manual overrides, bullet ordering, text variants, page budgets, or PDF rendering. Covers the four-level override key precedence and the three type tiers (raw / Assembled / Template). |
+| Skill                       | When to load                                                                                                                                                                                                                                                                                                                   |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `facet-feature-placement`   | At the **start** of any new feature, refactor, or scoping question — before deciding which workspace owns it or where new state lives. Covers the Search → Pipeline → Prep flow, the AI-inference-vs-user-input rule, and prep carry-over scopes.                                                                              |
+| `facet-architecture-guard`  | When touching identity, pipeline entries, the workspace people index, JD analysis, research, or any LLM generator that produces fields about the candidate. Enforces the four load-bearing commitments (identity-canonical-data, pipeline-as-canonical, evidence-vs-narrative, research-as-discovery).                         |
+| `facet-persistence-changes` | When adding fields to any Zustand store, editing files under `src/persistence/`, changing snapshot/artifact schemas, writing migrations, or touching the remote backend / hosted-mode flow. Covers the three persistence tiers and per-artifact `schemaVersion` vs Zustand version vs workspace snapshot version.              |
+| `facet-assembly-engine`     | When working in `src/engine/`, `src/templates/`, or any code that calls `assembleResume`, `applyPageBudget`, or interacts with vectors, manual overrides, bullet ordering, text variants, page budgets, or PDF rendering. Covers the four-level override key precedence and the three type tiers (raw / Assembled / Template). |
 
 ### Stack-aligned
 
 Load when the task touches the relevant area.
 
-| Skill                                           | When to load                                                                                                                                                         |
-| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `typescript-advanced-patterns`                  | Strict TypeScript with `verbatimModuleSyntax`. The assembled-vs-template type split (`src/types.ts` vs `src/templates/types.ts`) makes type discipline load-bearing. |
-| `react-performance-optimization`                | The build route's two-panel split with live preview re-renders is the kind of place memoization mistakes hide.                                                       |
-| `frontend-design`                               | Pair with the design system at `docs/development/ui/facet-style-guide.md`. CSS custom properties + 4px grid + DM Sans/Mono stack.                                    |
-| `ui-design-aesthetics`                          | Use when generating new UI. The repo prizes distinctive aesthetics over generic Tailwind defaults.                                                                   |
-| `accessibility-audit`                           | `@dnd-kit` drag-and-drop is a known a11y trap. Run before any significant UI change ships.                                                                           |
-| `webapp-testing` + `playwright`                 | The project rule "test the golden path in a browser before reporting complete" maps directly to these.                                                               |
-| `vibe-security` + `secure-coding-practices`     | The JD analyzer (`src/utils/jdAnalyzer.ts`) ships text to an external proxy. Persistence touches Supabase. Run a quick pass on changes to either surface.            |
-| `supabase` + `supabase-postgres-best-practices` | Use whenever touching persistence (`src/persistence/`) or any Supabase-backed flow.                                                                                  |
+| Skill                                           | When to load                                                                                                                                                                                                             |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `typescript-advanced-patterns`                  | Strict TypeScript with `verbatimModuleSyntax`. The assembled-vs-template type split (`src/types.ts` vs `src/templates/types.ts`) makes type discipline load-bearing.                                                     |
+| `react-performance-optimization`                | The build route's two-panel split with live preview re-renders is the kind of place memoization mistakes hide.                                                                                                           |
+| `frontend-design`                               | Pair with the design system at `docs/development/ui/facet-style-guide.md`. CSS custom properties + 4px grid + DM Sans/Mono stack.                                                                                        |
+| `ui-design-aesthetics`                          | Use when generating new UI. The repo prizes distinctive aesthetics over generic Tailwind defaults.                                                                                                                       |
+| `accessibility-audit`                           | `@dnd-kit` drag-and-drop is a known a11y trap. Run before any significant UI change ships.                                                                                                                               |
+| `webapp-testing` + `playwright`                 | The project rule "test the golden path in a browser before reporting complete" maps directly to these.                                                                                                                   |
+| `vibe-security` + `secure-coding-practices`     | JD analysis and AI generators (`src/utils/jdAnalysis.ts`, `src/utils/jobMatch.ts`, and generator utilities) ship text to an external proxy. Persistence touches Supabase. Run a quick pass on changes to either surface. |
+| `supabase` + `supabase-postgres-best-practices` | Use whenever touching persistence (`src/persistence/`) or any Supabase-backed flow.                                                                                                                                      |
 
 ---
 

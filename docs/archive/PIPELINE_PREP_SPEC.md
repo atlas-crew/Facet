@@ -1,5 +1,10 @@
 # Facet Job Search Suite — Architecture & Implementation Spec
 
+> Archived planning snapshot. Pipeline and Prep have shipped and evolved past this
+> pre-implementation spec. Use `docs/reference/feature-reference.md`,
+> `docs/development/domain-model.md`, and the architecture docs under
+> `docs/architecture/` for current behavior.
+
 > **Milestone:** m-4 — Job Search Suite
 > **Status:** Ready for implementation
 > **Prerequisites:** TanStack Router scaffolding is already merged. AppShell, sidebar nav, and route placeholders are in place.
@@ -10,11 +15,11 @@
 
 Facet expands from a resume assembly tool into a three-part job search command center:
 
-| Route | Purpose | Status |
-|-------|---------|--------|
-| `/build` | Resume assembly (existing Facet) | ✅ Complete, relocated to `src/routes/build/BuildPage.tsx` |
-| `/pipeline` | Application tracker & analytics | 🔨 This spec |
-| `/prep` | Interview reference cards | 🔨 This spec |
+| Route       | Purpose                          | Status                                                     |
+| ----------- | -------------------------------- | ---------------------------------------------------------- |
+| `/build`    | Resume assembly (existing Facet) | ✅ Complete, relocated to `src/routes/build/BuildPage.tsx` |
+| `/pipeline` | Application tracker & analytics  | 🔨 This spec                                               |
+| `/prep`     | Interview reference cards        | 🔨 This spec                                               |
 
 The key product insight: these aren't independent apps stitched together. Pipeline entries link to Facet vectors, JD analysis results flow from pipeline into the build view, and prep cards are tagged by vector so they surface contextually.
 
@@ -36,13 +41,13 @@ The appearance effect (dark/light/system → `data-theme` on `<html>`) is manage
 
 Mockups live in `docs/assets/mockups/`. These are the design targets — agents should match this visual language.
 
-| Mockup | File | What it shows |
-|--------|------|---------------|
-| Pipeline table | `pipeline-table.png` | Funnel strip, tier/status filter pills, sortable table with status badges, search input, action buttons (Add/Import/Export/Analytics) |
-| Pipeline analytics | `pipeline-analytics.png` | KPI cards (response rate, avg days, avg rounds, app→offer), horizontal bar breakdowns by tier/vector/method/rejection stage/format/variant |
-| Prep cards (openers) | `prep-cards-openers.png` | Two-column card grid, category pills (All/Opener/Behavioral/Technical/Project/Metrics/Situational), CAUTION block (yellow), SAY THIS block (green accent + copy button), Q&A inset cards, tag badges |
-| Prep cards (technical) | `prep-cards-technical.png` | SAY THIS block, collapsible deep-dive arrows (▸), metric badge strip (mono font, green accent), before/after comparison table |
-| Form density reference | `reference-dense-form.png` | reference dense-form dashboard — dark chrome, checkbox grid layout, input density. Use as tonal reference for pipeline entry modal form layout |
+| Mockup                 | File                       | What it shows                                                                                                                                                                                        |
+| ---------------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Pipeline table         | `pipeline-table.png`       | Funnel strip, tier/status filter pills, sortable table with status badges, search input, action buttons (Add/Import/Export/Analytics)                                                                |
+| Pipeline analytics     | `pipeline-analytics.png`   | KPI cards (response rate, avg days, avg rounds, app→offer), horizontal bar breakdowns by tier/vector/method/rejection stage/format/variant                                                           |
+| Prep cards (openers)   | `prep-cards-openers.png`   | Two-column card grid, category pills (All/Opener/Behavioral/Technical/Project/Metrics/Situational), CAUTION block (yellow), SAY THIS block (green accent + copy button), Q&A inset cards, tag badges |
+| Prep cards (technical) | `prep-cards-technical.png` | SAY THIS block, collapsible deep-dive arrows (▸), metric badge strip (mono font, green accent), before/after comparison table                                                                        |
+| Form density reference | `reference-dense-form.png` | reference dense-form dashboard — dark chrome, checkbox grid layout, input density. Use as tonal reference for pipeline entry modal form layout                                                       |
 
 **Key design decisions visible in mockups:**
 
@@ -64,15 +69,15 @@ Create `src/types/pipeline.ts`:
 
 ```typescript
 export type PipelineStatus =
-  | 'researching'   // Identified, not yet applied
-  | 'applied'       // Application submitted
-  | 'screening'     // Recruiter screen scheduled/completed
-  | 'interviewing'  // Active interview process
-  | 'offer'         // Offer received
-  | 'accepted'      // Offer accepted
-  | 'rejected'      // Rejected at any stage
-  | 'withdrawn'     // Candidate withdrew
-  | 'closed'        // Stale / no longer pursuing
+  | 'researching' // Identified, not yet applied
+  | 'applied' // Application submitted
+  | 'screening' // Recruiter screen scheduled/completed
+  | 'interviewing' // Active interview process
+  | 'offer' // Offer received
+  | 'accepted' // Offer accepted
+  | 'rejected' // Rejected at any stage
+  | 'withdrawn' // Candidate withdrew
+  | 'closed' // Stale / no longer pursuing
 
 export type PipelineTier = '1' | '2' | '3' | 'watch'
 
@@ -114,7 +119,7 @@ export type RejectionStage =
   | 'unknown'
 
 export interface PipelineHistoryEntry {
-  date: string            // ISO date string
+  date: string // ISO date string
   note: string
 }
 
@@ -124,21 +129,21 @@ export interface PipelineEntry {
   role: string
   tier: PipelineTier
   status: PipelineStatus
-  comp: string            // Free-text, e.g. "$170K–$210K"
-  url: string             // Job posting URL
-  contact: string         // Free-text, recruiter/contact name
+  comp: string // Free-text, e.g. "$170K–$210K"
+  url: string // Job posting URL
+  contact: string // Free-text, recruiter/contact name
 
   // ── Facet Integration ──
-  vectorId: string | null         // Links to a ResumeVector.id from resumeStore
-  jobDescription: string          // Raw JD text for analysis
-  presetId: string | null         // Links to a Preset.id from resumeStore
-  resumeVariant: string           // Free-text label of which resume version was sent
+  vectorId: string | null // Links to a ResumeVector.id from resumeStore
+  jobDescription: string // Raw JD text for analysis
+  presetId: string | null // Links to a Preset.id from resumeStore
+  resumeVariant: string // Free-text label of which resume version was sent
 
   // ── Positioning ──
-  positioning: string             // How to frame experience for this role
-  skillMatch: string              // Comma-separated relevant skills
-  nextStep: string                // Action item
-  notes: string                   // General notes
+  positioning: string // How to frame experience for this role
+  skillMatch: string // Comma-separated relevant skills
+  nextStep: string // Action item
+  notes: string // General notes
 
   // ── Outcome Tracking ──
   appMethod: ApplicationMethod
@@ -151,10 +156,10 @@ export interface PipelineEntry {
   offerAmount: string
 
   // ── Dates ──
-  dateApplied: string             // ISO date
-  dateClosed: string              // ISO date
-  lastAction: string              // ISO date — auto-updated on any mutation
-  createdAt: string               // ISO date
+  dateApplied: string // ISO date
+  dateClosed: string // ISO date
+  lastAction: string // ISO date — auto-updated on any mutation
+  createdAt: string // ISO date
 
   // ── History ──
   history: PipelineHistoryEntry[]
@@ -201,15 +206,15 @@ interface PipelineState {
 
 All in `src/routes/pipeline/`:
 
-| Component | Responsibility |
-|-----------|---------------|
-| `PipelinePage.tsx` | Route root. Layout: stats strip + filters + table/detail split |
-| `PipelineTable.tsx` | Sortable table with expandable rows. Columns: Company, Role, Tier, Status, Comp, Last Action, Next Step |
-| `PipelineDetail.tsx` | Expanded row or side panel: full entry fields, history timeline, action buttons |
-| `PipelineFilters.tsx` | Tier and status filter pills + search input |
-| `PipelineStats.tsx` | Funnel strip: Targets → Applied → Responded → Interviewing → Offers |
-| `PipelineAnalytics.tsx` | Toggleable analytics panel: response rate, avg days, by-vector breakdown, by-method breakdown, skill frequency heatmap, rejection stages |
-| `PipelineEntryModal.tsx` | Add/edit modal form with all PipelineEntry fields |
+| Component                | Responsibility                                                                                                                           |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `PipelinePage.tsx`       | Route root. Layout: stats strip + filters + table/detail split                                                                           |
+| `PipelineTable.tsx`      | Sortable table with expandable rows. Columns: Company, Role, Tier, Status, Comp, Last Action, Next Step                                  |
+| `PipelineDetail.tsx`     | Expanded row or side panel: full entry fields, history timeline, action buttons                                                          |
+| `PipelineFilters.tsx`    | Tier and status filter pills + search input                                                                                              |
+| `PipelineStats.tsx`      | Funnel strip: Targets → Applied → Responded → Interviewing → Offers                                                                      |
+| `PipelineAnalytics.tsx`  | Toggleable analytics panel: response rate, avg days, by-vector breakdown, by-method breakdown, skill frequency heatmap, rejection stages |
+| `PipelineEntryModal.tsx` | Add/edit modal form with all PipelineEntry fields                                                                                        |
 
 ### 3.4 Analytics (Port from Existing)
 
@@ -261,6 +266,7 @@ After analyzing a JD and saving a preset in the build view, the preset ID can be
 The pipeline ships **empty** — no default data is bundled in the app. Personal job search data (company names, comp ranges, positioning notes) must never be committed to the repo.
 
 On first load:
+
 1. Check for legacy `localStorage.getItem('pipeline-data')` from the old vanilla HTML tracker. If found, offer a one-time import.
 2. Otherwise, show an empty state with an "Import JSON" button and a brief description of what the pipeline does.
 
@@ -278,42 +284,43 @@ Create `src/types/prep.ts`:
 
 ```typescript
 export type PrepCategory =
-  | 'opener'           // Tell me about yourself, why leaving, etc.
-  | 'behavioral'       // Situational/behavioral questions
-  | 'technical'        // Architecture, system design deep dives
-  | 'project'          // Specific project stories
-  | 'metrics'          // Key numbers and stats
-  | 'situational'      // Scenario-based questions
+  | 'opener' // Tell me about yourself, why leaving, etc.
+  | 'behavioral' // Situational/behavioral questions
+  | 'technical' // Architecture, system design deep dives
+  | 'project' // Specific project stories
+  | 'metrics' // Key numbers and stats
+  | 'situational' // Scenario-based questions
 
 export interface PrepDeepDive {
   title: string
-  content: string       // HTML-safe content (bold, code, br)
+  content: string // HTML-safe content (bold, code, br)
 }
 
 export interface PrepMetric {
-  value: string         // e.g. "450μs", "$1M", "38K+"
-  label: string         // e.g. "Full-stack latency"
+  value: string // e.g. "450μs", "$1M", "38K+"
+  label: string // e.g. "Full-stack latency"
 }
 
 export interface PrepFollowUp {
   question: string
-  answer: string        // HTML-safe
+  answer: string // HTML-safe
 }
 
 export interface PrepCard {
   id: string
   category: PrepCategory
-  title: string         // The question or topic, e.g. "Tell me about yourself"
-  tags: string[]        // Vector IDs and free-text tags for filtering
-                        // e.g. ['security', 'platform', 'rust', 'edgeprobe']
+  title: string // The question or topic, e.g. "Tell me about yourself"
+  tags: string[] // Vector IDs and free-text tags for filtering
+  // e.g. ['security', 'platform', 'rust', 'edgeprobe']
 
   // ── Content Blocks (all optional — cards vary in structure) ──
-  script?: string                  // "Say This" — the rehearsed answer
-  warning?: string                 // Caution / framing notes
-  followUps?: PrepFollowUp[]       // Q&A cards
-  deepDives?: PrepDeepDive[]       // Expandable technical details
-  metrics?: PrepMetric[]           // Number cards
-  tableData?: {                    // For tables (memory budget, throughput)
+  script?: string // "Say This" — the rehearsed answer
+  warning?: string // Caution / framing notes
+  followUps?: PrepFollowUp[] // Q&A cards
+  deepDives?: PrepDeepDive[] // Expandable technical details
+  metrics?: PrepMetric[] // Number cards
+  tableData?: {
+    // For tables (memory budget, throughput)
     headers: string[]
     rows: string[][]
   }
@@ -327,6 +334,7 @@ The interview-prep.html contains personal interview scripts, company-specific po
 Instead, the app supports importing prep data from a JSON file that conforms to the `PrepCard[]` schema. The user maintains their own prep data file outside the repo.
 
 **Import/export flow:**
+
 1. Prep page shows an empty state with "Import JSON" button on first load
 2. User imports a `PrepCard[]` JSON file
 3. Data persists to localStorage via a `prepStore` (or loaded fresh each time from file — TBD based on data size)
@@ -338,29 +346,29 @@ Instead, the app supports importing prep data from a JSON file that conforms to 
 
 The user will separately extract their prep data from the HTML file. The mapping for reference:
 
-| HTML Pattern | PrepCard Field |
-|-------------|---------------|
-| `<div class="section" id="...">` | `id` |
-| `<span class="section-tag tag-*">` | `category` |
-| `<h2>` | `title` |
-| `<div class="script">` | `script` |
-| `<div class="warning">` | `warning` |
-| `<div class="card"><div class="card-q">...<div class="card-a">...` | `followUps[]` |
-| `<details><summary>...<div class="detail-content">...` | `deepDives[]` |
-| `<div class="numbers"><div class="num-card">...` | `metrics[]` |
-| `<table>` | `tableData` |
+| HTML Pattern                                                       | PrepCard Field |
+| ------------------------------------------------------------------ | -------------- |
+| `<div class="section" id="...">`                                   | `id`           |
+| `<span class="section-tag tag-*">`                                 | `category`     |
+| `<h2>`                                                             | `title`        |
+| `<div class="script">`                                             | `script`       |
+| `<div class="warning">`                                            | `warning`      |
+| `<div class="card"><div class="card-q">...<div class="card-a">...` | `followUps[]`  |
+| `<details><summary>...<div class="detail-content">...`             | `deepDives[]`  |
+| `<div class="numbers"><div class="num-card">...`                   | `metrics[]`    |
+| `<table>`                                                          | `tableData`    |
 
 ### 4.3 Components
 
 All in `src/routes/prep/`:
 
-| Component | Responsibility |
-|-----------|---------------|
-| `PrepPage.tsx` | Route root. Search bar + category tabs + card grid |
-| `PrepCardGrid.tsx` | Responsive grid of `PrepCardView` components |
-| `PrepCardView.tsx` | Individual card: title, script preview, expandable follow-ups/deep-dives, metric strip |
-| `PrepSearch.tsx` | Search input + category filter pills + optional vector filter |
-| `PrepPracticeMode.tsx` | (Stretch) Shuffled question display with hidden answers |
+| Component              | Responsibility                                                                         |
+| ---------------------- | -------------------------------------------------------------------------------------- |
+| `PrepPage.tsx`         | Route root. Search bar + category tabs + card grid                                     |
+| `PrepCardGrid.tsx`     | Responsive grid of `PrepCardView` components                                           |
+| `PrepCardView.tsx`     | Individual card: title, script preview, expandable follow-ups/deep-dives, metric strip |
+| `PrepSearch.tsx`       | Search input + category filter pills + optional vector filter                          |
+| `PrepPracticeMode.tsx` | (Stretch) Shuffled question display with hidden answers                                |
 
 ### 4.4 Prep → Pipeline Context
 
@@ -464,7 +472,9 @@ src/
 ## 9. Task Breakdown
 
 ### TASK-23: Create pipelineStore
+
 **Priority:** High | **Estimate:** Small
+
 - Define all types in `src/types/pipeline.ts`
 - Implement `pipelineStore` with Zustand persist
 - Implement `handoffStore` (non-persisted)
@@ -473,7 +483,9 @@ src/
 - Unit tests for store CRUD operations
 
 ### TASK-24: Build Pipeline UI
+
 **Priority:** High | **Estimate:** Large
+
 - `PipelinePage` layout: stats strip top, filters below, table body
 - `PipelineTable` with sort-by-column, expandable rows
 - `PipelineDetail` expanded row showing all fields + history timeline
@@ -487,7 +499,9 @@ src/
 - Responsive: stack on mobile
 
 ### TASK-25: Wire Pipeline → Build integration
+
 **Priority:** High | **Estimate:** Medium
+
 - "Analyze in Builder" button on pipeline entries with JD text
 - Handoff via `handoffStore.setPendingAnalysis()`
 - `BuildPage` reads handoff on mount, opens JD modal pre-filled
@@ -496,7 +510,9 @@ src/
 - Update `router.tsx` if search params needed
 
 ### TASK-26: Extract interview prep data
+
 **Priority:** Medium | **Estimate:** Medium
+
 - Parse all ~30 sections from `interview-prep.html`
 - Create `PrepCard[]` array in `prepData.ts` with proper typing
 - Manually assign vector tags to each card
@@ -504,7 +520,9 @@ src/
 - No runtime HTML parsing — this is a one-time manual extraction into typed data
 
 ### TASK-27: Build Prep UI
+
 **Priority:** Medium | **Estimate:** Medium
+
 - `PrepPage` layout: search bar + category tabs + card grid
 - `PrepSearch` with text search + category filter pills
 - `PrepCardGrid` responsive grid
@@ -516,7 +534,9 @@ src/
 - CSS in `prep.css`
 
 ### TASK-28: Wire Prep → Pipeline context
+
 **Priority:** Low | **Estimate:** Small
+
 - "Prep for Interview" button on pipeline entries → navigates to `/prep?vector=X&skills=Y`
 - PrepPage reads search params via TanStack Router `validateSearch`
 - Auto-filter cards by matching tags against vector + skills
@@ -524,7 +544,9 @@ src/
 - Update `router.tsx` with search param validation on prep route
 
 ### TASK-29: Fix splitter ratio for sidebar offset
+
 **Priority:** Low | **Estimate:** Trivial
+
 - In `BuildPage.tsx`, the splitter drag handler uses `event.clientX / window.innerWidth`
 - Should be `(event.clientX - SIDEBAR_WIDTH) / (window.innerWidth - SIDEBAR_WIDTH)` where `SIDEBAR_WIDTH = 48`
 - Also update initial `panelRatio` calculation if it uses window width
