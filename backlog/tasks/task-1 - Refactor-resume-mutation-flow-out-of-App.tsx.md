@@ -25,9 +25,11 @@ Review feedback flags App.tsx/ComponentLibrary prop-drilling and inline mutation
 <!-- AC:BEGIN -->
 - [x] #1 App.tsx no longer defines inline data mutation callbacks for each entity type
 - [x] #2 ComponentLibrary callback prop count is materially reduced
-- [ ] #3 Behavior parity is preserved for add/edit/reorder/toggle flows
+- [x] #3 Behavior parity is preserved for add/edit/reorder/toggle flows
 - [ ] #4 Verification commands pass
 <!-- AC:END -->
+
+
 
 
 
