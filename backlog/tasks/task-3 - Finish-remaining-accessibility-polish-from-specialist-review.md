@@ -29,14 +29,6 @@ After core a11y fixes, review feedback still calls out keyboard guidance and ann
 - [x] #4 Verification commands pass
 <!-- AC:END -->
 
-
-
-
-
-
-
-
-
 ## Implementation Plan
 
 <!-- SECTION:PLAN:BEGIN -->
@@ -50,4 +42,6 @@ After core a11y fixes, review feedback still calls out keyboard guidance and ann
 
 <!-- SECTION:NOTES:BEGIN -->
 Starting TASK-3. I will target the existing ComponentLibrary/Build accessibility polish surface: verify current drag-handle aria wiring, add discoverable keyboard instructions where missing, announce Add Component type changes with a polite live region, add a manual dismiss affordance for toast notices, then cover the behavior with focused tests plus lint/typecheck/build and independent review/audit.
+
+Completed TASK-3 as an accessibility proof/closeout slice. The drag-instruction wiring, add-modal live announcement, and manual toast dismiss affordance were already present in the product code; this change adds focused regression coverage for those acceptance criteria. Validation: npm run typecheck; npx vitest run src/test/ComponentLibrary.accessibility.test.tsx src/test/BulletList.test.tsx src/test/BuildPage.test.tsx; scoped eslint; touched-file format check; npm run lint; npm run test; npm run build. Independent diff test audit .agents/reviews/task3-a11y/test-audit-20260528-133925.md reports no prioritized gaps.
 <!-- SECTION:NOTES:END -->
