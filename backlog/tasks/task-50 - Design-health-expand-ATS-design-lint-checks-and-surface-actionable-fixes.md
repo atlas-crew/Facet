@@ -1,9 +1,11 @@
 ---
 id: TASK-50
 title: 'Design health: expand ATS/design lint checks and surface actionable fixes'
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-03-10 03:54'
+updated_date: '2026-05-28 05:53'
 labels:
   - feature
   - quality
@@ -24,6 +26,12 @@ priority: medium
 - [ ] #2 UI surfaces the issues with direct pointers to the relevant theme/token/field.
 - [ ] #3 Unit tests cover new checks deterministically.
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Codex starting TASK-50. Plan: inspect current designHealth checks and UI consumer, add deterministic ATS/readability checks for contrast, link styling/format, missing contact fields, and overlong bullets; surface direct pointers in the existing report UI; add focused utility/UI tests; run lint/typecheck/tests/review; commit via cortex.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
