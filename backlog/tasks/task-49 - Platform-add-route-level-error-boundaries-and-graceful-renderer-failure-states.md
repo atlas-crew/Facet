@@ -3,9 +3,11 @@ id: TASK-49
 title: >-
   Platform: add route-level error boundaries and graceful renderer failure
   states
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-03-10 03:54'
+updated_date: '2026-05-28 06:26'
 labels:
   - remediation
   - ux
@@ -26,6 +28,12 @@ Add error boundaries around routes and key renderer surfaces (Typst preview, JD 
 - [ ] #2 Typst/JD analysis errors surface as non-blocking notices with clear next steps.
 - [ ] #3 No new uncaught runtime errors are introduced in happy-path flows.
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Verified existing TASK-49 implementation in branch: default TanStack route error component via RouteErrorFallback with retry/overview/reload actions; PdfPreview keeps stale successful renders and surfaces Typst/render errors as non-blocking alerts with next steps; Pipeline/Build JD-analysis failures already surface inline/toast guidance without blocking unrelated flows. Follow-up committed CSS placement fix for route/PDF fallback styles. Verification: npx vitest run src/test/RouteErrorFallback.test.tsx src/test/PdfPreview.test.tsx src/test/PipelinePage.test.tsx src/test/BuildPage.test.tsx (75 passing); npx eslint route/PDF/pipeline touched surfaces; npm run lint; npm run build.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
