@@ -1,5 +1,6 @@
 import {
   DndContext,
+  DragOverlay,
   KeyboardSensor,
   PointerSensor,
   closestCenter,
@@ -16,10 +17,22 @@ import {
 } from '@dnd-kit/sortable'
 import { Eye, EyeOff, GripVertical, RotateCcw } from 'lucide-react'
 import { useState, memo, useMemo } from 'react'
-import type { ComponentPriority, PriorityByVector, ProjectComponent, VectorDef, VectorSelection } from '../types'
+import type {
+  ComponentPriority,
+  PriorityByVector,
+  ProjectComponent,
+  VectorDef,
+  VectorSelection,
+} from '../types'
 import { getPriorityForVector } from '../engine/assembler'
 import { resolveDisplayText } from '../utils/resolveDisplayText'
 import { useSortableItem } from '../hooks/useSortableItem'
+import { VirtualizedList } from './VirtualizedList'
+
+const PROJECT_ESTIMATED_HEIGHT = 260
+const PROJECT_VIRTUALIZED_HEIGHT = 720
+
+const getProjectKey = (project: { id: string }) => project.id
 
 interface ProjectListProps {
   projects: ProjectComponent[]
@@ -92,7 +105,11 @@ const SortableProjectCard = memo(function SortableProjectCard({
             <GripVertical size={14} />
           </button>
           <h4>Project</h4>
-          {hasVariant && <span className="variant-badge" title="Has vector-specific variant">V</span>}
+          {hasVariant && (
+            <span className="variant-badge" title="Has vector-specific variant">
+              V
+            </span>
+          )}
         </div>
         <div className="component-card-actions">
           {hasVariant && onResetVariant && (
@@ -163,6 +180,19 @@ const SortableProjectCard = memo(function SortableProjectCard({
   )
 })
 
+function SortableProjectPlaceholder({ id }: { id: string }) {
+  const { setNodeRef, style } = useSortableItem(id)
+
+  return (
+    <div
+      ref={setNodeRef}
+      className="virtualized-dnd-placeholder"
+      style={{ ...style, height: '100%', width: '100%' }}
+      aria-hidden="true"
+    />
+  )
+}
+
 export const ProjectList = memo(function ProjectList({
   projects,
   vectorDefs,
@@ -176,6 +206,7 @@ export const ProjectList = memo(function ProjectList({
 }: ProjectListProps) {
   const projectIds = useMemo(() => projects.map((project) => project.id), [projects])
   const [announcement, setAnnouncement] = useState('')
+  const [activeDragId, setActiveDragId] = useState<string | null>(null)
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, {
@@ -185,15 +216,23 @@ export const ProjectList = memo(function ProjectList({
 
   const getPosition = (id: string | number) => projectIds.indexOf(String(id)) + 1
 
+  const activeDragProject = useMemo(
+    () => projects.find((project) => project.id === activeDragId) ?? null,
+    [activeDragId, projects],
+  )
+
   const handleDragStart = (event: DragStartEvent) => {
+    setActiveDragId(String(event.active.id))
     setAnnouncement(`Picked up project ${getPosition(event.active.id)}.`)
   }
 
   const handleDragCancel = () => {
+    setActiveDragId(null)
     setAnnouncement('Project move canceled.')
   }
 
   const handleDragEnd = (event: DragEndEvent) => {
+    setActiveDragId(null)
     const { active, over } = event
     if (!over || active.id === over.id) {
       return
@@ -211,7 +250,8 @@ export const ProjectList = memo(function ProjectList({
   return (
     <>
       <span id="dnd-instructions-projects" className="sr-only">
-        To reorder, press Space or Enter to lift, use Arrow keys to move, and Space or Enter to drop. Press Escape to cancel.
+        To reorder, press Space or Enter to lift, use Arrow keys to move, and Space or Enter to
+        drop. Press Escape to cancel.
       </span>
 
       <p className="sr-only" aria-live="polite" aria-atomic="true">
@@ -225,11 +265,28 @@ export const ProjectList = memo(function ProjectList({
         onDragEnd={handleDragEnd}
       >
         <SortableContext items={projectIds} strategy={verticalListSortingStrategy}>
-          <div className="library-grid">
-            {projects.map((project) => {
+          <VirtualizedList
+            items={projects}
+            enabled={projects.length > 0}
+            itemKey={getProjectKey}
+            className="library-grid"
+            virtualClassName="library-virtualized-list project-virtualized-list"
+            itemClassName="project-virtualized-row"
+            estimateSize={PROJECT_ESTIMATED_HEIGHT}
+            viewportHeight={PROJECT_VIRTUALIZED_HEIGHT}
+            gap={12}
+            ariaLabel="Virtualized projects"
+            testId="project-list"
+            forceVisibleKeys={activeDragId ? [activeDragId] : []}
+            renderPlaceholder={(project) => <SortableProjectPlaceholder id={project.id} />}
+            renderItem={(project) => {
               const key = `project:${project.id}`
-              const included = includedByKey[key] ?? includedByKey[project.id] ?? getPriorityForVector(project.vectors, selectedVector) !== 'exclude'
-              const hasVariant = selectedVector !== 'all' && Boolean(project.variants?.[selectedVector])
+              const included =
+                includedByKey[key] ??
+                includedByKey[project.id] ??
+                getPriorityForVector(project.vectors, selectedVector) !== 'exclude'
+              const hasVariant =
+                selectedVector !== 'all' && Boolean(project.variants?.[selectedVector])
               return (
                 <SortableProjectCard
                   key={project.id}
@@ -244,9 +301,24 @@ export const ProjectList = memo(function ProjectList({
                   onResetVariant={onResetVariant}
                 />
               )
-            })}
-          </div>
+            }}
+          />
         </SortableContext>
+        <DragOverlay>
+          {activeDragProject ? (
+            <div className="component-card drag-overlay-card" aria-hidden="true">
+              <h4>Project</h4>
+              <strong>{activeDragProject.name}</strong>
+              <p>
+                {resolveDisplayText(
+                  activeDragProject.text,
+                  activeDragProject.variants,
+                  selectedVector,
+                )}
+              </p>
+            </div>
+          ) : null}
+        </DragOverlay>
       </DndContext>
     </>
   )

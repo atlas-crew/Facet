@@ -1538,6 +1538,40 @@ select {
   gap: var(--space-3);
 }
 
+.virtualized-list {
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+  width: 100%;
+  scrollbar-gutter: stable;
+  contain: layout paint;
+}
+
+.virtualized-list-spacer {
+  position: relative;
+  width: 100%;
+}
+
+.virtualized-list-row {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  box-sizing: border-box;
+}
+
+.virtualized-dnd-placeholder {
+  width: 100%;
+  height: 100%;
+  min-height: 32px;
+  pointer-events: none;
+}
+
+.library-virtualized-list,
+.bullet-virtualized-list {
+  border-radius: 8px;
+}
+
 .header-link-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
@@ -1577,6 +1611,24 @@ select {
   opacity: 0.5;
   border-style: dashed;
   box-shadow: none;
+}
+
+.drag-overlay-card {
+  cursor: grabbing;
+  opacity: 0.95;
+  box-shadow: var(--shadow-lg);
+  max-width: 520px;
+}
+
+.drag-overlay-card h4,
+.drag-overlay-card p {
+  margin: 0;
+}
+
+.drag-overlay-card p {
+  color: var(--text-secondary);
+  font-size: 13px;
+  margin-top: var(--space-2);
 }
 
 .component-card-header {

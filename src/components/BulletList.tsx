@@ -1,11 +1,13 @@
 import {
   DndContext,
+  DragOverlay,
   KeyboardSensor,
   PointerSensor,
   closestCenter,
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragStartEvent,
 } from '@dnd-kit/core'
 import {
   SortableContext,
@@ -13,13 +15,36 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import { ChevronRight, Eye, EyeOff, GripVertical, RotateCcw, Sparkles, X, Check, Wand2 } from 'lucide-react'
+import {
+  ChevronRight,
+  Eye,
+  EyeOff,
+  GripVertical,
+  RotateCcw,
+  Sparkles,
+  X,
+  Check,
+  Wand2,
+} from 'lucide-react'
 import { useState, memo, useMemo, useCallback, useRef } from 'react'
-import type { ComponentPriority, PriorityByVector, Role, VectorDef, VectorSelection, ComponentSuggestion } from '../types'
+import type {
+  ComponentPriority,
+  PriorityByVector,
+  Role,
+  VectorDef,
+  VectorSelection,
+  ComponentSuggestion,
+} from '../types'
 import { getPriorityForVector } from '../engine/assembler'
 import { resolveDisplayText } from '../utils/resolveDisplayText'
 import { useSortableItem } from '../hooks/useSortableItem'
 import { highlightVariables } from '../utils/variableHighlighting'
+import { VirtualizedList } from './VirtualizedList'
+
+const BULLET_ESTIMATED_HEIGHT = 260
+const BULLET_VIRTUALIZED_HEIGHT = 720
+
+const getBulletKey = (bullet: { id: string }) => bullet.id
 
 interface BulletListProps {
   role: Role
@@ -34,7 +59,11 @@ interface BulletListProps {
   onChangeBulletText: (roleId: string, bulletId: string, text: string) => void
   onChangeBulletLabel: (roleId: string, bulletId: string, label: string) => void
   onSetBulletVectors: (roleId: string, bulletId: string, vectors: PriorityByVector) => void
-  onUpdateRole: (roleId: string, field: 'company' | 'title' | 'dates' | 'location' | 'subtitle', value: string | null) => void
+  onUpdateRole: (
+    roleId: string,
+    field: 'company' | 'title' | 'dates' | 'location' | 'subtitle',
+    value: string | null,
+  ) => void
   onReframe: (roleId: string, bulletId: string) => void
   onResetBulletVariant?: (roleId: string, bulletId: string) => void
   reframeLoadingId: string | null
@@ -129,7 +158,11 @@ const SortableBullet = memo(function SortableBullet({
             <GripVertical size={14} />
           </button>
           <h4>Bullet</h4>
-          {hasVariant && <span className="variant-badge" title="Has vector-specific variant">V</span>}
+          {hasVariant && (
+            <span className="variant-badge" title="Has vector-specific variant">
+              V
+            </span>
+          )}
         </div>
         <div className="component-card-actions">
           {hasVariant && onResetVariant && (
@@ -152,13 +185,16 @@ const SortableBullet = memo(function SortableBullet({
               title={aiEnabled ? 'AI Reframe for Vector' : 'Configure AI proxy to enable reframing'}
               aria-busy={isLoading}
             >
-              <span className="btn-label">
-                {isLoading ? 'Reframing...' : 'Reframe'}
-              </span>
+              <span className="btn-label">{isLoading ? 'Reframing...' : 'Reframe'}</span>
               <Sparkles size={14} className={isLoading ? 'animate-pulse' : ''} />
             </button>
           )}
-          <button type="button" className="btn-ghost" aria-pressed={included} onClick={() => onToggle(id, vectors)}>
+          <button
+            type="button"
+            className="btn-ghost"
+            aria-pressed={included}
+            onClick={() => onToggle(id, vectors)}
+          >
             {included ? <Eye size={14} /> : <EyeOff size={14} />}
             {included ? 'Included' : 'Excluded'}
           </button>
@@ -171,12 +207,16 @@ const SortableBullet = memo(function SortableBullet({
           className={`component-input ${hasVariables ? 'with-variables' : ''}`}
           aria-label="Bullet text"
           onChange={(event) => onChangeText(id, event.target.value)}
-          onScroll={hasVariables ? (e) => {
-            if (overlayRef.current) {
-              overlayRef.current.scrollTop = e.currentTarget.scrollTop
-              overlayRef.current.scrollLeft = e.currentTarget.scrollLeft
-            }
-          } : undefined}
+          onScroll={
+            hasVariables
+              ? (e) => {
+                  if (overlayRef.current) {
+                    overlayRef.current.scrollTop = e.currentTarget.scrollTop
+                    overlayRef.current.scrollLeft = e.currentTarget.scrollLeft
+                  }
+                }
+              : undefined
+          }
         />
         {hasVariables && (
           <div className="variable-preview" ref={overlayRef} aria-hidden="true">
@@ -251,6 +291,19 @@ const SortableBullet = memo(function SortableBullet({
   )
 })
 
+function SortableBulletPlaceholder({ id }: { id: string }) {
+  const { setNodeRef, style } = useSortableItem(id)
+
+  return (
+    <div
+      ref={setNodeRef}
+      className="virtualized-dnd-placeholder"
+      style={{ ...style, height: '100%', width: '100%' }}
+      aria-hidden="true"
+    />
+  )
+}
+
 export function BulletList({
   role,
   vectorDefs,
@@ -276,6 +329,7 @@ export function BulletList({
   const bulletIds = useMemo(() => role.bullets.map((bullet) => bullet.id), [role.bullets])
   const [expanded, setExpanded] = useState(true)
   const [announcement, setAnnouncement] = useState('')
+  const [activeDragId, setActiveDragId] = useState<string | null>(null)
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, {
@@ -285,15 +339,23 @@ export function BulletList({
 
   const getPosition = (id: string | number) => bulletIds.indexOf(String(id)) + 1
 
-  const handleDragStart = (event: { active: { id: string | number } }) => {
+  const activeDragBullet = useMemo(
+    () => role.bullets.find((bullet) => bullet.id === activeDragId) ?? null,
+    [activeDragId, role.bullets],
+  )
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveDragId(String(event.active.id))
     setAnnouncement(`Picked up bullet ${getPosition(event.active.id)}.`)
   }
 
   const handleDragCancel = () => {
+    setActiveDragId(null)
     setAnnouncement('Bullet move canceled.')
   }
 
   const handleDragEnd = (event: DragEndEvent) => {
+    setActiveDragId(null)
     const { active, over } = event
     if (!over || active.id === over.id) {
       return
@@ -310,14 +372,39 @@ export function BulletList({
   }
 
   // Memoized handlers that bake in role.id
-  const handleToggle = useCallback((bulletId: string, vectors: PriorityByVector) => onToggleBullet(role.id, bulletId, vectors), [onToggleBullet, role.id])
-  const handleChangeText = useCallback((bulletId: string, text: string) => onChangeBulletText(role.id, bulletId, text), [onChangeBulletText, role.id])
-  const handleLabelChange = useCallback((bulletId: string, label: string) => onChangeBulletLabel(role.id, bulletId, label), [onChangeBulletLabel, role.id])
-  const handleVectorsChange = useCallback((bulletId: string, vectors: PriorityByVector) => onSetBulletVectors(role.id, bulletId, vectors), [onSetBulletVectors, role.id])
-  const handleReframeBound = useCallback((bulletId: string) => onReframe(role.id, bulletId), [onReframe, role.id])
-  const handleResetVariant = useCallback((bulletId: string) => onResetBulletVariant?.(role.id, bulletId), [onResetBulletVariant, role.id])
-  const handleAccept = useCallback((bulletId: string, suggestion: ComponentSuggestion) => onAcceptSuggestion?.(role.id, bulletId, suggestion), [onAcceptSuggestion, role.id])
-  const handleIgnore = useCallback((bulletId: string) => onIgnoreSuggestion?.(role.id, bulletId), [onIgnoreSuggestion, role.id])
+  const handleToggle = useCallback(
+    (bulletId: string, vectors: PriorityByVector) => onToggleBullet(role.id, bulletId, vectors),
+    [onToggleBullet, role.id],
+  )
+  const handleChangeText = useCallback(
+    (bulletId: string, text: string) => onChangeBulletText(role.id, bulletId, text),
+    [onChangeBulletText, role.id],
+  )
+  const handleLabelChange = useCallback(
+    (bulletId: string, label: string) => onChangeBulletLabel(role.id, bulletId, label),
+    [onChangeBulletLabel, role.id],
+  )
+  const handleVectorsChange = useCallback(
+    (bulletId: string, vectors: PriorityByVector) => onSetBulletVectors(role.id, bulletId, vectors),
+    [onSetBulletVectors, role.id],
+  )
+  const handleReframeBound = useCallback(
+    (bulletId: string) => onReframe(role.id, bulletId),
+    [onReframe, role.id],
+  )
+  const handleResetVariant = useCallback(
+    (bulletId: string) => onResetBulletVariant?.(role.id, bulletId),
+    [onResetBulletVariant, role.id],
+  )
+  const handleAccept = useCallback(
+    (bulletId: string, suggestion: ComponentSuggestion) =>
+      onAcceptSuggestion?.(role.id, bulletId, suggestion),
+    [onAcceptSuggestion, role.id],
+  )
+  const handleIgnore = useCallback(
+    (bulletId: string) => onIgnoreSuggestion?.(role.id, bulletId),
+    [onIgnoreSuggestion, role.id],
+  )
 
   const collapseId = `role-collapse-${role.id}`
 
@@ -449,12 +536,32 @@ export function BulletList({
             onDragEnd={handleDragEnd}
           >
             <SortableContext items={bulletIds} strategy={verticalListSortingStrategy}>
-              <div className="bullet-list">
-                {role.bullets.map((bullet) => {
+              <VirtualizedList
+                items={role.bullets}
+                enabled={role.bullets.length > 0}
+                itemKey={getBulletKey}
+                className="bullet-list"
+                virtualClassName="bullet-virtualized-list"
+                itemClassName="bullet-virtualized-row"
+                estimateSize={BULLET_ESTIMATED_HEIGHT}
+                viewportHeight={BULLET_VIRTUALIZED_HEIGHT}
+                gap={8}
+                ariaLabel={`Virtualized bullets for ${role.company || role.title || 'role'}`}
+                testId={`bullet-list-${role.id}`}
+                forceVisibleKeys={activeDragId ? [activeDragId] : []}
+                renderPlaceholder={(bullet) => <SortableBulletPlaceholder id={bullet.id} />}
+                renderItem={(bullet) => {
                   const key = `role:${role.id}:bullet:${bullet.id}`
-                  const autoIncluded = getPriorityForVector(bullet.vectors, selectedVector) !== 'exclude'
-                  const included = includedByKey[key] ?? includedByKey[`role:${role.id}:${bullet.id}`] ?? includedByKey[`bullet:${bullet.id}`] ?? includedByKey[bullet.id] ?? autoIncluded
-                  const hasVariant = selectedVector !== 'all' && Boolean(bullet.variants?.[selectedVector])
+                  const autoIncluded =
+                    getPriorityForVector(bullet.vectors, selectedVector) !== 'exclude'
+                  const included =
+                    includedByKey[key] ??
+                    includedByKey[`role:${role.id}:${bullet.id}`] ??
+                    includedByKey[`bullet:${bullet.id}`] ??
+                    includedByKey[bullet.id] ??
+                    autoIncluded
+                  const hasVariant =
+                    selectedVector !== 'all' && Boolean(bullet.variants?.[selectedVector])
 
                   return (
                     <SortableBullet
@@ -480,9 +587,23 @@ export function BulletList({
                       onIgnoreSuggestion={handleIgnore}
                     />
                   )
-                })}
-              </div>
+                }}
+              />
             </SortableContext>
+            <DragOverlay>
+              {activeDragBullet ? (
+                <div className="component-card bullet-card drag-overlay-card" aria-hidden="true">
+                  <h4>Bullet</h4>
+                  <p>
+                    {resolveDisplayText(
+                      activeDragBullet.text,
+                      activeDragBullet.variants,
+                      selectedVector,
+                    )}
+                  </p>
+                </div>
+              ) : null}
+            </DragOverlay>
           </DndContext>
         </div>
       </div>

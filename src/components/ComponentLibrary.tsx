@@ -60,7 +60,11 @@ interface ComponentLibraryProps {
   onUpdateSkillGroup: (id: string, field: 'label' | 'content', value: string) => void
   onUpdateSkillGroupVectors: (id: string, vectors: Record<string, SkillGroupVectorConfig>) => void
   onReorderSkillGroups: (order: string[]) => void
-  onUpdateRole: (roleId: string, field: 'company' | 'title' | 'dates' | 'location' | 'subtitle', value: string | null) => void
+  onUpdateRole: (
+    roleId: string,
+    field: 'company' | 'title' | 'dates' | 'location' | 'subtitle',
+    value: string | null,
+  ) => void
   onUpdateBullet: (roleId: string, bulletId: string, text: string) => void
   onUpdateBulletLabel: (roleId: string, bulletId: string, label: string) => void
   onUpdateBulletVectors: (roleId: string, bulletId: string, vectors: PriorityByVector) => void
@@ -75,18 +79,30 @@ interface ComponentLibraryProps {
   onAddComponent: (type: AddComponentType, payload: AddComponentPayload) => void
   onUpdateMetaField: (field: 'name' | 'email' | 'phone' | 'location', value: string) => void
   onUpdateMetaLink: (index: number, field: 'label' | 'url', value: string) => void
-  onUpdateEducation: (id: string, field: 'school' | 'location' | 'degree' | 'year', value: string) => void
+  onUpdateEducation: (
+    id: string,
+    field: 'school' | 'location' | 'degree' | 'year',
+    value: string,
+  ) => void
   onToggleEducation: (id: string) => void
   onDeleteEducation: (id: string) => void
   onReorderEducation: (order: string[]) => void
-  onUpdateCertification: (id: string, field: 'name' | 'issuer' | 'date' | 'credential_id' | 'url', value: string) => void
+  onUpdateCertification: (
+    id: string,
+    field: 'name' | 'issuer' | 'date' | 'credential_id' | 'url',
+    value: string,
+  ) => void
   onUpdateCertificationVectors: (id: string, vectors: PriorityByVector) => void
   onDeleteCertification: (id: string) => void
   onReorderCertifications: (order: string[]) => void
   onAddMetaLink: () => void
   onRemoveMetaLink: (index: number) => void
   bulletSuggestions?: Record<string, ComponentSuggestion>
-  onAcceptBulletSuggestion?: (roleId: string, bulletId: string, suggestion: ComponentSuggestion) => void
+  onAcceptBulletSuggestion?: (
+    roleId: string,
+    bulletId: string,
+    suggestion: ComponentSuggestion,
+  ) => void
   onIgnoreBulletSuggestion?: (roleId: string, bulletId: string) => void
   targetLineSuggestion?: ComponentSuggestion
   onAcceptTargetLineSuggestion?: (id: string, suggestion: ComponentSuggestion) => void
@@ -94,7 +110,13 @@ interface ComponentLibraryProps {
 }
 
 function requiresVectorPriority(type: AddComponentType): boolean {
-  return type === 'target_line' || type === 'profile' || type === 'project' || type === 'bullet' || type === 'certification'
+  return (
+    type === 'target_line' ||
+    type === 'profile' ||
+    type === 'project' ||
+    type === 'bullet' ||
+    type === 'certification'
+  )
 }
 
 function useFilteredList<T>(
@@ -270,7 +292,10 @@ export function ComponentLibrary({
     cert.date ?? '',
   ])
 
-  const roleChoices = useMemo(() => data.roles.map((role) => ({ id: role.id, label: role.company })), [data.roles])
+  const roleChoices = useMemo(
+    () => data.roles.map((role) => ({ id: role.id, label: role.company })),
+    [data.roles],
+  )
   const defaultRoleId = roleChoices[0]?.id
   const defaultAddVectors = useMemo(
     () => defaultVectorsForSelection(selectedVector, data.vectors),
@@ -323,7 +348,7 @@ export function ComponentLibrary({
     }
 
     if (addType === 'certification') {
-      if (!name || !(payload.issuer?.trim())) {
+      if (!name || !payload.issuer?.trim()) {
         setAddError('Certification name and issuer are required.')
         return
       }
@@ -414,80 +439,117 @@ export function ComponentLibrary({
     )
   }
 
-  const activeVectorColor = selectedVector === 'all'
-    ? undefined
-    : data.vectors.find((v) => v.id === selectedVector)?.color
+  const activeVectorColor =
+    selectedVector === 'all' ? undefined : data.vectors.find((v) => v.id === selectedVector)?.color
 
   // Variant-aware body change handlers
-  const handleTargetLineBodyChange = useCallback((id: string, text: string) => {
-    if (selectedVector === 'all') {
-      onUpdateTargetLine(id, text)
-    } else {
-      onUpdateTargetLineVariant(id, text)
-    }
-  }, [selectedVector, onUpdateTargetLine, onUpdateTargetLineVariant])
+  const handleTargetLineBodyChange = useCallback(
+    (id: string, text: string) => {
+      if (selectedVector === 'all') {
+        onUpdateTargetLine(id, text)
+      } else {
+        onUpdateTargetLineVariant(id, text)
+      }
+    },
+    [selectedVector, onUpdateTargetLine, onUpdateTargetLineVariant],
+  )
 
-  const handleProfileBodyChange = useCallback((id: string, text: string) => {
-    if (selectedVector === 'all') {
-      onUpdateProfile(id, text)
-    } else {
-      onUpdateProfileVariant(id, text)
-    }
-  }, [selectedVector, onUpdateProfile, onUpdateProfileVariant])
+  const handleProfileBodyChange = useCallback(
+    (id: string, text: string) => {
+      if (selectedVector === 'all') {
+        onUpdateProfile(id, text)
+      } else {
+        onUpdateProfileVariant(id, text)
+      }
+    },
+    [selectedVector, onUpdateProfile, onUpdateProfileVariant],
+  )
 
-  const handleProjectTextChange = useCallback((id: string, field: 'name' | 'url' | 'text', value: string) => {
-    if (field === 'text' && selectedVector !== 'all') {
-      onUpdateProjectVariant(id, value)
-    } else {
-      onUpdateProject(id, field, value)
-    }
-  }, [selectedVector, onUpdateProject, onUpdateProjectVariant])
+  const handleProjectTextChange = useCallback(
+    (id: string, field: 'name' | 'url' | 'text', value: string) => {
+      if (field === 'text' && selectedVector !== 'all') {
+        onUpdateProjectVariant(id, value)
+      } else {
+        onUpdateProject(id, field, value)
+      }
+    },
+    [selectedVector, onUpdateProject, onUpdateProjectVariant],
+  )
 
-  const handleBulletTextChange = useCallback((roleId: string, bulletId: string, text: string) => {
-    if (selectedVector === 'all') {
-      onUpdateBullet(roleId, bulletId, text)
-    } else {
-      onUpdateBulletVariant(roleId, bulletId, text)
-    }
-  }, [selectedVector, onUpdateBullet, onUpdateBulletVariant])
+  const handleBulletTextChange = useCallback(
+    (roleId: string, bulletId: string, text: string) => {
+      if (selectedVector === 'all') {
+        onUpdateBullet(roleId, bulletId, text)
+      } else {
+        onUpdateBulletVariant(roleId, bulletId, text)
+      }
+    },
+    [selectedVector, onUpdateBullet, onUpdateBulletVariant],
+  )
 
   // Memoized handlers for ComponentCard children
-  const handleToggleTargetLine = useCallback((id: string, vectors: PriorityByVector) => {
-    onToggleComponent(componentKeys.targetLine(id), vectors)
-  }, [onToggleComponent])
+  const handleToggleTargetLine = useCallback(
+    (id: string, vectors: PriorityByVector) => {
+      onToggleComponent(componentKeys.targetLine(id), vectors)
+    },
+    [onToggleComponent],
+  )
 
-  const handleToggleProfile = useCallback((id: string, vectors: PriorityByVector) => {
-    onToggleComponent(componentKeys.profile(id), vectors)
-  }, [onToggleComponent])
+  const handleToggleProfile = useCallback(
+    (id: string, vectors: PriorityByVector) => {
+      onToggleComponent(componentKeys.profile(id), vectors)
+    },
+    [onToggleComponent],
+  )
 
-  const handleToggleSkillGroup = useCallback((id: string) => {
-    onToggleComponent(id, {})
-  }, [onToggleComponent])
+  const handleToggleSkillGroup = useCallback(
+    (id: string) => {
+      onToggleComponent(id, {})
+    },
+    [onToggleComponent],
+  )
 
-  const handleToggleProjectBound = useCallback((id: string, vectors: PriorityByVector) => {
-    onToggleComponent(componentKeys.project(id), vectors)
-  }, [onToggleComponent])
+  const handleToggleProjectBound = useCallback(
+    (id: string, vectors: PriorityByVector) => {
+      onToggleComponent(componentKeys.project(id), vectors)
+    },
+    [onToggleComponent],
+  )
 
-  const handleToggleBulletBound = useCallback((roleId: string, bulletId: string, vectors: PriorityByVector) => {
-    onToggleBullet(roleId, bulletId, vectors)
-  }, [onToggleBullet])
+  const handleToggleBulletBound = useCallback(
+    (roleId: string, bulletId: string, vectors: PriorityByVector) => {
+      onToggleBullet(roleId, bulletId, vectors)
+    },
+    [onToggleBullet],
+  )
 
-  const handleToggleEducation = useCallback((id: string) => {
-    onToggleEducation(id)
-  }, [onToggleEducation])
+  const handleToggleEducation = useCallback(
+    (id: string) => {
+      onToggleEducation(id)
+    },
+    [onToggleEducation],
+  )
 
-  const handleToggleCertificationBound = useCallback((id: string, vectors: PriorityByVector) => {
-    onToggleComponent(componentKeys.certification(id), vectors)
-  }, [onToggleComponent])
+  const handleToggleCertificationBound = useCallback(
+    (id: string, vectors: PriorityByVector) => {
+      onToggleComponent(componentKeys.certification(id), vectors)
+    },
+    [onToggleComponent],
+  )
 
   return (
     <aside
       className="library-panel"
       data-tour="component-library"
-      style={activeVectorColor ? { '--active-vector-color': activeVectorColor } as React.CSSProperties : undefined}
+      style={
+        activeVectorColor
+          ? ({ '--active-vector-color': activeVectorColor } as React.CSSProperties)
+          : undefined
+      }
     >
       <span id="dnd-instructions-global" className="sr-only">
-        To reorder items, press Space or Enter to lift, use Arrow keys to move, and Space or Enter to drop. Press Escape to cancel.
+        To reorder items, press Space or Enter to lift, use Arrow keys to move, and Space or Enter
+        to drop. Press Escape to cancel.
       </span>
 
       <div className="library-panel-header">
@@ -636,7 +698,9 @@ export function ComponentLibrary({
                 onBodyChange={handleTargetLineBodyChange}
                 onVectorsChange={onUpdateTargetLineVectors}
                 onResetVariant={onResetTargetLineVariant}
-                suggestion={targetLineSuggestion?.recommendedPriority ? targetLineSuggestion : undefined}
+                suggestion={
+                  targetLineSuggestion?.recommendedPriority ? targetLineSuggestion : undefined
+                }
                 onAcceptSuggestion={onAcceptTargetLineSuggestion}
                 onIgnoreSuggestion={onIgnoreTargetLineSuggestion}
               />
@@ -661,7 +725,8 @@ export function ComponentLibrary({
           {filteredProfiles.map((profile) => {
             const key = componentKeys.profile(profile.id)
             const autoIncluded = getPriorityForVector(profile.vectors, selectedVector) !== 'exclude'
-            const hasVariant = selectedVector !== 'all' && Boolean(profile.variants?.[selectedVector])
+            const hasVariant =
+              selectedVector !== 'all' && Boolean(profile.variants?.[selectedVector])
             return (
               <ComponentCard
                 key={profile.id}
@@ -711,14 +776,19 @@ export function ComponentLibrary({
             setAddOpen(true)
           },
           isEmpty: searchQuery ? filteredSkillGroups.length === 0 : false,
-          titleAdornment: <HelpHint text="Skill groups can have vector-specific content and ordering." placement="right" />,
+          titleAdornment: (
+            <HelpHint
+              text="Skill groups can have vector-specific content and ordering."
+              placement="right"
+            />
+          ),
         },
       )}
 
       {renderSection(
         'roles-bullets',
         'Roles & Bullets',
-        <div className="library-grid role-grid">
+        <div className="library-grid role-grid" data-testid="roles-bullets-list">
           {filteredRoles.map((role) => {
             const orderedRole: Role = {
               ...role,
@@ -737,7 +807,8 @@ export function ComponentLibrary({
                     [selectedVector]: activeVectorBulletOrderByRole,
                   })
                     ? `Custom order for ${
-                        data.vectors.find((vector) => vector.id === selectedVector)?.label ?? selectedVector
+                        data.vectors.find((vector) => vector.id === selectedVector)?.label ??
+                        selectedVector
                       }`
                     : undefined
                 }
@@ -851,9 +922,16 @@ export function ComponentLibrary({
       )}
 
       {addOpen ? (
-        <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="add-component-title">
+        <div
+          className="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="add-component-title"
+        >
           <div className="modal-card" ref={modalRef} tabIndex={-1}>
-            <p className="sr-only" aria-live="polite">{addAnnouncement}</p>
+            <p className="sr-only" aria-live="polite">
+              {addAnnouncement}
+            </p>
             <header className="modal-header">
               <h3 id="add-component-title">Add Component</h3>
               <button
@@ -904,7 +982,9 @@ export function ComponentLibrary({
                   <select
                     className="component-input compact"
                     value={payload.roleId ?? defaultRoleId ?? ''}
-                    onChange={(event) => setPayload((prev) => ({ ...prev, roleId: event.target.value }))}
+                    onChange={(event) =>
+                      setPayload((prev) => ({ ...prev, roleId: event.target.value }))
+                    }
                   >
                     {roleChoices.map((role) => (
                       <option key={role.id} value={role.id}>
@@ -918,7 +998,9 @@ export function ComponentLibrary({
                   <textarea
                     className="component-input"
                     value={payload.text ?? ''}
-                    onChange={(event) => setPayload((prev) => ({ ...prev, text: event.target.value }))}
+                    onChange={(event) =>
+                      setPayload((prev) => ({ ...prev, text: event.target.value }))
+                    }
                   />
                 </label>
               </>
@@ -931,7 +1013,9 @@ export function ComponentLibrary({
                   <input
                     className="component-input compact"
                     value={payload.name ?? ''}
-                    onChange={(event) => setPayload((prev) => ({ ...prev, name: event.target.value }))}
+                    onChange={(event) =>
+                      setPayload((prev) => ({ ...prev, name: event.target.value }))
+                    }
                   />
                 </label>
                 <label className="field-label">
@@ -939,7 +1023,9 @@ export function ComponentLibrary({
                   <input
                     className="component-input compact"
                     value={payload.url ?? ''}
-                    onChange={(event) => setPayload((prev) => ({ ...prev, url: event.target.value }))}
+                    onChange={(event) =>
+                      setPayload((prev) => ({ ...prev, url: event.target.value }))
+                    }
                   />
                 </label>
                 <label className="field-label">
@@ -947,7 +1033,9 @@ export function ComponentLibrary({
                   <textarea
                     className="component-input"
                     value={payload.text ?? ''}
-                    onChange={(event) => setPayload((prev) => ({ ...prev, text: event.target.value }))}
+                    onChange={(event) =>
+                      setPayload((prev) => ({ ...prev, text: event.target.value }))
+                    }
                   />
                 </label>
               </>
@@ -960,7 +1048,9 @@ export function ComponentLibrary({
                   <input
                     className="component-input compact"
                     value={payload.label ?? ''}
-                    onChange={(event) => setPayload((prev) => ({ ...prev, label: event.target.value }))}
+                    onChange={(event) =>
+                      setPayload((prev) => ({ ...prev, label: event.target.value }))
+                    }
                   />
                 </label>
                 <label className="field-label">
@@ -968,7 +1058,9 @@ export function ComponentLibrary({
                   <textarea
                     className="component-input"
                     value={payload.content ?? ''}
-                    onChange={(event) => setPayload((prev) => ({ ...prev, content: event.target.value }))}
+                    onChange={(event) =>
+                      setPayload((prev) => ({ ...prev, content: event.target.value }))
+                    }
                   />
                 </label>
               </>
@@ -981,7 +1073,9 @@ export function ComponentLibrary({
                   <input
                     className="component-input compact"
                     value={payload.name ?? ''}
-                    onChange={(event) => setPayload((prev) => ({ ...prev, name: event.target.value }))}
+                    onChange={(event) =>
+                      setPayload((prev) => ({ ...prev, name: event.target.value }))
+                    }
                   />
                 </label>
                 <label className="field-label">
@@ -989,7 +1083,9 @@ export function ComponentLibrary({
                   <input
                     className="component-input compact"
                     value={payload.label ?? ''}
-                    onChange={(event) => setPayload((prev) => ({ ...prev, label: event.target.value }))}
+                    onChange={(event) =>
+                      setPayload((prev) => ({ ...prev, label: event.target.value }))
+                    }
                   />
                 </label>
                 <label className="field-label">
@@ -997,7 +1093,9 @@ export function ComponentLibrary({
                   <input
                     className="component-input compact"
                     value={payload.text ?? ''}
-                    onChange={(event) => setPayload((prev) => ({ ...prev, text: event.target.value }))}
+                    onChange={(event) =>
+                      setPayload((prev) => ({ ...prev, text: event.target.value }))
+                    }
                   />
                 </label>
                 <label className="field-label">
@@ -1005,7 +1103,9 @@ export function ComponentLibrary({
                   <input
                     className="component-input compact"
                     value={payload.url ?? ''}
-                    onChange={(event) => setPayload((prev) => ({ ...prev, url: event.target.value }))}
+                    onChange={(event) =>
+                      setPayload((prev) => ({ ...prev, url: event.target.value }))
+                    }
                   />
                 </label>
               </>
@@ -1018,7 +1118,9 @@ export function ComponentLibrary({
                   <input
                     className="component-input compact"
                     value={payload.name ?? ''}
-                    onChange={(event) => setPayload((prev) => ({ ...prev, name: event.target.value }))}
+                    onChange={(event) =>
+                      setPayload((prev) => ({ ...prev, name: event.target.value }))
+                    }
                   />
                 </label>
                 <label className="field-label">
@@ -1026,7 +1128,9 @@ export function ComponentLibrary({
                   <input
                     className="component-input compact"
                     value={payload.issuer ?? ''}
-                    onChange={(event) => setPayload((prev) => ({ ...prev, issuer: event.target.value }))}
+                    onChange={(event) =>
+                      setPayload((prev) => ({ ...prev, issuer: event.target.value }))
+                    }
                   />
                 </label>
                 <label className="field-label">
@@ -1034,7 +1138,9 @@ export function ComponentLibrary({
                   <input
                     className="component-input compact"
                     value={payload.date ?? ''}
-                    onChange={(event) => setPayload((prev) => ({ ...prev, date: event.target.value }))}
+                    onChange={(event) =>
+                      setPayload((prev) => ({ ...prev, date: event.target.value }))
+                    }
                   />
                 </label>
                 <label className="field-label">
@@ -1042,7 +1148,9 @@ export function ComponentLibrary({
                   <input
                     className="component-input compact"
                     value={payload.content ?? ''}
-                    onChange={(event) => setPayload((prev) => ({ ...prev, content: event.target.value }))}
+                    onChange={(event) =>
+                      setPayload((prev) => ({ ...prev, content: event.target.value }))
+                    }
                   />
                 </label>
                 <label className="field-label">
@@ -1050,7 +1158,9 @@ export function ComponentLibrary({
                   <input
                     className="component-input compact"
                     value={payload.url ?? ''}
-                    onChange={(event) => setPayload((prev) => ({ ...prev, url: event.target.value }))}
+                    onChange={(event) =>
+                      setPayload((prev) => ({ ...prev, url: event.target.value }))
+                    }
                   />
                 </label>
               </>
@@ -1062,7 +1172,9 @@ export function ComponentLibrary({
                 <textarea
                   className="component-input"
                   value={payload.text ?? ''}
-                  onChange={(event) => setPayload((prev) => ({ ...prev, text: event.target.value }))}
+                  onChange={(event) =>
+                    setPayload((prev) => ({ ...prev, text: event.target.value }))
+                  }
                 />
               </label>
             ) : null}
