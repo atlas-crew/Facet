@@ -1,9 +1,11 @@
 ---
 id: TASK-57
 title: 'Lint: clear low-risk unused variable debt across UI helpers'
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@codex'
 created_date: '2026-03-10 21:41'
+updated_date: '2026-05-28 05:52'
 labels:
   - lint
   - typescript
@@ -35,6 +37,12 @@ Remove the current no-unused-vars lint failures that look mechanical and low-ris
 - [ ] #2 Behavior remains unchanged and any necessary tests are updated or added.
 - [ ] #3 Repo-wide eslint no longer reports no-unused-vars errors for this slice.
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Closed as already satisfied in current repo. Validation: npm run lint passes with no no-unused-vars output, and targeted eslint over CertificationList, ComponentCard, EducationList, SkillGroupList, PipelineEntryModal, templates/types, and useSuggestionActions exits cleanly.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
