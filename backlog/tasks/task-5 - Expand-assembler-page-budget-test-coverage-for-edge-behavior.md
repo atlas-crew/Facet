@@ -29,14 +29,6 @@ Test audit identified untested edge behavior in engine assembly and page-budget 
 - [x] #4 Verification commands pass
 <!-- AC:END -->
 
-
-
-
-
-
-
-
-
 ## Implementation Plan
 
 <!-- SECTION:PLAN:BEGIN -->
@@ -50,4 +42,6 @@ Test audit identified untested edge behavior in engine assembly and page-budget 
 
 <!-- SECTION:NOTES:BEGIN -->
 Starting TASK-5. I will keep this to focused engine test hardening: inspect existing assembler/page-budget coverage, add boundary tests for line estimation/page usage, assembly edge tests for skill ordering/profile/override/passthrough behavior, run focused and full verification, then request independent diff test audit before closeout.
+
+Implemented assembler/page-budget edge coverage and hardening. Added direct line/page usage boundary tests, expanded assembler tests for vector/default behavior, skill-group ordering and overrides, profile/target selection, bullet ordering, passthrough fields, variable/variant resolution, malformed override payloads, and sparse legacy payload handling. Fixed assembler handling for missing/null vector maps, explicit empty string variants, skill-group manual overrides, non-finite skill-group order, sparse top-level arrays/meta, missing role bullets, and missing component text. Independent source review: .agents/reviews/review-20260528-155624.md (P3 only). Final module audit: .agents/reviews/task5-engine-module/test-audit-20260528-155805.md (no prioritized gaps).
 <!-- SECTION:NOTES:END -->
