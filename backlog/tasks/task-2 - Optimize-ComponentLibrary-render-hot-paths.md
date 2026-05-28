@@ -26,9 +26,11 @@ Specialist review notes avoidable re-renders from per-role derived maps and unst
 <!-- AC:BEGIN -->
 - [x] #1 Derived per-role inclusion/variant maps are not recreated on unrelated renders
 - [x] #2 Assembly memo dependencies do not invalidate on fresh empty-object literals
-- [ ] #3 No behavior regressions in toggles/reordering/variant switching
+- [x] #3 No behavior regressions in toggles/reordering/variant switching
 - [ ] #4 Verification commands pass
 <!-- AC:END -->
+
+
 
 
 
