@@ -2346,7 +2346,18 @@ select.component-input {
 }
 
 .pdf-preview-status.error {
+  display: grid;
+  gap: var(--space-1);
   color: var(--error);
+}
+
+.pdf-preview-status.error strong,
+.pdf-preview-status.error span {
+  min-width: 0;
+}
+
+.pdf-preview-status-hint {
+  color: var(--text-secondary);
 }
 
 .pdf-preview-shell.is-stale .pdf-preview-frame {
@@ -3542,6 +3553,76 @@ select.component-input {
   margin-top: var(--space-4);
 }
 
+.route-error-boundary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-4);
+  max-width: 760px;
+  margin: var(--space-8) auto;
+  padding: var(--space-6);
+  border: 1px solid color-mix(in srgb, var(--error) 28%, var(--border-subtle));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--error) 7%, var(--bg-surface));
+  color: var(--text-primary);
+}
+
+.route-error-icon {
+  color: var(--error);
+}
+
+.route-error-content {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.route-error-eyebrow {
+  margin: 0;
+  color: var(--error);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.route-error-boundary h2,
+.route-error-boundary p {
+  margin: 0;
+}
+
+.route-error-boundary h2 {
+  font-size: 20px;
+}
+
+.route-error-boundary p {
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.route-error-details {
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.route-error-details summary {
+  cursor: pointer;
+}
+
+.route-error-details code {
+  display: block;
+  margin-top: var(--space-2);
+  overflow-wrap: anywhere;
+  color: var(--error);
+  font-family: var(--font-mono);
+}
+
+.route-error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
 .app-content-column {
   flex: 1;
   min-width: 0;
@@ -4501,84 +4582,3 @@ select.component-input {
 .preview-column.comparison-active .preview-paper {
   font-size: 0.85em;
 }
-  display: grid;
-  gap: var(--space-1);
-.pdf-preview-status.error strong,
-.pdf-preview-status.error span {
-  min-width: 0;
-}
-
-.pdf-preview-status-hint {
-  color: var(--text-secondary);
-}
-
-.route-error-boundary {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: var(--space-4);
-  max-width: 760px;
-  margin: var(--space-8) auto;
-  padding: var(--space-6);
-  border: 1px solid color-mix(in srgb, var(--error) 28%, var(--border-subtle));
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--error) 7%, var(--bg-surface));
-  color: var(--text-primary);
-}
-
-.route-error-icon {
-  color: var(--error);
-}
-
-.route-error-content {
-  display: grid;
-  gap: var(--space-3);
-  min-width: 0;
-}
-
-.route-error-eyebrow {
-  margin: 0;
-  color: var(--error);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.route-error-boundary h2,
-.route-error-boundary p {
-  margin: 0;
-}
-
-.route-error-boundary h2 {
-  font-size: 20px;
-}
-
-.route-error-boundary p {
-  color: var(--text-secondary);
-  line-height: 1.5;
-}
-
-.route-error-details {
-  min-width: 0;
-  color: var(--text-secondary);
-  font-size: 13px;
-}
-
-.route-error-details summary {
-  cursor: pointer;
-}
-
-.route-error-details code {
-  display: block;
-  margin-top: var(--space-2);
-  overflow-wrap: anywhere;
-  color: var(--error);
-  font-family: var(--font-mono);
-}
-
-.route-error-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
