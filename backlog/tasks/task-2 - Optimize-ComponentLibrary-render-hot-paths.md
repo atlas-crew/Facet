@@ -1,9 +1,11 @@
 ---
 id: TASK-2
 title: Optimize ComponentLibrary render hot paths
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-02-28 05:46'
+updated_date: '2026-05-28 16:42'
 labels:
   - remediation
   - performance
