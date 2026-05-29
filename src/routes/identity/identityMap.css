@@ -346,7 +346,8 @@
 }
 .self-arc,
 .self-philosophy,
-.self-interview {
+.self-interview,
+.self-positioning {
   background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
@@ -497,6 +498,113 @@
 }
 .interview-weak li:before {
   color: color-mix(in srgb, var(--warning) 50%, transparent);
+}
+
+.self-positioning {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.self-positioning-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.self-positioning-label {
+  color: var(--text-secondary);
+  font-size: 10.5px;
+}
+
+.self-moat-textarea,
+.self-advantage-input {
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: var(--bg-inset);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13.5px;
+  line-height: 1.5;
+  transition:
+    border-color var(--duration-fast) var(--easing),
+    box-shadow var(--duration-fast) var(--easing),
+    background var(--duration-fast) var(--easing);
+}
+
+.self-moat-textarea::placeholder,
+.self-advantage-input::placeholder {
+  color: var(--text-tertiary);
+  opacity: 1;
+}
+
+.self-moat-textarea:focus,
+.self-advantage-input:focus {
+  outline: none;
+  border-color: var(--focus-ring-color);
+  box-shadow: 0 0 0 3px var(--focus-ring-halo);
+}
+
+.self-moat-textarea:disabled,
+.self-advantage-input:disabled {
+  color: var(--text-tertiary);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.self-moat-textarea {
+  min-height: 96px;
+  padding: var(--space-3);
+  resize: vertical;
+}
+
+.self-advantage-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.self-advantage-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-left: 2px solid var(--band-color);
+  border-radius: 6px;
+  background: var(--bg-inset);
+}
+
+.self-advantage-text {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.self-advantage-remove {
+  flex: 0 0 auto;
+  width: 32px;
+  min-height: 32px;
+  padding: 0;
+}
+
+.self-advantage-add {
+  display: flex;
+  gap: var(--space-2);
+  align-items: stretch;
+}
+
+.self-advantage-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 var(--space-3);
 }
 
 /* ===== Profiles band ===== */
@@ -693,6 +801,7 @@
   border-left: 2px solid transparent;
   padding: var(--space-1) var(--space-2);
   width: 100%;
+  min-width: 0;
   border-radius: 4px;
   display: flex;
   align-items: flex-start;
@@ -750,6 +859,7 @@
   font-size: 12.5px;
   line-height: 1.4;
   min-width: 0;
+  overflow-wrap: anywhere;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;

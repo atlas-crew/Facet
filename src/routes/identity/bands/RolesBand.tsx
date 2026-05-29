@@ -3,6 +3,19 @@ import { useUiStore } from '../../../store/uiStore'
 import { rolesFillStrength } from '../../../utils/identityFillStrength'
 import { IdentityBand } from '../IdentityBand'
 
+const resolveRoleBulletPreview = (bullet: {
+  problem: string
+  action: string
+  outcome: string
+  source_text?: string
+}) =>
+  [bullet.problem, bullet.action, bullet.outcome]
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .join(' ') ||
+  bullet.source_text?.trim() ||
+  '(no summary)'
+
 export function RolesBand() {
   const identity = useIdentityStore((s) => s.currentIdentity)
   const selection = useIdentityStore((s) => s.mapSelection)
@@ -16,12 +29,7 @@ export function RolesBand() {
     setBulletDensity(bulletDensity === 'expanded' ? 'compact' : 'expanded')
 
   return (
-    <IdentityBand
-      layer="roles"
-      name="Roles & Projects"
-      subtitle="the evidence layer"
-      fill={fill}
-    >
+    <IdentityBand layer="roles" name="Roles & Projects" subtitle="the evidence layer" fill={fill}>
       {roles.length === 0 && projects.length === 0 ? (
         <p className="chapter-copy band-empty">No roles or projects yet.</p>
       ) : (
@@ -72,12 +80,16 @@ export function RolesBand() {
                                   type="button"
                                   className="role-bullet-row"
                                   onClick={() =>
-                                    setSelection({ type: 'bullet', roleId: role.id, bulletId: b.id })
+                                    setSelection({
+                                      type: 'bullet',
+                                      roleId: role.id,
+                                      bulletId: b.id,
+                                    })
                                   }
                                   aria-pressed={isBulletSelected}
                                 >
                                   <span className="role-bullet-summary">
-                                    {b.problem || b.action || '(no summary)'}
+                                    {resolveRoleBulletPreview(b)}
                                   </span>
                                 </button>
                               </li>
@@ -87,7 +99,9 @@ export function RolesBand() {
                       ) : null}
                       {role.subtitle ? (
                         <div className="role-meta">
-                          <span className="role-meta-item label-tracked role-meta-subtitle">{role.subtitle}</span>
+                          <span className="role-meta-item label-tracked role-meta-subtitle">
+                            {role.subtitle}
+                          </span>
                         </div>
                       ) : null}
                     </article>

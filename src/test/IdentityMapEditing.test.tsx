@@ -37,6 +37,38 @@ describe('Identity Map — match-rule add/remove', () => {
   beforeEach(() => navigateMock.mockReset())
   afterEach(() => cleanup())
 
+  it('uses source text as the map preview before role bullets are decomposed', () => {
+    seed((id) => {
+      const bullet = id.roles[0]?.bullets[0]
+      if (!bullet) return
+      bullet.problem = ''
+      bullet.action = ''
+      bullet.outcome = ''
+      bullet.source_text =
+        'The product was SaaS-only; key prospects required on-prem deployment support.'
+    })
+    render(<IdentityMapPage />)
+
+    expect(
+      screen.getByRole('button', {
+        name: /the product was saas-only; key prospects required on-prem/i,
+      }),
+    ).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /\(no summary\)/i })).toBeNull()
+  })
+
+  it('renders dark-theme controls for strategic positioning inputs', () => {
+    seed()
+    render(<IdentityMapPage />)
+
+    expect(screen.getByLabelText('Competitive moat').classList.contains('self-moat-textarea')).toBe(
+      true,
+    )
+    expect(
+      screen.getByLabelText('New unfair advantage').classList.contains('self-advantage-input'),
+    ).toBe(true)
+  })
+
   it('adds a prioritize rule, opens the inspector in edit mode, persists save', () => {
     seed()
     render(<IdentityMapPage />)
