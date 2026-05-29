@@ -1,9 +1,11 @@
 ---
 id: TASK-266
 title: Implement auth-aware public landing page and first-run home flow
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-05-29 00:19'
+updated_date: '2026-05-29 00:33'
 labels:
   - feature
   - landing
@@ -35,6 +37,12 @@ ordinal: 9000
 <!-- SECTION:PLAN:BEGIN -->
 1. Implement the auth-aware root route split and public landing shell.\n2. Fill the landing page with curated brand assets and locked copy.\n3. Improve authenticated empty-hub onboarding separately from public marketing.\n4. Wire CTA/trust/link polish and meta/OG behavior.\n5. Add route/auth/empty-state tests plus browser screenshot verification, then run lint/typecheck/test/build.
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Started implementation pass for auth-aware public landing rollout.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
