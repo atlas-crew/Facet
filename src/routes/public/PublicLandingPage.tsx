@@ -9,6 +9,7 @@ const heroImage = new URL('../../../brand/exports/hero/facet-primary-hero.webp',
   .href
 const methodImage = new URL('../../../brand/exports/method/facet-method-dark.webp', import.meta.url)
   .href
+const pricingImage = new URL('../../../brand/exports/hero/facet-pricing.webp', import.meta.url).href
 const identityImage = new URL(
   '../../../brand/exports/concepts/facet-identity-dark.webp',
   import.meta.url,
@@ -183,6 +184,7 @@ export function PublicLandingPage() {
   const [selectedGraphic, setSelectedGraphic] = useState<ModelGraphic | null>(null)
   const graphicDialogRef = useRef<HTMLDivElement>(null)
 
+  // The shared modal trap handles focus return, Escape close, and body scroll lock.
   useFocusTrap(Boolean(selectedGraphic), graphicDialogRef, () => setSelectedGraphic(null))
 
   const handleSignIn = () => {
@@ -262,9 +264,11 @@ export function PublicLandingPage() {
             const Icon = graphic.Icon
             return (
               <article key={graphic.id} className="public-model-card">
+                <h3 className="sr-only">{graphic.title}</h3>
                 <button
                   className="public-model-card-action"
                   type="button"
+                  aria-label={`View full graphic: ${graphic.title}`}
                   onClick={() => openGraphic(graphic)}
                 >
                   <img src={graphic.image} alt="" aria-hidden="true" />
@@ -290,22 +294,29 @@ export function PublicLandingPage() {
           <p className="public-kicker">Trust</p>
           <h2 id="public-trust-title">Open-source. Portable. Built for a serious search.</h2>
         </div>
-        <div className="public-trust-grid">
-          <article>
-            <h3>Your workspace belongs to you.</h3>
-            <p>Use the hosted app or self-host under AGPL-3.0. The source is inspectable.</p>
-          </article>
-          <article id="pricing">
-            <h3>$299 per 90-day hosted pass.</h3>
-            <p>No subscription. Self-hosting stays free. Refund window is seven days.</p>
-          </article>
-          <article>
-            <h3>Public policies, direct contact.</h3>
-            <p>
-              Read the <a href="/terms">Terms</a>, <a href="/privacy">Privacy</a>, or{' '}
-              <a href={PRESS_EMAIL}>contact Nick</a>.
-            </p>
-          </article>
+        <div className="public-pricing-feature">
+          <img
+            className="public-pricing-image"
+            src={pricingImage}
+            alt="Facet access pass graphic for the 90-day hosted pricing option."
+          />
+          <div className="public-trust-grid">
+            <article>
+              <h3>Your workspace belongs to you.</h3>
+              <p>Use the hosted app or self-host under AGPL-3.0. The source is inspectable.</p>
+            </article>
+            <article id="pricing">
+              <h3>$299 per 90-day hosted pass.</h3>
+              <p>No subscription. Self-hosting stays free. Refund window is seven days.</p>
+            </article>
+            <article>
+              <h3>Public policies, direct contact.</h3>
+              <p>
+                Read the <Link to="/terms">Terms</Link>, <Link to="/privacy">Privacy</Link>, or{' '}
+                <a href={PRESS_EMAIL}>contact Nick</a>.
+              </p>
+            </article>
+          </div>
         </div>
       </section>
 
@@ -318,7 +329,14 @@ export function PublicLandingPage() {
         </button>
       </section>
       {selectedGraphic ? (
-        <div className="public-graphic-overlay" onClick={() => setSelectedGraphic(null)}>
+        <div
+          className="public-graphic-overlay"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              setSelectedGraphic(null)
+            }
+          }}
+        >
           <div
             className="public-graphic-dialog"
             role="dialog"
@@ -326,7 +344,6 @@ export function PublicLandingPage() {
             aria-labelledby="public-graphic-title"
             ref={graphicDialogRef}
             tabIndex={-1}
-            onClick={(event) => event.stopPropagation()}
           >
             <header className="public-graphic-header">
               <h3 id="public-graphic-title">{selectedGraphic.title}</h3>

@@ -33,6 +33,10 @@ describe('PublicLandingPage', () => {
     expect(screen.getByText(/recut for every opportunity/i)).toBeTruthy()
     expect(screen.getByText(/open-source · your data, never ours/i)).toBeTruthy()
     expect(screen.getByText(/\$299 per 90-day hosted pass/i)).toBeTruthy()
+    expect(screen.getByRole('img', { name: /facet access pass graphic/i })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Identity' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Vectors' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'System' })).toBeTruthy()
     expect(screen.getAllByRole('link', { name: /privacy/i })[0]?.getAttribute('href')).toBe(
       '/privacy',
     )
