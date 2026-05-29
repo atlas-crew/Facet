@@ -1,11 +1,11 @@
 ---
 id: TASK-266.1
 title: Add auth-aware root split and public landing shell
-status: In Progress
+status: Done
 assignee:
   - '@codex'
 created_date: '2026-05-29 00:20'
-updated_date: '2026-05-29 00:33'
+updated_date: '2026-05-29 01:01'
 labels:
   - feature
   - landing
@@ -16,6 +16,12 @@ references:
   - src/components/AppShell.tsx
 documentation:
   - doc-44
+modified_files:
+  - src/components/AppShell.tsx
+  - src/routes/public/PublicLandingPage.tsx
+  - src/routes/public/publicLanding.css
+  - src/test/AppShell.test.tsx
+  - src/test/PublicLandingPage.test.tsx
 parent_task_id: TASK-266
 priority: medium
 ordinal: 10000
@@ -23,10 +29,10 @@ ordinal: 10000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Root route renders a standalone public landing shell for anonymous/hosted auth-required visitors.
-- [ ] #2 Authenticated users with workspace access continue to see the existing Home/Overview hub at /.
-- [ ] #3 Public landing chrome is separate from the authenticated AppShell unless an explicit product decision says otherwise.
-- [ ] #4 Route/auth-state tests cover anonymous, auth-required, and authenticated hub cases.
+- [x] #1 Root route renders a standalone public landing shell for anonymous/hosted auth-required visitors.
+- [x] #2 Authenticated users with workspace access continue to see the existing Home/Overview hub at /.
+- [x] #3 Public landing chrome is separate from the authenticated AppShell unless an explicit product decision says otherwise.
+- [x] #4 Route/auth-state tests cover anonymous, auth-required, and authenticated hub cases.
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -41,12 +47,18 @@ ordinal: 10000
 Starting route/auth split and public landing shell.
 <!-- SECTION:NOTES:END -->
 
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Implemented hosted auth-aware root split: signed-out hosted visits to / now render a standalone public landing page, while authenticated and non-root hosted states keep the existing workspace shell/sign-in blockers. Added route/auth tests.
+<!-- SECTION:FINAL_SUMMARY:END -->
+
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
-- [ ] #3 Automatic formatting was applied to touched files
-- [ ] #4 Regression tests pass (scoped to touched files)
-- [ ] #5 Linters report no warnings or errors in touched files
-- [ ] #6 Relevant documentation updates landed or tasks created
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
+- [x] #3 Automatic formatting was applied to touched files
+- [x] #4 Regression tests pass (scoped to touched files)
+- [x] #5 Linters report no warnings or errors in touched files
+- [x] #6 Relevant documentation updates landed or tasks created
 <!-- DOD:END -->
