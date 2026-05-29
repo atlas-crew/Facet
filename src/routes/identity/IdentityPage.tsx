@@ -11,7 +11,11 @@ import { useNavigate } from '@tanstack/react-router'
 import { Download, FileJson, Upload } from 'lucide-react'
 import { professionalIdentityToResumeData } from '../../identity/resumeAdapter'
 import type { ProfessionalIdentityV3 } from '../../identity/schema'
-import { getActiveResumeScan, useIdentityStore } from '../../store/identityStore'
+import {
+  getActiveResumeScan,
+  hasAiDeepenExplanation,
+  useIdentityStore,
+} from '../../store/identityStore'
 import { useJDAnalysisStore } from '../../store/jdAnalysisStore'
 import { useResumeStore } from '../../store/resumeStore'
 import { useUiStore } from '../../store/uiStore'
@@ -847,7 +851,7 @@ export function IdentityPage() {
 
       const progress = currentScan.progress.bullets[`${target.roleId}::${target.bulletId}`]
       if (
-        progress?.status === 'completed' ||
+        hasAiDeepenExplanation(progress) ||
         progress?.status === 'edited' ||
         progress?.status === 'running'
       ) {

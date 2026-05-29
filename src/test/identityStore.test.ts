@@ -3,11 +3,16 @@ import { cloneIdentityFixture } from './fixtures/identityFixture'
 import {
   IDENTITY_STORE_STORAGE_KEY,
   getActiveResumeScan,
+  hasAiDeepenExplanation,
   useIdentityStore,
 } from '../store/identityStore'
 import type { IntakeSource } from '../types/identity'
 import { resolveStorage } from '../store/storage'
-import type { ResumeScanBulkProgress, ResumeScanResult } from '../types/identity'
+import type {
+  ResumeScanBulkProgress,
+  ResumeScanBulletProgress,
+  ResumeScanResult,
+} from '../types/identity'
 import { parseDeepenIdentityBulletResponse } from '../utils/identityExtraction'
 import { findStaleArtifacts } from '../types/artifactMeta'
 
@@ -121,6 +126,16 @@ const createMultiBulletScanResult = () => {
   return scanResult
 }
 
+const createScannerDecomposedScanResult = (): ResumeScanResult => {
+  const scanResult = createScanResult()
+  const bullet = scanResult.identity.roles[0]!.bullets[0]!
+  bullet.problem = 'Enterprise prospects needed customer-hosted installs.'
+  bullet.action = 'Ported the SaaS platform to Kubernetes installs.'
+  bullet.outcome = 'Made the product deployable in restricted environments.'
+  scanResult.counts.decomposedBullets = 1
+  return scanResult
+}
+
 const createDeepenedBullet = (roleId = 'contoso', bulletId = 'platform-migration') => ({
   summary: 'Deepened the migration bullet.',
   roleId,
@@ -181,6 +196,34 @@ afterEach(() => {
 })
 
 describe('identityStore scan progress', () => {
+  it('distinguishes AI-deepened progress from scanner-decomposed completed progress', () => {
+    const explanation = {
+      summary: 'Deepened summary.',
+      rewrite: 'Deepened rewrite.',
+      assumptions: [],
+      warnings: [],
+    }
+    const progress = (
+      status: ResumeScanBulletProgress['status'],
+      withExplanation = false,
+    ): ResumeScanBulletProgress => ({
+      status,
+      confidence: 'guessing',
+      lastError: null,
+      explanation: withExplanation ? explanation : null,
+      updatedAt: '2026-04-05T00:00:00.000Z',
+    })
+
+    expect(hasAiDeepenExplanation()).toBe(false)
+    expect(hasAiDeepenExplanation(null)).toBe(false)
+    expect(hasAiDeepenExplanation(progress('completed'))).toBe(false)
+    expect(hasAiDeepenExplanation(progress('completed', true))).toBe(true)
+    expect(hasAiDeepenExplanation(progress('edited', true))).toBe(false)
+    expect(hasAiDeepenExplanation(progress('running', true))).toBe(false)
+    expect(hasAiDeepenExplanation(progress('failed', true))).toBe(false)
+    expect(hasAiDeepenExplanation(progress('idle', true))).toBe(false)
+  })
+
   it('initializes persisted scan progress when a scan result is loaded', () => {
     useIdentityStore.getState().setScanResult(createScanResult())
 
@@ -669,6 +712,40 @@ describe('identityStore scan progress', () => {
       currentBulletKey: null,
       lastUpdatedAt: '2026-04-05T00:00:01.000Z',
     })
+  })
+
+  it('advances running bulk progress when a scanner-decomposed bullet is AI-deepened', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-04-05T00:00:00.000Z'))
+    useIdentityStore.getState().setScanResult(createScannerDecomposedScanResult())
+    let state = getActiveResumeScan(useIdentityStore.getState())
+    expect(state?.progress.bullets['contoso::platform-migration']).toMatchObject({
+      status: 'completed',
+      explanation: null,
+    })
+    expect(state?.counts).toMatchObject({
+      decomposedBullets: 1,
+      deepenedBullets: 0,
+    })
+
+    useIdentityStore.getState().startScanBulkDeepen()
+    expect(getActiveResumeScan(useIdentityStore.getState())?.progress.bulk).toMatchObject({
+      status: 'running',
+      total: 1,
+      completed: 0,
+    })
+
+    vi.setSystemTime(new Date('2026-04-05T00:00:01.000Z'))
+    useIdentityStore.getState().completeScannedBulletDeepen(createDeepenedBullet())
+
+    state = getActiveResumeScan(useIdentityStore.getState())
+    expect(state?.progress.bulk).toMatchObject({
+      status: 'running',
+      total: 1,
+      completed: 1,
+      lastUpdatedAt: '2026-04-05T00:00:01.000Z',
+    })
+    expect(state?.counts.deepenedBullets).toBe(1)
   })
 
   it('does not double-count duplicate successful completions for the same bullet', () => {

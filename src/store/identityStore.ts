@@ -235,6 +235,11 @@ const createBulletProgress = (
   updatedAt: options.updatedAt ?? new Date().toISOString(),
 })
 
+// Scanner decomposition can seed `completed` progress without this payload.
+// Actual AI deepening writes an explanation, so use that as the deepened contract.
+export const hasAiDeepenExplanation = (progress?: ResumeScanBulletProgress | null): boolean =>
+  progress?.status === 'completed' && Boolean(progress.explanation)
+
 const createScanProgress = (identity: ProfessionalIdentityV3): ResumeScanProgress => {
   const bulletEntries = enumerateScanBullets(identity)
   const bullets = Object.fromEntries(
@@ -268,7 +273,7 @@ const advanceRunningBulkProgress = (
         ...bulk,
         completed: Math.min(
           bulk.total,
-          Object.values(bullets).filter(({ status }) => status === 'completed').length,
+          Object.values(bullets).filter((progress) => hasAiDeepenExplanation(progress)).length,
         ),
         lastUpdatedAt,
       }
@@ -403,10 +408,14 @@ const recalculateScanCounts = (
 ): ResumeScanResult['counts'] => {
   const bullets = identity.roles.flatMap((role) => role.bullets)
   const bulletEntries = enumerateScanBullets(identity)
-  const statusEntries = bulletEntries.map(({ roleId, bulletId, bullet }) => ({
-    status: progress.bullets[getScanBulletKey(roleId, bulletId)]?.status ?? 'idle',
-    bullet,
-  }))
+  const statusEntries = bulletEntries.map(({ roleId, bulletId, bullet }) => {
+    const bulletProgress = progress.bullets[getScanBulletKey(roleId, bulletId)]
+    return {
+      progress: bulletProgress,
+      status: bulletProgress?.status ?? 'idle',
+      bullet,
+    }
+  })
   // Primary counts intentionally follow ResumeScanCounts order for easier scan debugging.
   return {
     roles: identity.roles.length,
@@ -422,7 +431,8 @@ const recalculateScanCounts = (
       ({ status, bullet }) =>
         Boolean(bullet.source_text?.trim()) && (status === 'idle' || status === 'running'),
     ).length,
-    deepenedBullets: statusEntries.filter(({ status }) => status === 'completed').length,
+    deepenedBullets: statusEntries.filter(({ progress }) => hasAiDeepenExplanation(progress))
+      .length,
     editedBullets: statusEntries.filter(({ status }) => status === 'edited').length,
     failedBullets: statusEntries.filter(({ status }) => status === 'failed').length,
   }
@@ -1183,14 +1193,13 @@ export const useIdentityStore = create<IdentityState>()(
           const progress: ResumeScanProgress = {
             ...normalizedProgress,
             bullets,
-            bulk:
-              existingProgress?.status === 'completed'
-                ? normalizedProgress.bulk
-                : advanceRunningBulkProgress(
-                    normalizedProgress.bulk,
-                    bullets,
-                    new Date().toISOString(),
-                  ),
+            bulk: hasAiDeepenExplanation(existingProgress)
+              ? normalizedProgress.bulk
+              : advanceRunningBulkProgress(
+                  normalizedProgress.bulk,
+                  bullets,
+                  new Date().toISOString(),
+                ),
           }
 
           return {

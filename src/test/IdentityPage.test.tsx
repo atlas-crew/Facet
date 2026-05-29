@@ -133,6 +133,24 @@ const scanFixtureWithTwoBullets = (): ResumeScanResult => {
   return result
 }
 
+const scanFixtureWithTwoScannerDecomposedBullets = (): ResumeScanResult => {
+  const result = scanFixtureWithTwoBullets()
+  result.identity.roles[0].bullets[0] = {
+    ...result.identity.roles[0].bullets[0],
+    problem: 'On-prem customers could not run the SaaS platform.',
+    action: 'Ported the platform to Kubernetes-based installs.',
+    outcome: 'Enabled customer-hosted deployments.',
+  }
+  result.identity.roles[0].bullets[1] = {
+    ...result.identity.roles[0].bullets[1],
+    problem: 'Workloads needed a managed Kubernetes target.',
+    action: 'Migrated workloads to EKS with Helm charts.',
+    outcome: 'Standardized the deployment path.',
+  }
+  result.counts.decomposedBullets = 2
+  return result
+}
+
 const jdAnalysisFixture = (): JDAnalysis =>
   applyRulesBasedAudiences({
     id: 'analysis-identity-review',
@@ -2160,6 +2178,79 @@ describe('IdentityPage', () => {
 
     expect(getActiveResumeScan(useIdentityStore.getState())?.counts.deepenedBullets).toBe(1)
     expect(screen.getByText('Deepened 1 scanned bullet(s).')).toBeTruthy()
+  })
+
+  it('deepens scanner-decomposed bullets before applying them to the identity map', async () => {
+    resumeScannerMocks.scanResumePdfMock.mockResolvedValueOnce(
+      scanFixtureWithTwoScannerDecomposedBullets(),
+    )
+    identityExtractionMocks.deepenIdentityBulletMock.mockImplementation(
+      async ({ roleId, bulletId }: { roleId: string; bulletId: string }) => ({
+        summary: `Deepened ${bulletId}.`,
+        roleId,
+        bulletId,
+        bullet: {
+          id: bulletId,
+          problem:
+            bulletId === 'second-migration'
+              ? 'Legacy deployment paths slowed platform adoption.'
+              : 'Enterprise prospects required customer-hosted installs.',
+          action:
+            bulletId === 'second-migration'
+              ? 'Moved workloads into EKS releases managed by Helm.'
+              : 'Built a Kubernetes install path from the SaaS platform.',
+          outcome:
+            bulletId === 'second-migration'
+              ? 'Made release operations repeatable across environments.'
+              : 'Unlocked deployments in restricted customer environments.',
+          impact:
+            bulletId === 'second-migration'
+              ? ['Reduced handoff friction for platform releases']
+              : ['Expanded the product into customer-controlled infrastructure'],
+          metrics: bulletId === 'second-migration' ? { services: 8 } : { installs: 12 },
+          technologies: bulletId === 'second-migration' ? ['EKS', 'Helm'] : ['Kubernetes'],
+          source_text: 'ignored',
+          tags: ['platform'],
+        },
+        rewrite:
+          bulletId === 'second-migration'
+            ? 'Moved workloads into EKS releases managed by Helm.'
+            : 'Built a Kubernetes install path from the SaaS platform.',
+        assumptions: [],
+        warnings: [],
+      }),
+    )
+
+    const { container } = render(<IdentityPage />)
+    uploadPdf(container)
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
+    })
+
+    const activeScan = getActiveResumeScan(useIdentityStore.getState())
+    expect(activeScan?.progress.bullets['contoso::platform-migration']?.status).toBe('completed')
+    expect(activeScan?.progress.bullets['contoso::platform-migration']?.explanation).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Deepen all bullets' }))
+
+    await waitFor(() => {
+      expect(identityExtractionMocks.deepenIdentityBulletMock).toHaveBeenCalledTimes(2)
+    })
+    expect(getActiveResumeScan(useIdentityStore.getState())?.counts.deepenedBullets).toBe(2)
+    expect(screen.getByText('Deepened 2 scanned bullet(s).')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Apply Identity' }))
+
+    await waitFor(() => {
+      expect(useIdentityStore.getState().currentIdentity?.roles[0].bullets).toHaveLength(2)
+    })
+    const appliedBullets = useIdentityStore.getState().currentIdentity?.roles[0].bullets ?? []
+    expect(appliedBullets.map((bullet) => bullet.problem)).toEqual([
+      'Enterprise prospects required customer-hosted installs.',
+      'Legacy deployment paths slowed platform adoption.',
+    ])
+    expect(appliedBullets.every((bullet) => bullet.impact.length > 0)).toBe(true)
   })
 
   it('reports partial failures when bulk deepening continues past a failed bullet', async () => {
