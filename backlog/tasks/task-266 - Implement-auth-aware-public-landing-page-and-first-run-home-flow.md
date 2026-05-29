@@ -1,11 +1,11 @@
 ---
 id: TASK-266
 title: Implement auth-aware public landing page and first-run home flow
-status: In Progress
+status: Done
 assignee:
   - '@codex'
 created_date: '2026-05-29 00:19'
-updated_date: '2026-05-29 00:33'
+updated_date: '2026-05-29 01:02'
 labels:
   - feature
   - landing
@@ -20,16 +20,26 @@ references:
   - backlog/completed/task-191
 documentation:
   - doc-44
+modified_files:
+  - src/components/AppShell.tsx
+  - src/routes/public/PublicLandingPage.tsx
+  - src/routes/public/publicLanding.css
+  - src/routes/home/HomePage.tsx
+  - src/routes/home/home.css
+  - src/test/PublicLandingPage.test.tsx
+  - src/test/AppShell.test.tsx
+  - src/test/HomePage.test.tsx
+  - brand/exports/hero/facet-primary-hero.webp
 priority: medium
 ordinal: 9000
 ---
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Anonymous visits to / see a public landing page while authenticated users still land on the existing Home/Overview hub.
-- [ ] #2 The landing page uses curated brand-library assets and locked brand vocabulary instead of ad hoc generic SaaS copy.
-- [ ] #3 Authenticated empty-workspace users get action-oriented onboarding inside the hub without reintroducing marketing copy.
-- [ ] #4 Auth CTAs, trust/pricing/privacy/source links, responsive layout, and route tests are complete.
+- [x] #1 Anonymous visits to / see a public landing page while authenticated users still land on the existing Home/Overview hub.
+- [x] #2 The landing page uses curated brand-library assets and locked brand vocabulary instead of ad hoc generic SaaS copy.
+- [x] #3 Authenticated empty-workspace users get action-oriented onboarding inside the hub without reintroducing marketing copy.
+- [x] #4 Auth CTAs, trust/pricing/privacy/source links, responsive layout, and route tests are complete.
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -44,12 +54,18 @@ ordinal: 9000
 Started implementation pass for auth-aware public landing rollout.
 <!-- SECTION:NOTES:END -->
 
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Completed auth-aware public landing rollout. Hosted signed-out / now shows a standalone brand landing page; signed-in users keep the operational hub; empty authenticated workspaces get first-run entry cards. Verification: focused Vitest, typecheck, lint, build, browser desktop/mobile QA, independent code review, and independent test audit.
+<!-- SECTION:FINAL_SUMMARY:END -->
+
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
-- [ ] #3 Automatic formatting was applied to touched files
-- [ ] #4 Regression tests pass (scoped to touched files)
-- [ ] #5 Linters report no warnings or errors in touched files
-- [ ] #6 Relevant documentation updates landed or tasks created
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
+- [x] #3 Automatic formatting was applied to touched files
+- [x] #4 Regression tests pass (scoped to touched files)
+- [x] #5 Linters report no warnings or errors in touched files
+- [x] #6 Relevant documentation updates landed or tasks created
 <!-- DOD:END -->
