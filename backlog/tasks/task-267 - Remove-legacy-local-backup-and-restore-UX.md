@@ -1,9 +1,11 @@
 ---
 id: TASK-267
 title: Remove legacy local backup and restore UX
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-05-29 01:29'
+updated_date: '2026-05-29 01:29'
 labels:
   - refactor
 dependencies: []
