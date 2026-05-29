@@ -492,7 +492,7 @@ export function ScanReviewPane({
       <section className="identity-scan-section">
         <div>
           <h3>Contact</h3>
-          <p>Review the header fields before deepening the scanned structure.</p>
+          <p>Confirm the contact details from the resume scan before applying the draft.</p>
         </div>
         <div className="identity-scan-form-grid">
           <label className="identity-field">

@@ -441,6 +441,13 @@ describe('IdentityPage', () => {
       expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
     })
 
+    expect(screen.getByText('Recommended next step')).toBeTruthy()
+    expect(screen.getByText(/turns terse resume bullets into richer raw material/i)).toBeTruthy()
+    expect(
+      screen.getByText(
+        'Confirm the contact details from the resume scan before applying the draft.',
+      ),
+    ).toBeTruthy()
     expect(screen.getByDisplayValue('Facet')).toBeTruthy()
     expect(screen.getByDisplayValue('Vector-based job search platform.')).toBeTruthy()
     expect(screen.getByDisplayValue('Rivertown, OR')).toBeTruthy()
@@ -1931,7 +1938,7 @@ describe('IdentityPage', () => {
     expect(identityExtractionMocks.deepenIdentityBulletMock).toHaveBeenCalledTimes(0)
   })
 
-  it('disables Deepen All while a single bullet deepen is running', async () => {
+  it('disables Deepen all bullets while a single bullet deepen is running', async () => {
     let resolveDeepen!: (
       value: Awaited<ReturnType<typeof identityExtractionMocks.deepenIdentityBulletMock>>,
     ) => void
@@ -1955,7 +1962,7 @@ describe('IdentityPage', () => {
       expect(identityExtractionMocks.deepenIdentityBulletMock).toHaveBeenCalledTimes(1)
     })
 
-    const deepenAllButton = screen.getByText('Deepen All')
+    const deepenAllButton = screen.getByRole('button', { name: 'Deepen all bullets' })
     expect((deepenAllButton as HTMLButtonElement).disabled).toBe(true)
 
     await act(async () => {
@@ -1982,7 +1989,7 @@ describe('IdentityPage', () => {
     })
 
     await waitFor(() => {
-      expect(screen.getByText('Deepen All')).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'Deepen all bullets' })).toBeTruthy()
     })
   })
 
@@ -2049,7 +2056,9 @@ describe('IdentityPage', () => {
         'contoso::second-migration'
       ]?.status,
     ).toBe('idle')
-    expect((screen.getByText('Deepen All') as HTMLButtonElement).disabled).toBe(false)
+    expect(
+      (screen.getByRole('button', { name: 'Deepen all bullets' }) as HTMLButtonElement).disabled,
+    ).toBe(false)
   })
 
   it('switches the detail pane when a different scanned bullet is selected', async () => {
@@ -2078,7 +2087,7 @@ describe('IdentityPage', () => {
       expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
     })
 
-    fireEvent.click(screen.getByText('Deepen All'))
+    fireEvent.click(screen.getByRole('button', { name: 'Deepen all bullets' }))
 
     await waitFor(() => {
       expect(identityExtractionMocks.deepenIdentityBulletMock).toHaveBeenCalledTimes(1)
@@ -2119,7 +2128,7 @@ describe('IdentityPage', () => {
       expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
     })
 
-    fireEvent.click(screen.getByText('Deepen All'))
+    fireEvent.click(screen.getByRole('button', { name: 'Deepen all bullets' }))
 
     await waitFor(() => {
       expect(screen.getByText('Deepened 1 scanned bullet(s); 1 failed.')).toBeTruthy()
@@ -2179,7 +2188,7 @@ describe('IdentityPage', () => {
       expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
     })
 
-    fireEvent.click(screen.getByText('Deepen All'))
+    fireEvent.click(screen.getByRole('button', { name: 'Deepen all bullets' }))
 
     await waitFor(() => {
       expect(screen.getByText('Cancel')).toBeTruthy()
@@ -2208,7 +2217,7 @@ describe('IdentityPage', () => {
       expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
     })
 
-    fireEvent.click(screen.getByText('Deepen All'))
+    fireEvent.click(screen.getByRole('button', { name: 'Deepen all bullets' }))
 
     await waitFor(() => {
       expect(identityExtractionMocks.deepenIdentityBulletMock).toHaveBeenCalledTimes(1)
@@ -2366,6 +2375,7 @@ describe('IdentityPage', () => {
 
     render(<IdentityPage />)
 
+    expect(screen.getByText('Build the richest source of truth first.')).toBeTruthy()
     expect(screen.getByText('Skill Enrichment')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Open Skill Depth Wizard' })).toBeTruthy()
   })
@@ -2388,9 +2398,12 @@ describe('IdentityPage', () => {
     expect(screen.getByText('Identity Workspace')).toBeTruthy()
     expect(
       screen.getByText(
-        /build the identity model, refine it, then use it to shape search strategy and build/i,
+        /start here by turning your resume and source notes into a rich identity model/i,
       ),
     ).toBeTruthy()
+    expect(screen.getByText('Build the richest source of truth first.')).toBeTruthy()
+    expect(screen.getByText('Deepen the scan')).toBeTruthy()
+    expect(screen.getByText(/use the bulk action after upload/i)).toBeTruthy()
     expect(container.querySelector('.identity-grid.identity-grid-workbench')).toBeTruthy()
     expect(container.querySelector('.identity-inspection-region')).toBeTruthy()
     const openButton = screen.getByRole('button', {
@@ -2408,6 +2421,29 @@ describe('IdentityPage', () => {
     expect(screen.getByText(/advanced json stays tucked away until you need it/i)).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Validate Draft' })).toBeNull()
     expect(editorRegion.hidden).toBe(true)
+  })
+
+  it('hides first-pass import guidance once a current identity is established', () => {
+    useIdentityStore.setState({
+      currentIdentity: cloneIdentityFixture(),
+    })
+
+    render(<IdentityPage />)
+
+    expect(screen.queryByText('Build the richest source of truth first.')).toBeNull()
+    expect(screen.queryByText('Deepen the scan')).toBeNull()
+  })
+
+  it('shows first-pass import guidance for established identities with active source material', () => {
+    useIdentityStore.setState({
+      currentIdentity: cloneIdentityFixture(),
+      sourceMaterial: 'Recent source material for a profile refresh.',
+    })
+
+    render(<IdentityPage />)
+
+    expect(screen.getByText('Build the richest source of truth first.')).toBeTruthy()
+    expect(screen.getByText('Deepen the scan')).toBeTruthy()
   })
 
   it('opens the json editor from the compact builder state', () => {

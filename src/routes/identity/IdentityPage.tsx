@@ -318,6 +318,7 @@ export function IdentityPage() {
     () => sourceMaterial.trim().length > 0 || Boolean(scanResult),
     [scanResult, sourceMaterial],
   )
+  const showImportGuide = !currentIdentity || Boolean(draft) || hasSourceMaterial
   const ensureEndpoint = () => {
     if (!aiEndpoint) {
       throw new Error('Identity extraction is disabled. Configure VITE_ANTHROPIC_PROXY_URL.')
@@ -806,7 +807,7 @@ export function IdentityPage() {
     ) {
       setPageNotice(null)
       setPageError(
-        'Wait for the current bullet deepening run to finish before starting Deepen All.',
+        'Wait for the current bullet deepening run to finish before starting Deepen all bullets.',
       )
       return
     }
@@ -1262,12 +1263,14 @@ export function IdentityPage() {
           </div>
         </div>
       ) : null}
-      <header className="identity-header identity-header-sticky">
+      <header className="identity-header">
         <div className="identity-header-main">
           <p className="identity-eyebrow">Identity Workspace</p>
           <h1>Professional Identity</h1>
           <p className="identity-copy">
-            Build the identity model, refine it, then use it to shape search strategy and Build.
+            Start here by turning your resume and source notes into a rich identity model. Facet
+            uses that model as the source of truth for resumes, search, match analysis, and
+            interview prep.
           </p>
           <p className="identity-header-status" aria-live="polite">
             {headerStatus}
@@ -1314,6 +1317,38 @@ export function IdentityPage() {
           />
         </div>
       </header>
+
+      {showImportGuide ? (
+        <section
+          className="identity-onboarding-guide"
+          aria-labelledby="identity-import-guide-title"
+        >
+          <div className="identity-onboarding-guide-copy">
+            <p className="identity-eyebrow">First pass</p>
+            <h2 id="identity-import-guide-title">Build the richest source of truth first.</h2>
+            <p>
+              Upload a resume, review the scan, then use <strong>Deepen all bullets</strong>.
+              Deepening expands compressed resume bullets into problem, action, outcome, metrics,
+              tools, and evidence. That gives Facet more to work with when it later trims everything
+              down to the strongest version for a specific role.
+            </p>
+          </div>
+          <ol className="identity-onboarding-steps">
+            <li>
+              <strong>Add source material</strong>
+              <span>Start with a resume, then add notes or AI exports if they fill gaps.</span>
+            </li>
+            <li>
+              <strong>Deepen the scan</strong>
+              <span>Use the bulk action after upload so every bullet has richer evidence.</span>
+            </li>
+            <li>
+              <strong>Generate and apply</strong>
+              <span>Review the draft before it becomes your durable identity model.</span>
+            </li>
+          </ol>
+        </section>
+      ) : null}
 
       <div
         className={`identity-alert${pageError ? '' : ' identity-message-empty'}`}

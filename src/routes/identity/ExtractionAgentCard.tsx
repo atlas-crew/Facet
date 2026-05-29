@@ -678,11 +678,21 @@ export function ExtractionAgentCard({
               <div className="identity-stack">
                 <h3>Extraction Review</h3>
                 <p className="identity-muted">
-                  Inspect the scanned structure, deepen weak bullets, and correct anything before
+                  Inspect the scanned structure, deepen every bullet, and correct anything before
                   applying the draft.
                 </p>
               </div>
               <div className="identity-scan-status">
+                <div className="identity-deepen-callout">
+                  <div>
+                    <p className="identity-deepen-callout-title">Recommended next step</p>
+                    <p>
+                      Run <strong>Deepen all bullets</strong> before generating the draft. It turns
+                      terse resume bullets into richer raw material so Facet can later cut them down
+                      to the best version for each role.
+                    </p>
+                  </div>
+                </div>
                 <div className="identity-scan-status-row">
                   <strong>{scanResult.fileName}</strong>
                   <span>{scanResult.pageCount} page(s)</span>
@@ -777,7 +787,7 @@ export function ExtractionAgentCard({
                     <Sparkles size={16} />
                     {bulkStatus === 'running' || bulkStatus === 'cancelling'
                       ? 'Deepening…'
-                      : 'Deepen All'}
+                      : 'Deepen all bullets'}
                   </button>
                   <button
                     className="identity-btn"
