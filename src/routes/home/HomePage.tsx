@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowRight, CalendarClock } from 'lucide-react'
+import { ArrowRight, CalendarClock, FileSearch, FileUp, Layers } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { useCoverLetterStore } from '../../store/coverLetterStore'
 import { useDebriefStore } from '../../store/debriefStore'
 import { getActiveResumeScan, useIdentityStore } from '../../store/identityStore'
@@ -56,6 +57,7 @@ const START_OPTIONS = [
     eyebrow: 'Most common entry point',
     body: 'Upload a resume, scan it into identity.json, and deepen bullets in place.',
     accent: 'identity',
+    Icon: FileUp,
   },
   {
     to: '/match' as const,
@@ -63,6 +65,7 @@ const START_OPTIONS = [
     eyebrow: 'Target a role first',
     body: 'Paste a JD, score your fit, and decide what the resume needs before editing.',
     accent: 'match',
+    Icon: FileSearch,
   },
   {
     to: '/build' as const,
@@ -70,10 +73,24 @@ const START_OPTIONS = [
     eyebrow: 'Direct editing',
     body: 'Jump straight into vectors, components, and assembly when you already know the story.',
     accent: 'build',
+    Icon: Layers,
   },
-] as const
+] as const satisfies readonly {
+  to: HomeRoute
+  label: string
+  eyebrow: string
+  body: string
+  accent: string
+  Icon: LucideIcon
+}[]
 
-const ACTIVE_PIPELINE_STATUSES = new Set(['researching', 'applied', 'screening', 'interviewing', 'offer'])
+const ACTIVE_PIPELINE_STATUSES = new Set([
+  'researching',
+  'applied',
+  'screening',
+  'interviewing',
+  'offer',
+])
 const AWAITING_ACTION_STATUSES = new Set(['researching', 'screening', 'interviewing', 'offer'])
 
 const isMeaningfulNextStep = (value: string) => {
@@ -100,7 +117,9 @@ const formatHubDate = (dateText: string) => {
 }
 
 const getLatestDeck = (decks: PrepDeck[]) =>
-  [...decks].sort((left, right) => (right.updatedAt ?? '').localeCompare(left.updatedAt ?? ''))[0] ?? null
+  [...decks].sort((left, right) =>
+    (right.updatedAt ?? '').localeCompare(left.updatedAt ?? ''),
+  )[0] ?? null
 
 const formatRoundLabel = (round: PipelineRound) =>
   round.label.trim() || round.format.replace(/-/g, ' ')
@@ -390,14 +409,13 @@ export function HomePage() {
 
   const hasUnfinishedScan = Boolean(
     scanResult &&
-      (scanResult.progress.bulk.status !== 'idle' ||
-        scanResult.counts.failedBullets > 0 ||
-        scanResult.counts.deepenedBullets + scanResult.counts.editedBullets < scanResult.counts.extractedBullets),
+    (scanResult.progress.bulk.status !== 'idle' ||
+      scanResult.counts.failedBullets > 0 ||
+      scanResult.counts.deepenedBullets + scanResult.counts.editedBullets <
+        scanResult.counts.extractedBullets),
   )
   const hasIdentityWork = Boolean(
-    draft ||
-      hasUnfinishedScan ||
-      (sourceMaterial.trim() && !currentIdentity && !scanResult),
+    draft || hasUnfinishedScan || (sourceMaterial.trim() && !currentIdentity && !scanResult),
   )
   const hasMatchWork = Boolean(currentReport || jobDescription.trim())
   const activePipelineEntries = useMemo(
@@ -406,8 +424,9 @@ export function HomePage() {
   )
   const awaitingActionCount = useMemo(
     () =>
-      activePipelineEntries.filter((entry) =>
-        AWAITING_ACTION_STATUSES.has(entry.status) || isMeaningfulNextStep(entry.nextStep),
+      activePipelineEntries.filter(
+        (entry) =>
+          AWAITING_ACTION_STATUSES.has(entry.status) || isMeaningfulNextStep(entry.nextStep),
       ).length,
     [activePipelineEntries],
   )
@@ -447,16 +466,38 @@ export function HomePage() {
     [activePipelineEntries, currentReport, latestDeck, now, primaryAction?.id],
   )
   const activeActions = useMemo(
-    () => [primaryAction, secondaryAction].filter((item): item is HubAction => Boolean(item)).slice(0, 2),
+    () =>
+      [primaryAction, secondaryAction]
+        .filter((item): item is HubAction => Boolean(item))
+        .slice(0, 2),
     [primaryAction, secondaryAction],
   )
-  const notifications = useMemo(() => buildNotifications(pipelineEntries, now), [now, pipelineEntries])
-  const notificationIdSet = useMemo(() => new Set(notifications.map((item) => item.id)), [notifications])
+  const notifications = useMemo(
+    () => buildNotifications(pipelineEntries, now),
+    [now, pipelineEntries],
+  )
+  const notificationIdSet = useMemo(
+    () => new Set(notifications.map((item) => item.id)),
+    [notifications],
+  )
   const liveDismissedNotifications = useMemo(
     () => dismissedNotifications.filter((id) => notificationIdSet.has(id)),
     [dismissedNotifications, notificationIdSet],
   )
-  const visibleNotifications = notifications.filter((item) => !liveDismissedNotifications.includes(item.id))
+  const visibleNotifications = notifications.filter(
+    (item) => !liveDismissedNotifications.includes(item.id),
+  )
+  const hasWorkspaceActivity = Boolean(
+    hasIdentityWork ||
+    currentIdentity ||
+    hasMatchWork ||
+    pipelineEntries.length > 0 ||
+    prepDecks.length > 0 ||
+    coverLetterCount > 0 ||
+    linkedInCount > 0 ||
+    recruiterCount > 0 ||
+    debriefCount > 0,
+  )
 
   useEffect(() => {
     const interval = window.setInterval(() => setNow(new Date()), NOW_REFRESH_MS)
@@ -476,10 +517,44 @@ export function HomePage() {
         </div>
         {!AI_ENABLED ? (
           <p className="home-ai-note">
-            AI-assisted routes are available when <code>VITE_ANTHROPIC_PROXY_URL</code> is configured.
+            AI-assisted routes are available when <code>VITE_ANTHROPIC_PROXY_URL</code> is
+            configured.
           </p>
         ) : null}
       </header>
+
+      {!hasWorkspaceActivity ? (
+        <section className="home-section home-first-run" aria-labelledby="home-first-run">
+          <div className="home-first-run-copy">
+            <p className="home-eyebrow">First run</p>
+            <h3 id="home-first-run">Choose the fastest starting point</h3>
+            <p>
+              Bring in a resume, inspect a job description, or open the builder directly. Each path
+              creates product work inside the workspace.
+            </p>
+          </div>
+          <div className="home-first-run-grid">
+            {START_OPTIONS.map(({ Icon, ...option }) => (
+              <Link
+                key={option.to}
+                className={`home-first-run-card home-cta-card-${option.accent}`}
+                to={option.to}
+              >
+                <span className="home-first-run-icon" aria-hidden="true">
+                  <Icon size={20} strokeWidth={1.7} />
+                </span>
+                <span className="home-cta-eyebrow">{option.eyebrow}</span>
+                <strong>{option.label}</strong>
+                <p>{option.body}</p>
+                <span className="home-first-run-open">
+                  Open
+                  <ArrowRight size={15} strokeWidth={1.75} aria-hidden="true" />
+                </span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section className="home-section" aria-labelledby="home-active-work">
         <div className="home-section-header home-section-header-row">
@@ -499,7 +574,7 @@ export function HomePage() {
                   <span>{item.meta}</span>
                   <span>
                     {item.cta}
-                    <ArrowRight size={15} strokeWidth={1.75} />
+                    <ArrowRight size={15} strokeWidth={1.75} aria-hidden="true" />
                   </span>
                 </span>
               </Link>
@@ -535,7 +610,9 @@ export function HomePage() {
                   <p>{item.body}</p>
                 </div>
                 <div className="home-notification-actions">
-                  <Link className="home-notification-open" to={item.to}>Open</Link>
+                  <Link className="home-notification-open" to={item.to}>
+                    Open
+                  </Link>
                   <button
                     className="home-notification-dismiss"
                     type="button"
@@ -560,15 +637,15 @@ export function HomePage() {
         )}
       </section>
 
-      <section className="home-section">
-        <Link
-          className="home-pipeline-glance"
-          to="/pipeline"
-        >
+      <section className="home-section" aria-labelledby="home-pipeline-glance-title">
+        <Link className="home-pipeline-glance" to="/pipeline">
           <div>
-            <p className="home-eyebrow" aria-hidden="true">Pipeline</p>
-            <strong>
-              {activePipelineEntries.length} {activePipelineEntries.length === 1 ? 'opportunity' : 'opportunities'}
+            <p className="home-eyebrow" aria-hidden="true">
+              Pipeline
+            </p>
+            <strong id="home-pipeline-glance-title">
+              {activePipelineEntries.length}{' '}
+              {activePipelineEntries.length === 1 ? 'opportunity' : 'opportunities'}
               {awaitingActionCount > 0 ? ` — ${awaitingActionCount} awaiting your action` : ''}
             </strong>
             <p>
@@ -579,30 +656,32 @@ export function HomePage() {
           </div>
           <span aria-hidden="true">
             Open Pipeline
-            <ArrowRight size={16} strokeWidth={1.75} />
+            <ArrowRight size={16} strokeWidth={1.75} aria-hidden="true" />
           </span>
         </Link>
       </section>
 
-      <section className="home-section" aria-labelledby="home-entry-points">
-        <div className="home-section-header">
-          <p className="home-eyebrow">Entry points</p>
-          <h3 id="home-entry-points">Start something new</h3>
-        </div>
-        <div className="home-cta-grid">
-          {START_OPTIONS.map((option) => (
-            <Link
-              key={option.to}
-              className={`home-cta-card home-cta-card-${option.accent}`}
-              to={option.to}
-            >
-              <span className="home-cta-eyebrow">{option.eyebrow}</span>
-              <strong>{option.label}</strong>
-              <p>{option.body}</p>
-            </Link>
-          ))}
-        </div>
-      </section>
+      {hasWorkspaceActivity ? (
+        <section className="home-section" aria-labelledby="home-entry-points">
+          <div className="home-section-header">
+            <p className="home-eyebrow">Entry points</p>
+            <h3 id="home-entry-points">Start something new</h3>
+          </div>
+          <div className="home-cta-grid">
+            {START_OPTIONS.map((option) => (
+              <Link
+                key={option.to}
+                className={`home-cta-card home-cta-card-${option.accent}`}
+                to={option.to}
+              >
+                <span className="home-cta-eyebrow">{option.eyebrow}</span>
+                <strong>{option.label}</strong>
+                <p>{option.body}</p>
+              </Link>
+            ))}
+          </div>
+        </section>
+      ) : null}
     </div>
   )
 }

@@ -5,8 +5,16 @@
   flex-direction: column;
   gap: var(--space-5);
   background:
-    radial-gradient(circle at top left, color-mix(in srgb, var(--accent-primary) 8%, transparent), transparent 30%),
-    linear-gradient(180deg, color-mix(in srgb, var(--bg-surface) 72%, var(--bg-primary)), var(--bg-primary));
+    radial-gradient(
+      circle at top left,
+      color-mix(in srgb, var(--accent-primary) 8%, transparent),
+      transparent 30%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--bg-surface) 72%, var(--bg-primary)),
+      var(--bg-primary)
+    );
 }
 
 .home-header,
@@ -105,15 +113,103 @@
 
 .home-work-card,
 .home-cta-card,
+.home-first-run-card,
 .home-pipeline-glance {
   text-decoration: none;
 }
 
 .home-work-card,
 .home-empty-panel,
+.home-first-run,
+.home-first-run-card,
 .home-cta-card {
   border-radius: 8px;
   padding: var(--space-4);
+}
+
+.home-first-run {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.72fr) minmax(0, 1fr);
+  gap: var(--space-4);
+  background: var(--bg-surface);
+  border: 1px solid color-mix(in srgb, var(--accent-primary) 28%, var(--border-subtle));
+  box-shadow: var(--shadow-xs);
+}
+
+.home-first-run-copy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.home-first-run-copy h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 28px;
+  line-height: 1.1;
+}
+
+.home-first-run-copy p:last-child {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+.home-first-run-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.home-first-run-card {
+  min-height: 188px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-xs);
+  transition:
+    transform var(--duration-fast) var(--easing),
+    border-color var(--duration-fast) var(--easing);
+}
+
+.home-first-run-card:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent-primary) 42%, var(--border-subtle));
+}
+
+.home-first-run-card strong {
+  color: var(--text-primary);
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.home-first-run-card p {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+.home-first-run-icon {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--accent-primary) 32%, var(--border-subtle));
+  border-radius: 8px;
+  color: var(--accent-primary);
+  background: color-mix(in srgb, var(--accent-primary) 10%, transparent);
+}
+
+.home-first-run-open {
+  margin-top: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--accent-primary);
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .home-work-card {
@@ -138,6 +234,7 @@
 .home-empty-panel strong,
 .home-notification strong,
 .home-pipeline-glance strong,
+.home-first-run-card strong,
 .home-cta-card strong {
   color: var(--text-primary);
 }
@@ -257,15 +354,27 @@
 }
 
 .home-cta-card-identity {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--accent-primary) 13%, var(--bg-surface)), var(--bg-surface));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent-primary) 13%, var(--bg-surface)),
+    var(--bg-surface)
+  );
 }
 
 .home-cta-card-match {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--accent-secondary, var(--accent-primary)) 12%, var(--bg-surface)), var(--bg-surface));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent-secondary, var(--accent-primary)) 12%, var(--bg-surface)),
+    var(--bg-surface)
+  );
 }
 
 .home-cta-card-build {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--success) 9%, var(--bg-surface)), var(--bg-surface));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--success) 9%, var(--bg-surface)),
+    var(--bg-surface)
+  );
 }
 
 .home-cta-card strong {
@@ -290,6 +399,8 @@
   }
 
   .home-work-grid,
+  .home-first-run,
+  .home-first-run-grid,
   .home-cta-grid {
     grid-template-columns: 1fr;
   }

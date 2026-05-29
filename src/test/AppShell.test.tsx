@@ -933,6 +933,46 @@ describe('AppShell hosted workspace bootstrap', () => {
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
+  it('renders the public landing page instead of the workspace shell for unsigned root visits', () => {
+    routerMocks.currentPath = '/'
+    setHostedStore({
+      bootstrapStatus: 'auth-required',
+      workspaces: [],
+      selectedWorkspaceId: null,
+      context: null,
+      bearerToken: null,
+      lastError: 'Hosted sign-in is required before we can load your account.',
+      lastErrorCode: 'auth_required',
+    })
+
+    render(<AppShell />)
+
+    expect(screen.getByRole('heading', { name: 'Facet' })).toBeTruthy()
+    expect(screen.getByText(/same diamond · different face/i)).toBeTruthy()
+    expect(screen.queryByRole('navigation', { name: /main navigation/i })).toBeNull()
+    expect(screen.queryByTestId('app-shell-outlet')).toBeNull()
+    expect(screen.queryByText(/hosted sign-in required/i)).toBeNull()
+  })
+
+  it('keeps the hosted sign-in blocker inside the shell on non-root routes', () => {
+    routerMocks.currentPath = '/build'
+    setHostedStore({
+      bootstrapStatus: 'auth-required',
+      workspaces: [],
+      selectedWorkspaceId: null,
+      context: null,
+      bearerToken: null,
+      lastError: 'Hosted sign-in is required before we can load your account.',
+      lastErrorCode: 'auth_required',
+    })
+
+    render(<AppShell />)
+
+    expect(screen.getByRole('navigation', { name: /main navigation/i })).toBeTruthy()
+    expect(screen.getByText(/hosted sign-in required/i)).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: 'Facet' })).toBeNull()
+  })
+
   it('clears stale hosted error state after a successful runtime recovery', async () => {
     const { clearError } = setHostedStore({
       bootstrapStatus: 'ready',

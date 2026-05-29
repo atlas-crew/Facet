@@ -45,6 +45,7 @@ import { useIsAdmin } from '../hooks/useIsAdmin'
 import { findStaleArtifacts } from '../types/artifactMeta'
 import { FacetWordmark } from './FacetWordmark'
 import { HostedWorkspaceDialog } from './HostedWorkspaceDialog'
+import { PublicLandingPage } from '../routes/public/PublicLandingPage'
 import { WorkspaceBackupDialog } from './WorkspaceBackupDialog'
 import { WorkspaceBackupReminder } from './WorkspaceBackupReminder'
 
@@ -849,6 +850,14 @@ export function AppShell() {
         Loading hosted workspace…
       </div>
     )
+  }
+
+  if (
+    isHomeRoute &&
+    hostedApp.deploymentMode === 'hosted' &&
+    hostedApp.bootstrapStatus === 'auth-required'
+  ) {
+    return <PublicLandingPage />
   }
 
   return (

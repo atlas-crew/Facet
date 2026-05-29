@@ -76,48 +76,52 @@ const createPipelineEntry = (overrides: Partial<PipelineEntry> = {}): PipelineEn
 const daysFromNow = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString()
 const daysAgo = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString()
 
-const createScanResult = (overrides: {
-  bulkStatus?: 'idle' | 'running' | 'cancelling'
-  failedBullets?: number
-  extractedBullets?: number
-  deepenedBullets?: number
-  editedBullets?: number
-} = {}) => ({
-  counts: {
-    roles: 1,
-    bullets: 2,
-    projects: 0,
-    skillGroups: 0,
-    education: 0,
-    extractedBullets: overrides.extractedBullets ?? 2,
-    decomposedBullets: 0,
-    scannedBullets: 2,
-    deepenedBullets: overrides.deepenedBullets ?? 2,
-    editedBullets: overrides.editedBullets ?? 0,
-    failedBullets: overrides.failedBullets ?? 0,
-  },
-  progress: {
-    bulk: {
-      status: overrides.bulkStatus ?? 'idle',
-      total: 2,
-      completed: 2,
-      currentBulletKey: null,
-      lastUpdatedAt: null,
+const createScanResult = (
+  overrides: {
+    bulkStatus?: 'idle' | 'running' | 'cancelling'
+    failedBullets?: number
+    extractedBullets?: number
+    deepenedBullets?: number
+    editedBullets?: number
+  } = {},
+) =>
+  ({
+    counts: {
+      roles: 1,
+      bullets: 2,
+      projects: 0,
+      skillGroups: 0,
+      education: 0,
+      extractedBullets: overrides.extractedBullets ?? 2,
+      decomposedBullets: 0,
+      scannedBullets: 2,
+      deepenedBullets: overrides.deepenedBullets ?? 2,
+      editedBullets: overrides.editedBullets ?? 0,
+      failedBullets: overrides.failedBullets ?? 0,
     },
-    bullets: {},
-  },
-}) as never
+    progress: {
+      bulk: {
+        status: overrides.bulkStatus ?? 'idle',
+        total: 2,
+        completed: 2,
+        currentBulletKey: null,
+        lastUpdatedAt: null,
+      },
+      bullets: {},
+    },
+  }) as never
 
-const createPrepDeck = (overrides = {}) => ({
-  id: 'prep-threatx',
-  title: 'ThreatX prep',
-  company: 'ThreatX',
-  role: 'Senior Platform Engineer',
-  pipelineEntryId: null,
-  updatedAt: daysAgo(1),
-  cards: [{ id: 'prep-card-1', title: 'Reliability story' }],
-  ...overrides,
-}) as never
+const createPrepDeck = (overrides = {}) =>
+  ({
+    id: 'prep-threatx',
+    title: 'ThreatX prep',
+    company: 'ThreatX',
+    role: 'Senior Platform Engineer',
+    pipelineEntryId: null,
+    updatedAt: daysAgo(1),
+    cards: [{ id: 'prep-card-1', title: 'Reliability story' }],
+    ...overrides,
+  }) as never
 
 const resetStores = () => {
   cleanup()
@@ -167,12 +171,37 @@ describe('HomePage', () => {
   it('renders the main workflow entry points', () => {
     render(<HomePage />)
 
+    expect(screen.getByRole('heading', { name: /choose the fastest starting point/i })).toBeTruthy()
     const startFromResumeLinks = screen.getAllByRole('link', { name: /start from resume/i })
     expect(startFromResumeLinks[0]?.getAttribute('href')).toBe('/identity')
-    expect(screen.getByRole('link', { name: /start from job description/i }).getAttribute('href')).toBe('/match')
-    expect(screen.getByRole('link', { name: /open resume builder/i }).getAttribute('href')).toBe('/build')
+    expect(
+      screen.getAllByRole('link', { name: /start from job description/i })[0]?.getAttribute('href'),
+    ).toBe('/match')
+    expect(
+      screen.getAllByRole('link', { name: /open resume builder/i })[0]?.getAttribute('href'),
+    ).toBe('/build')
+    expect(screen.queryByRole('heading', { name: /start something new/i })).toBeNull()
+    const firstRunIcons = document.querySelectorAll('.home-first-run-card svg')
+    expect(firstRunIcons.length).toBeGreaterThanOrEqual(3)
+    firstRunIcons.forEach((icon) => {
+      expect(icon.getAttribute('aria-hidden')).toBe('true')
+    })
     expect(screen.queryByText(/resume operating system/i)).toBeNull()
     expect(screen.queryByText(/the full loop, in order/i)).toBeNull()
+  })
+
+  it('hides first-run onboarding once the authenticated workspace has activity', () => {
+    usePipelineStore.setState({
+      entries: [createPipelineEntry()],
+    })
+
+    render(<HomePage />)
+
+    expect(screen.queryByRole('heading', { name: /choose the fastest starting point/i })).toBeNull()
+    expect(screen.getByRole('heading', { name: /start something new/i })).toBeTruthy()
+    expect(
+      screen.getByRole('link', { name: /review active opportunities/i }).getAttribute('href'),
+    ).toBe('/pipeline')
   })
 
   it('offers an active work affordance when identity work is unfinished', () => {
@@ -182,7 +211,9 @@ describe('HomePage', () => {
 
     render(<HomePage />)
 
-    expect(screen.getByRole('link', { name: /continue identity draft/i }).getAttribute('href')).toBe('/identity')
+    expect(
+      screen.getByRole('link', { name: /continue identity draft/i }).getAttribute('href'),
+    ).toBe('/identity')
     expect(screen.getByText(/resume scanning, editing, or deepening the model/i)).toBeTruthy()
   })
 
@@ -209,9 +240,15 @@ describe('HomePage', () => {
 
     render(<HomePage />)
 
-    expect(screen.getByRole('link', { name: /2 opportunities/i }).getAttribute('href')).toBe('/pipeline')
+    expect(screen.getByRole('link', { name: /2 opportunities/i }).getAttribute('href')).toBe(
+      '/pipeline',
+    )
     expect(screen.getByText(/2 opportunities — 1 awaiting your action/i)).toBeTruthy()
-    expect(screen.getByRole('link', { name: /senior platform engineer at threatx/i }).getAttribute('href')).toBe('/pipeline')
+    expect(
+      screen
+        .getByRole('link', { name: /senior platform engineer at threatx/i })
+        .getAttribute('href'),
+    ).toBe('/pipeline')
   })
 
   it('surfaces and dismisses time-sensitive interview notifications', () => {
@@ -237,7 +274,9 @@ describe('HomePage', () => {
     render(<HomePage />)
 
     expect(screen.getByText(/threatx interview/i)).toBeTruthy()
-    expect(screen.getAllByText(/system design for senior platform engineer/i).length).toBeGreaterThan(0)
+    expect(
+      screen.getAllByText(/system design for senior platform engineer/i).length,
+    ).toBeGreaterThan(0)
     expect(screen.getByRole('link', { name: /^open$/i }).getAttribute('href')).toBe('/pipeline')
 
     fireEvent.click(screen.getByRole('button', { name: /dismiss threatx interview/i }))
@@ -281,7 +320,11 @@ describe('HomePage', () => {
   })
 
   it('ignores corrupted dismissed-notification storage', () => {
-    const payloads = ['{not json', JSON.stringify({ stale: true }), JSON.stringify([1, null, 'other-id'])]
+    const payloads = [
+      '{not json',
+      JSON.stringify({ stale: true }),
+      JSON.stringify([1, null, 'other-id']),
+    ]
 
     for (const payload of payloads) {
       resetStores()
@@ -395,7 +438,9 @@ describe('HomePage', () => {
     render(<HomePage />)
 
     expect(screen.getByText(/threatx jd is waiting/i)).toBeTruthy()
-    expect(screen.getByText(/saved role context has not been turned into a resume or prep action yet/i)).toBeTruthy()
+    expect(
+      screen.getByText(/saved role context has not been turned into a resume or prep action yet/i),
+    ).toBeTruthy()
   })
 
   it('uses createdAt for stale JD detection when lastAction is empty', () => {
@@ -446,7 +491,9 @@ describe('HomePage', () => {
     render(<HomePage />)
 
     expect(screen.getByText(/3 opportunities — 1 awaiting your action/i)).toBeTruthy()
-    expect(screen.getByRole('link', { name: /infra engineer at actionco/i }).getAttribute('href')).toBe('/pipeline')
+    expect(
+      screen.getByRole('link', { name: /infra engineer at actionco/i }).getAttribute('href'),
+    ).toBe('/pipeline')
     expect(screen.queryByRole('link', { name: /backend engineer at monitorco/i })).toBeNull()
   })
 
@@ -512,6 +559,8 @@ describe('HomePage', () => {
     render(<HomePage />)
 
     expect(screen.queryByRole('link', { name: /continue identity draft/i })).toBeNull()
+    expect(screen.queryByRole('heading', { name: /choose the fastest starting point/i })).toBeNull()
+    expect(screen.getByRole('heading', { name: /start something new/i })).toBeTruthy()
     expect(screen.getByText(/nothing in progress/i)).toBeTruthy()
   })
 
@@ -547,7 +596,8 @@ describe('HomePage', () => {
         href: '/match',
       },
       {
-        setup: () => usePrepStore.setState({ decks: [createPrepDeck()], activeDeckId: 'prep-threatx' }),
+        setup: () =>
+          usePrepStore.setState({ decks: [createPrepDeck()], activeDeckId: 'prep-threatx' }),
         name: /prep: senior platform engineer/i,
         href: '/prep',
       },
@@ -720,7 +770,9 @@ describe('HomePage', () => {
 
     render(<HomePage />)
 
-    expect(screen.getAllByText(/system design for senior platform engineer/i).length).toBeGreaterThan(0)
+    expect(
+      screen.getAllByText(/system design for senior platform engineer/i).length,
+    ).toBeGreaterThan(0)
   })
 
   it('ignores malformed dates when deriving notifications', () => {
@@ -790,7 +842,9 @@ describe('HomePage', () => {
 
     render(<HomePage />)
 
-    expect(screen.getByRole('link', { name: /prep: senior platform engineer/i }).getAttribute('href')).toBe('/prep')
+    expect(
+      screen.getByRole('link', { name: /prep: senior platform engineer/i }).getAttribute('href'),
+    ).toBe('/prep')
     expect(screen.queryByText(/review prep cards/i)).toBeNull()
   })
 
@@ -806,7 +860,9 @@ describe('HomePage', () => {
 
     render(<HomePage />)
 
-    expect(screen.getByRole('link', { name: /turn the match into an output/i }).getAttribute('href')).toBe('/letters')
+    expect(
+      screen.getByRole('link', { name: /turn the match into an output/i }).getAttribute('href'),
+    ).toBe('/letters')
   })
 
   it('surfaces prep cards as a secondary action when another workspace is primary', () => {
@@ -815,8 +871,12 @@ describe('HomePage', () => {
 
     render(<HomePage />)
 
-    expect(screen.getByRole('link', { name: /continue current job match/i }).getAttribute('href')).toBe('/match')
-    expect(screen.getByRole('link', { name: /review prep cards/i }).getAttribute('href')).toBe('/prep')
+    expect(
+      screen.getByRole('link', { name: /continue current job match/i }).getAttribute('href'),
+    ).toBe('/match')
+    expect(screen.getByRole('link', { name: /review prep cards/i }).getAttribute('href')).toBe(
+      '/prep',
+    )
   })
 
   it('caps active work at two cards', () => {
