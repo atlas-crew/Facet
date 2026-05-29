@@ -23,7 +23,9 @@ const routerMocks = vi.hoisted(() => ({
 const runtimeMocks = vi.hoisted(() => ({
   captureLocalWorkspaceSnapshotForMigration: vi.fn(),
   getPersistenceRuntimeStart: vi.fn(),
+  getPersistenceRuntimeFlush: vi.fn(),
   replacePersistenceRuntime: vi.fn(),
+  loadGoldenDemoWorkspace: vi.fn(),
 }))
 
 const remoteBackendMocks = vi.hoisted(() => ({
@@ -58,12 +60,16 @@ vi.mock('../persistence/runtime', async () => {
       runtimeMocks.captureLocalWorkspaceSnapshotForMigration,
     getPersistenceRuntime: () => ({
       start: runtimeMocks.getPersistenceRuntimeStart,
+      flush: runtimeMocks.getPersistenceRuntimeFlush,
     }),
     replacePersistenceRuntime: runtimeMocks.replacePersistenceRuntime,
   }
 })
 
 vi.mock('../persistence/remoteBackend', () => remoteBackendMocks)
+vi.mock('../dev/goldenDemoWorkspace', () => ({
+  loadGoldenDemoWorkspace: runtimeMocks.loadGoldenDemoWorkspace,
+}))
 vi.mock('../utils/windowLocation', () => locationMocks)
 vi.mock('../utils/hostedApi', async () => {
   const actual = await vi.importActual<typeof import('../utils/hostedApi')>('../utils/hostedApi')
@@ -218,6 +224,7 @@ describe('AppShell hosted workspace bootstrap', () => {
   beforeEach(() => {
     cleanup()
     vi.restoreAllMocks()
+    vi.unstubAllEnvs()
     routerMocks.currentPath = '/build'
     Object.defineProperty(window, 'matchMedia', {
       writable: true,
@@ -246,6 +253,12 @@ describe('AppShell hosted workspace bootstrap', () => {
 
     runtimeMocks.captureLocalWorkspaceSnapshotForMigration.mockReset()
     runtimeMocks.getPersistenceRuntimeStart.mockReset()
+    runtimeMocks.getPersistenceRuntimeFlush.mockReset()
+    runtimeMocks.loadGoldenDemoWorkspace.mockReset()
+    runtimeMocks.loadGoldenDemoWorkspace.mockResolvedValue({
+      identityName: 'Maya Patel',
+      workspaceName: 'Maya Patel Golden Workspace',
+    })
     runtimeMocks.replacePersistenceRuntime.mockReset()
     remoteBackendMocks.createRemotePersistenceBackend.mockClear()
     locationMocks.reloadPage.mockReset()
@@ -554,8 +567,100 @@ describe('AppShell hosted workspace bootstrap', () => {
     expect(screen.getByTestId('app-shell-outlet')).toBeTruthy()
     expect(runtimeMocks.captureLocalWorkspaceSnapshotForMigration).not.toHaveBeenCalled()
     expect(screen.queryByRole('button', { name: /hosted workspaces/i })).toBeNull()
+    expect(screen.getByRole('button', { name: /^workspaces$/i })).toBeTruthy()
+    expect(document.querySelector('.app-topbar-workspace')?.textContent).toContain(
+      'Facet Local Workspace',
+    )
     expect(screen.queryByRole('button', { name: /retry hosted bootstrap/i })).toBeNull()
     expect(screen.queryByText(/connecting your hosted account/i)).toBeNull()
+  })
+
+  it('hides the local workspace badge while persistence is hydrating', () => {
+    useHostedAppStore.setState({
+      deploymentMode: 'self-hosted',
+      bootstrapStatus: 'ready',
+      mutationState: null,
+      endpoint: 'https://facet.example',
+      bearerToken: null,
+      context: null,
+      workspaces: [],
+      selectedWorkspaceId: null,
+      localMigrationSnapshot: null,
+      lastError: null,
+      lastErrorCode: null,
+      lastErrorReason: null,
+    })
+    setPersistenceHydration(false, 'facet-local-workspace')
+
+    render(<AppShell />)
+
+    expect(document.querySelector('.app-topbar-workspace')).toBeNull()
+  })
+
+  it('omits the demo workspace action outside development mode', () => {
+    vi.stubEnv('DEV', false)
+    useHostedAppStore.setState({
+      deploymentMode: 'self-hosted',
+      bootstrapStatus: 'ready',
+      mutationState: null,
+      endpoint: 'https://facet.example',
+      bearerToken: null,
+      context: null,
+      workspaces: [],
+      selectedWorkspaceId: null,
+      localMigrationSnapshot: null,
+      lastError: null,
+      lastErrorCode: null,
+      lastErrorReason: null,
+    })
+    setPersistenceHydration(true, 'facet-local-workspace')
+
+    render(<AppShell />)
+
+    fireEvent.click(screen.getByRole('button', { name: /^workspaces$/i }))
+
+    expect(screen.queryByRole('button', { name: /load demo workspace/i })).toBeNull()
+  })
+
+  it('opens local workspace controls from the sidebar and routes save and demo actions', async () => {
+    useHostedAppStore.setState({
+      deploymentMode: 'self-hosted',
+      bootstrapStatus: 'ready',
+      mutationState: null,
+      endpoint: 'https://facet.example',
+      bearerToken: null,
+      context: null,
+      workspaces: [],
+      selectedWorkspaceId: null,
+      localMigrationSnapshot: null,
+      lastError: null,
+      lastErrorCode: null,
+      lastErrorReason: null,
+    })
+    setPersistenceHydration(true, 'facet-local-workspace')
+    runtimeMocks.getPersistenceRuntimeFlush.mockResolvedValue(undefined)
+
+    render(<AppShell />)
+
+    fireEvent.click(screen.getByRole('button', { name: /^workspaces$/i }))
+
+    expect(screen.getByRole('heading', { name: /workspace controls/i })).toBeTruthy()
+    expect(screen.getByText(/local browser workspace/i)).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: /save now/i }))
+    await waitFor(() => {
+      expect(runtimeMocks.getPersistenceRuntimeFlush).toHaveBeenCalledTimes(1)
+    })
+    expect(screen.getByText(/workspace saved/i)).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: /load demo workspace/i }))
+    await waitFor(() => {
+      expect(runtimeMocks.loadGoldenDemoWorkspace).toHaveBeenCalledTimes(1)
+    })
+    expect(screen.getByText(/loaded maya patel's demo workspace/i)).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: /close dialog/i }))
+    expect(screen.queryByRole('dialog', { name: /workspace controls/i })).toBeNull()
   })
 
   it('shows a queued hosted pass in the account topbar while access is active', () => {
@@ -1223,7 +1328,7 @@ describe('AppShell hosted workspace bootstrap', () => {
       )
     })
 
-    fireEvent.click(screen.getByRole('button', { name: /hosted workspaces/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^workspaces$/i }))
     const dialog = screen.getByRole('dialog', { name: /hosted workspaces/i })
     const alternateCard = within(dialog)
       .getByText('Interview Workspace')
@@ -1278,7 +1383,7 @@ describe('AppShell hosted workspace bootstrap', () => {
       )
     })
 
-    fireEvent.click(screen.getByRole('button', { name: /hosted workspaces/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^workspaces$/i }))
     fireEvent.click(screen.getByRole('button', { name: /close dialog/i }))
 
     expect(screen.queryByRole('dialog', { name: /hosted workspaces/i })).toBeNull()

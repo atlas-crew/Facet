@@ -27,7 +27,7 @@ import { useCoverLetterStore } from '../store/coverLetterStore'
 import { IDENTITY_STORE_STORAGE_KEY } from '../store/identityStore'
 import { usePrepStore } from '../store/prepStore'
 import { useSearchStore } from '../store/searchStore'
-import type { FacetWorkspaceSnapshot } from '../persistence'
+import { DEFAULT_LOCAL_WORKSPACE_NAME, type FacetWorkspaceSnapshot } from '../persistence'
 import {
   captureLocalWorkspaceSnapshotForMigration,
   getPersistenceRuntime,
@@ -45,6 +45,7 @@ import { useIsAdmin } from '../hooks/useIsAdmin'
 import { findStaleArtifacts } from '../types/artifactMeta'
 import { FacetWordmark } from './FacetWordmark'
 import { HostedWorkspaceDialog } from './HostedWorkspaceDialog'
+import { LocalWorkspaceDialog } from './LocalWorkspaceDialog'
 import { PublicLandingPage } from '../routes/public/PublicLandingPage'
 
 const CURRENT_YEAR = new Date().getFullYear()
@@ -491,6 +492,14 @@ export function AppShell() {
     selectedHostedWorkspace?.workspaceId === activeHostedWorkspace?.workspaceId
       ? activeHostedWorkspace
       : null
+  const displayedWorkspace =
+    displayedHostedWorkspace ??
+    (hostedApp.deploymentMode !== 'hosted' && persistenceState.hydrated
+      ? {
+          workspaceId: persistenceState.status.activeWorkspaceId,
+          name: DEFAULT_LOCAL_WORKSPACE_NAME,
+        }
+      : null)
 
   useEffect(() => {
     if (hostedApp.deploymentMode !== 'hosted') {
@@ -626,6 +635,17 @@ export function AppShell() {
     useHostedAppStore.getState().selectWorkspace(workspaceId)
     setWorkspaceDialogOpen(false)
   }
+
+  const handleSaveLocalWorkspaceNow = async () => {
+    await getPersistenceRuntime().flush()
+  }
+
+  const handleLoadDemoWorkspace = import.meta.env.DEV
+    ? async () => {
+        const { loadGoldenDemoWorkspace } = await import('../dev/goldenDemoWorkspace')
+        return loadGoldenDemoWorkspace()
+      }
+    : undefined
 
   const handleHostedBootstrapRetry = () =>
     void useHostedAppStore.getState().bootstrap({
@@ -894,22 +914,19 @@ export function AppShell() {
         </div>
 
         <div className="sidebar-bottom">
-          {hostedApp.deploymentMode === 'hosted' ? (
-            <button
-              className="sidebar-nav-item"
-              type="button"
-              onClick={() => setWorkspaceDialogOpen(true)}
-              aria-label="Hosted workspaces"
-              title="Workspaces"
-            >
-              <HardDrive size={18} strokeWidth={1.5} />
-              <span className="sidebar-nav-label">Workspaces</span>
-            </button>
-          ) : null}
+          <button
+            className="sidebar-nav-item"
+            type="button"
+            onClick={() => setWorkspaceDialogOpen(true)}
+            title="Workspaces"
+          >
+            <HardDrive size={18} strokeWidth={1.5} />
+            <span className="sidebar-nav-label">Workspaces</span>
+          </button>
           <Link
             to="/help"
             className={`sidebar-nav-item ${isHelpRoute ? 'active' : ''}`}
-            title="Help"
+            title="Help and docs"
           >
             <HelpCircle size={18} strokeWidth={1.5} />
             <span className="sidebar-nav-label">Help</span>
@@ -931,10 +948,13 @@ export function AppShell() {
             </div>
           </div>
           <div className="app-topbar-actions">
-            {displayedHostedWorkspace ? (
-              <span className="app-topbar-workspace" title={displayedHostedWorkspace.workspaceId}>
+            {displayedWorkspace ? (
+              <span
+                className="app-topbar-workspace"
+                title={displayedWorkspace.workspaceId ?? undefined}
+              >
                 <span className="app-topbar-workspace-label">Workspace:</span>{' '}
-                {displayedHostedWorkspace.name}
+                {displayedWorkspace.name}
               </span>
             ) : null}
             <div
@@ -1004,22 +1024,32 @@ export function AppShell() {
         </footer>
       </div>
 
-      <HostedWorkspaceDialog
-        open={workspaceDialogOpen}
-        email={hostedApp.context?.actor.email ?? null}
-        entitlement={hostedApp.context?.entitlement ?? null}
-        workspaces={hostedApp.workspaces}
-        selectedWorkspaceId={hostedApp.selectedWorkspaceId}
-        localMigrationAvailable={hostedApp.localMigrationSnapshot !== null}
-        mutationState={hostedApp.mutationState}
-        lastError={hostedApp.lastError}
-        onClose={() => setWorkspaceDialogOpen(false)}
-        onRefresh={() => useHostedAppStore.getState().refresh()}
-        onSelectWorkspace={handleSelectHostedWorkspace}
-        onCreateWorkspace={handleCreateHostedWorkspace}
-        onRenameWorkspace={handleRenameHostedWorkspace}
-        onDeleteWorkspace={handleDeleteHostedWorkspace}
-      />
+      {hostedApp.deploymentMode === 'hosted' ? (
+        <HostedWorkspaceDialog
+          open={workspaceDialogOpen}
+          email={hostedApp.context?.actor.email ?? null}
+          entitlement={hostedApp.context?.entitlement ?? null}
+          workspaces={hostedApp.workspaces}
+          selectedWorkspaceId={hostedApp.selectedWorkspaceId}
+          localMigrationAvailable={hostedApp.localMigrationSnapshot !== null}
+          mutationState={hostedApp.mutationState}
+          lastError={hostedApp.lastError}
+          onClose={() => setWorkspaceDialogOpen(false)}
+          onRefresh={() => useHostedAppStore.getState().refresh()}
+          onSelectWorkspace={handleSelectHostedWorkspace}
+          onCreateWorkspace={handleCreateHostedWorkspace}
+          onRenameWorkspace={handleRenameHostedWorkspace}
+          onDeleteWorkspace={handleDeleteHostedWorkspace}
+        />
+      ) : (
+        <LocalWorkspaceDialog
+          open={workspaceDialogOpen}
+          status={persistenceState.status}
+          onClose={() => setWorkspaceDialogOpen(false)}
+          onSaveNow={handleSaveLocalWorkspaceNow}
+          onLoadDemoWorkspace={handleLoadDemoWorkspace}
+        />
+      )}
       {crossTabIdentityToast ? (
         <div
           className="toast info"
