@@ -142,7 +142,7 @@
 .identity-deepen-callout {
   display: grid;
   gap: var(--space-2);
-  padding: var(--space-3);
+  padding: var(--space-4);
   border: 1px solid color-mix(in srgb, var(--accent-primary) 36%, var(--border-subtle));
   border-radius: 8px;
   background: color-mix(in srgb, var(--accent-primary) 7%, var(--bg-surface));
@@ -809,6 +809,12 @@
   padding: var(--space-4);
 }
 
+.identity-scan-status {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
 .identity-source-list {
   list-style: none;
   margin: var(--space-3) 0 0;
@@ -1108,7 +1114,6 @@
   align-items: baseline;
   justify-content: space-between;
   gap: var(--space-2);
-  margin-bottom: var(--space-3);
   flex-wrap: wrap;
 }
 
