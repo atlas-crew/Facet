@@ -1,6 +1,8 @@
-import { useEffect } from 'react'
-import { ArrowRight, Github, LockKeyhole, Sparkles, Workflow } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Link } from '@tanstack/react-router'
+import { ArrowRight, Github, LockKeyhole, Sparkles, Workflow, X } from 'lucide-react'
 import { signInWithGitHub } from '../../utils/hostedSession'
+import { useFocusTrap } from '../../utils/useFocusTrap'
 import './publicLanding.css'
 
 const heroImage = new URL('../../../brand/exports/hero/facet-primary-hero.webp', import.meta.url)
@@ -28,6 +30,44 @@ const PRESS_EMAIL = 'mailto:nick@atlascrew.dev'
 const landingTitle = 'Facet | Same diamond, different face'
 const landingDescription =
   'Facet builds a durable professional model and recuts it into resumes, letters, LinkedIn copy, recruiter cards, and prep for each opportunity.'
+
+const modelGraphics = [
+  {
+    id: 'identity',
+    title: 'Identity',
+    description: 'Roles, projects, skills, preferences, and narrative stay in one model.',
+    image: identityImage,
+    alt: 'Facet identity graphic showing a dark workspace model anchored by a bright crystal.',
+    Icon: Sparkles,
+  },
+  {
+    id: 'vectors',
+    title: 'Vectors',
+    description: 'Positioning angles let the same model become different professional faces.',
+    image: vectorsImage,
+    alt: 'Facet vectors graphic showing multiple professional positioning cards connected to a central crystal.',
+    Icon: Workflow,
+  },
+  {
+    id: 'system',
+    title: 'System',
+    description: 'Research, pipeline, prep, and outputs share context instead of drifting apart.',
+    image: systemImage,
+    alt: 'Facet system graphic showing connected career artifacts around a glowing crystal.',
+    Icon: LockKeyhole,
+  },
+]
+
+type ModelGraphic = (typeof modelGraphics)[number]
+
+interface PublicNavProps {
+  links: Array<{ href: string; label: string }>
+  ctaLabel?: string
+  showGithubIcon?: boolean
+}
+
+const isPublicRouteHref = (href: string): href is '/' | '/terms' | '/privacy' =>
+  href === '/' || href === '/terms' || href === '/privacy'
 
 type MetaSnapshot = {
   node: HTMLMetaElement
@@ -104,29 +144,65 @@ function PublicLandingMetadata() {
   return null
 }
 
-export function PublicLandingPage() {
+export function PublicNav({
+  links,
+  ctaLabel = 'Start with GitHub',
+  showGithubIcon = true,
+}: PublicNavProps) {
   const handleSignIn = () => {
     void signInWithGitHub()
   }
 
   return (
+    <nav className="public-nav" aria-label="Public navigation">
+      <Link className="public-wordmark" to="/" aria-label="Facet home">
+        Facet
+      </Link>
+      <div className="public-nav-links">
+        {links.map((link) =>
+          isPublicRouteHref(link.href) ? (
+            <Link key={link.href} to={link.href}>
+              {link.label}
+            </Link>
+          ) : (
+            <a key={link.href} href={link.href}>
+              {link.label}
+            </a>
+          ),
+        )}
+      </div>
+      <button className="public-nav-cta" type="button" onClick={handleSignIn}>
+        {showGithubIcon ? <Github size={16} strokeWidth={1.8} aria-hidden="true" /> : null}
+        {ctaLabel}
+      </button>
+    </nav>
+  )
+}
+
+export function PublicLandingPage() {
+  const [selectedGraphic, setSelectedGraphic] = useState<ModelGraphic | null>(null)
+  const graphicDialogRef = useRef<HTMLDivElement>(null)
+
+  useFocusTrap(Boolean(selectedGraphic), graphicDialogRef, () => setSelectedGraphic(null))
+
+  const handleSignIn = () => {
+    void signInWithGitHub()
+  }
+
+  const openGraphic = (graphic: ModelGraphic) => setSelectedGraphic(graphic)
+
+  return (
     <main className="public-landing">
       <PublicLandingMetadata />
-      <nav className="public-nav" aria-label="Public navigation">
-        <a className="public-wordmark" href="/" aria-label="Facet home">
-          Facet
-        </a>
-        <div className="public-nav-links">
-          <a href="#method">Method</a>
-          <a href="#trust">Trust</a>
-          <a href="#pricing">Pricing</a>
-          <a href="/privacy">Privacy</a>
-        </div>
-        <button className="public-nav-cta" type="button" onClick={handleSignIn}>
-          <Github size={16} strokeWidth={1.8} aria-hidden="true" />
-          Start with GitHub
-        </button>
-      </nav>
+      <PublicNav
+        links={[
+          { href: '#method', label: 'Method' },
+          { href: '#trust', label: 'Trust' },
+          { href: '#pricing', label: 'Pricing' },
+          { href: '/terms', label: 'Terms' },
+          { href: '/privacy', label: 'Privacy' },
+        ]}
+      />
 
       <section className="public-hero" aria-labelledby="public-hero-title">
         <img className="public-hero-image" src={heroImage} alt="" aria-hidden="true" />
@@ -182,30 +258,26 @@ export function PublicLandingPage() {
           <h2 id="public-model-title">The same evidence powers every cut.</h2>
         </div>
         <div className="public-model-grid">
-          <article className="public-model-card">
-            <img src={identityImage} alt="" aria-hidden="true" />
-            <div>
-              <Sparkles size={18} strokeWidth={1.7} aria-hidden="true" />
-              <h3>Identity</h3>
-              <p>Roles, projects, skills, preferences, and narrative stay in one model.</p>
-            </div>
-          </article>
-          <article className="public-model-card">
-            <img src={vectorsImage} alt="" aria-hidden="true" />
-            <div>
-              <Workflow size={18} strokeWidth={1.7} aria-hidden="true" />
-              <h3>Vectors</h3>
-              <p>Positioning angles let the same model become different professional faces.</p>
-            </div>
-          </article>
-          <article className="public-model-card">
-            <img src={systemImage} alt="" aria-hidden="true" />
-            <div>
-              <LockKeyhole size={18} strokeWidth={1.7} aria-hidden="true" />
-              <h3>System</h3>
-              <p>Research, pipeline, prep, and outputs share context instead of drifting apart.</p>
-            </div>
-          </article>
+          {modelGraphics.map((graphic) => {
+            const Icon = graphic.Icon
+            return (
+              <article key={graphic.id} className="public-model-card">
+                <button
+                  className="public-model-card-action"
+                  type="button"
+                  onClick={() => openGraphic(graphic)}
+                >
+                  <img src={graphic.image} alt="" aria-hidden="true" />
+                  <span className="public-model-card-body">
+                    <Icon size={18} strokeWidth={1.7} aria-hidden="true" />
+                    <span className="sr-only">View full graphic: </span>
+                    <span className="public-model-card-title">{graphic.title}</span>
+                    <span className="public-model-card-description">{graphic.description}</span>
+                  </span>
+                </button>
+              </article>
+            )
+          })}
         </div>
       </section>
 
@@ -245,6 +317,32 @@ export function PublicLandingPage() {
           Start with GitHub
         </button>
       </section>
+      {selectedGraphic ? (
+        <div className="public-graphic-overlay" onClick={() => setSelectedGraphic(null)}>
+          <div
+            className="public-graphic-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="public-graphic-title"
+            ref={graphicDialogRef}
+            tabIndex={-1}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header className="public-graphic-header">
+              <h3 id="public-graphic-title">{selectedGraphic.title}</h3>
+              <button
+                className="public-graphic-close"
+                type="button"
+                onClick={() => setSelectedGraphic(null)}
+                aria-label="Close full graphic"
+              >
+                <X size={18} strokeWidth={1.8} aria-hidden="true" />
+              </button>
+            </header>
+            <img src={selectedGraphic.image} alt={selectedGraphic.alt} />
+          </div>
+        </div>
+      ) : null}
     </main>
   )
 }

@@ -1054,6 +1054,29 @@ describe('AppShell hosted workspace bootstrap', () => {
     expect(screen.queryByText(/hosted sign-in required/i)).toBeNull()
   })
 
+  it.each(['/terms', '/privacy'])(
+    'renders public legal routes without a hosted session: %s',
+    (path) => {
+      routerMocks.currentPath = path
+      setHostedStore({
+        bootstrapStatus: 'auth-required',
+        workspaces: [],
+        selectedWorkspaceId: null,
+        context: null,
+        bearerToken: null,
+        lastError: 'Hosted sign-in is required before we can load your account.',
+        lastErrorCode: 'auth_required',
+      })
+
+      render(<AppShell />)
+
+      expect(screen.getByRole('navigation', { name: /public navigation/i })).toBeTruthy()
+      expect(screen.getByTestId('app-shell-outlet')).toBeTruthy()
+      expect(screen.queryByRole('navigation', { name: /main navigation/i })).toBeNull()
+      expect(screen.queryByText(/hosted sign-in required/i)).toBeNull()
+    },
+  )
+
   it('keeps the hosted sign-in blocker inside the shell on non-root routes', () => {
     routerMocks.currentPath = '/build'
     setHostedStore({

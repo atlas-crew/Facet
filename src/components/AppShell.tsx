@@ -46,7 +46,7 @@ import { findStaleArtifacts } from '../types/artifactMeta'
 import { FacetWordmark } from './FacetWordmark'
 import { HostedWorkspaceDialog } from './HostedWorkspaceDialog'
 import { LocalWorkspaceDialog } from './LocalWorkspaceDialog'
-import { PublicLandingPage } from '../routes/public/PublicLandingPage'
+import { PublicLandingPage, PublicNav } from '../routes/public/PublicLandingPage'
 
 const CURRENT_YEAR = new Date().getFullYear()
 const AI_ENABLED = Boolean(facetClientEnv.anthropicProxyUrl)
@@ -61,6 +61,7 @@ const AI_ROUTES: ReadonlySet<string> = new Set([
 ])
 const HELP_ROUTE = '/help' as const
 const HOME_ROUTE = '/' as const
+const PUBLIC_LEGAL_ROUTES: ReadonlySet<string> = new Set(['/terms', '/privacy'])
 const CROSS_TAB_IDENTITY_REVIEW_HREF = '/research?review=stale'
 const CROSS_TAB_IDENTITY_TOAST_MS = 8000
 
@@ -237,6 +238,7 @@ export function AppShell() {
   const currentPath = routerState.location.pathname
   const isHelpRoute = isRouteActive(currentPath, HELP_ROUTE)
   const isHomeRoute = currentPath === HOME_ROUTE
+  const isPublicLegalRoute = PUBLIC_LEGAL_ROUTES.has(currentPath)
   const visibleNavItems = useMemo(
     // Filter inputs are module constants, so this list is stable for the life of the app shell.
     () =>
@@ -872,6 +874,29 @@ export function AppShell() {
     hostedApp.bootstrapStatus === 'auth-required'
   ) {
     return <PublicLandingPage />
+  }
+
+  if (
+    isPublicLegalRoute &&
+    hostedApp.deploymentMode === 'hosted' &&
+    hostedApp.bootstrapStatus === 'auth-required'
+  ) {
+    return (
+      <main className="public-landing public-legal-shell">
+        <PublicNav
+          links={[
+            { href: '/', label: 'Home' },
+            { href: '/terms', label: 'Terms' },
+            { href: '/privacy', label: 'Privacy' },
+          ]}
+          ctaLabel="Sign in"
+          showGithubIcon={false}
+        />
+        <div className="public-legal-content">
+          <Outlet />
+        </div>
+      </main>
+    )
   }
 
   return (

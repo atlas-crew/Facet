@@ -206,7 +206,7 @@
 
 .public-hero-body,
 .public-section-copy p,
-.public-model-card p,
+.public-model-card-description,
 .public-trust p {
   margin: 0;
   color: var(--text-secondary);
@@ -296,7 +296,31 @@
   border-bottom: 1px solid var(--border-subtle);
 }
 
-.public-model-card div,
+.public-model-card-action {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: zoom-in;
+  transition:
+    background var(--duration-fast) var(--easing),
+    transform var(--duration-fast) var(--easing);
+}
+
+.public-model-card:hover {
+  border-color: var(--border-strong);
+}
+
+.public-model-card-action:hover {
+  background: var(--bg-surface-hover);
+  transform: translateY(-2px);
+}
+
+.public-model-card-body,
 .public-trust article {
   display: flex;
   flex-direction: column;
@@ -308,11 +332,18 @@
   color: var(--accent-primary);
 }
 
-.public-model-card h3 {
+.public-model-card-title {
   margin: 0;
   color: var(--text-primary);
   font-size: 22px;
+  font-weight: 700;
   line-height: 1.2;
+}
+
+.public-model-card-description {
+  color: var(--text-secondary);
+  font-size: 16px;
+  line-height: 1.55;
 }
 
 .public-trust {
@@ -338,8 +369,83 @@
   border-top: 1px solid var(--border-subtle);
 }
 
+.public-graphic-overlay {
+  position: fixed;
+  z-index: 20;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  background: rgba(5, 7, 10, 0.86);
+}
+
+.public-graphic-dialog {
+  width: min(1120px, 100%);
+  max-height: calc(100svh - 32px);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-lg);
+}
+
+.public-graphic-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.public-graphic-header h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 17px;
+  line-height: 1.2;
+}
+
+.public-graphic-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-inset);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.public-graphic-dialog img {
+  width: 100%;
+  height: 100%;
+  max-height: calc(100svh - 108px);
+  object-fit: contain;
+  background: var(--bg-primary);
+}
+
+.public-legal-shell {
+  padding-top: 88px;
+}
+
+.public-legal-content {
+  width: min(920px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: var(--space-8) 0;
+}
+
+.public-legal-content .legal-page {
+  max-width: 820px;
+  padding: 0;
+}
+
 .public-landing a:focus-visible,
-.public-landing button:focus-visible {
+.public-landing button:focus-visible,
+.public-landing [role='button']:focus-visible {
   outline: 2px solid var(--focus-ring-color);
   outline-offset: 3px;
 }
@@ -403,7 +509,7 @@
 
   .public-hero-body,
   .public-section-copy p,
-  .public-model-card p,
+  .public-model-card-description,
   .public-trust p {
     font-size: 15px;
   }
