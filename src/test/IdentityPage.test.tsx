@@ -212,6 +212,14 @@ const uploadPdf = (container: HTMLElement, fileName = 'resume.pdf') => {
   })
 }
 
+const openOptionalContextSources = () => {
+  const toggle = screen.getByRole('button', { name: /Optional Context Sources/i })
+  if (toggle.getAttribute('aria-expanded') !== 'true') {
+    fireEvent.click(toggle)
+  }
+  return toggle
+}
+
 const flushMicrotasks = async (count = 3) => {
   // rejection handler -> store write -> React/store follow-on microtask before assertions
   for (let index = 0; index < count; index += 1) {
@@ -347,7 +355,9 @@ describe('IdentityPage', () => {
     expect(screen.getByText(/Inferred: Recruiter/)).toBeTruthy()
     expect(screen.getByText(/Asserted: Unclassified/)).toBeTruthy()
 
-    fireEvent.click(screen.getByLabelText('Candidate audience for Requirements: Platform ownership'))
+    fireEvent.click(
+      screen.getByLabelText('Candidate audience for Requirements: Platform ownership'),
+    )
 
     const updatedAnalysis = useJDAnalysisStore.getState().analyses[0]
     expect(updatedAnalysis?.requirements[0]?.audiences.asserted).toEqual(['candidate'])
@@ -382,8 +392,12 @@ describe('IdentityPage', () => {
         'Saved audiences for "Requirements: Platform ownership": Recruiter, Hiring Manager, Internal.',
       ),
     ).toBeTruthy()
-    fireEvent.click(screen.getByLabelText('Recruiter audience for Requirements: Platform ownership'))
-    fireEvent.click(screen.getByLabelText('Hiring Manager audience for Requirements: Platform ownership'))
+    fireEvent.click(
+      screen.getByLabelText('Recruiter audience for Requirements: Platform ownership'),
+    )
+    fireEvent.click(
+      screen.getByLabelText('Hiring Manager audience for Requirements: Platform ownership'),
+    )
 
     const updatedAnalysis = useJDAnalysisStore.getState().analyses[0]
     expect(updatedAnalysis?.requirements[0]?.audiences.inferred).toEqual([
@@ -1075,6 +1089,38 @@ describe('IdentityPage', () => {
     ).toBeTruthy()
   })
 
+  it('keeps optional context sources collapsed until requested', () => {
+    render(<IdentityPage />)
+
+    const contextToggle = screen.getByRole('button', {
+      name: /Optional Context Sources 0 added/i,
+    })
+    const contextBodyId = contextToggle.getAttribute('aria-controls')
+    const contextBody = document.getElementById(contextBodyId ?? '')
+    const labelledByIds = contextToggle.getAttribute('aria-labelledby')?.split(' ') ?? []
+    const describedById = contextToggle.getAttribute('aria-describedby')
+
+    expect(contextBody).toBeTruthy()
+    expect(contextBody?.hidden).toBe(true)
+    expect(contextBody?.getAttribute('aria-labelledby')).toBe(contextToggle.id)
+    expect(labelledByIds.every((id) => Boolean(document.getElementById(id)))).toBe(true)
+    expect(document.getElementById(describedById ?? '')).toBeTruthy()
+    expect(contextToggle.getAttribute('aria-expanded')).toBe('false')
+    expect(screen.queryByLabelText('Pasted AI export narrative')).toBeNull()
+
+    fireEvent.click(contextToggle)
+
+    expect(contextToggle.getAttribute('aria-expanded')).toBe('true')
+    expect(contextBody?.hidden).toBe(false)
+    expect(screen.getByLabelText('Pasted AI export narrative')).toBeTruthy()
+
+    fireEvent.click(contextToggle)
+
+    expect(contextToggle.getAttribute('aria-expanded')).toBe('false')
+    expect(contextBody?.hidden).toBe(true)
+    expect(screen.queryByLabelText('Pasted AI export narrative')).toBeNull()
+  })
+
   it('accepts optional AI export and brag doc context without blocking resume-only generation', async () => {
     const clipboardWriteMock = vi.fn(async () => undefined)
     Object.defineProperty(navigator, 'clipboard', {
@@ -1086,6 +1132,7 @@ describe('IdentityPage', () => {
     })
 
     const { container } = render(<IdentityPage />)
+    openOptionalContextSources()
 
     fireEvent.click(screen.getByRole('button', { name: 'Copy Prompt' }))
     await waitFor(() => {
@@ -1103,6 +1150,7 @@ describe('IdentityPage', () => {
     })
     fireEvent.click(screen.getByLabelText('I reviewed this AI export preview.'))
     fireEvent.click(screen.getByRole('button', { name: 'Add AI Context' }))
+    expect(screen.getByRole('button', { name: /Optional Context Sources 1 added/i })).toBeTruthy()
     expect((screen.getByLabelText('Pasted AI export narrative') as HTMLTextAreaElement).value).toBe(
       '',
     )
@@ -1111,6 +1159,7 @@ describe('IdentityPage', () => {
       target: { value: 'Reduced incident response time by 40% across the platform.' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Add Brag Doc' }))
+    expect(screen.getByRole('button', { name: /Optional Context Sources 2 added/i })).toBeTruthy()
     expect((screen.getByLabelText('Pasted brag doc text') as HTMLTextAreaElement).value).toBe('')
 
     const bragInput = container.querySelector('input[accept="text/plain,text/markdown,.txt,.md"]')
@@ -1175,6 +1224,7 @@ describe('IdentityPage', () => {
 
   it('rejects oversized brag doc uploads before reading file text', async () => {
     const { container } = render(<IdentityPage />)
+    openOptionalContextSources()
     const bragInput = container.querySelector('input[accept="text/plain,text/markdown,.txt,.md"]')
     const oversized = new File(['small'], 'huge-brag.md', { type: 'text/markdown' })
     Object.defineProperty(oversized, 'size', { value: 3 * 1024 * 1024 })
@@ -1195,6 +1245,7 @@ describe('IdentityPage', () => {
 
   it('rejects unsupported brag doc upload formats before reading file text', async () => {
     const { container } = render(<IdentityPage />)
+    openOptionalContextSources()
     const bragInput = container.querySelector('input[accept="text/plain,text/markdown,.txt,.md"]')
     const imageFile = new File(['binary-ish'], 'brag.png', { type: 'image/png' })
     const textSpy = vi.spyOn(imageFile, 'text')
@@ -1216,6 +1267,7 @@ describe('IdentityPage', () => {
 
   it('rejects empty brag doc uploads', async () => {
     const { container } = render(<IdentityPage />)
+    openOptionalContextSources()
     const bragInput = container.querySelector('input[accept="text/plain,text/markdown,.txt,.md"]')
 
     fireEvent.change(bragInput as HTMLInputElement, {
@@ -1232,6 +1284,7 @@ describe('IdentityPage', () => {
 
   it('rejects brag doc uploads that exceed the text character limit after reading', async () => {
     const { container } = render(<IdentityPage />)
+    openOptionalContextSources()
     const bragInput = container.querySelector('input[accept="text/plain,text/markdown,.txt,.md"]')
 
     fireEvent.change(bragInput as HTMLInputElement, {
@@ -1248,6 +1301,7 @@ describe('IdentityPage', () => {
 
   it('rejects brag doc uploads that exceed the token budget after reading', async () => {
     const { container } = render(<IdentityPage />)
+    openOptionalContextSources()
     const bragInput = container.querySelector('input[accept="text/plain,text/markdown,.txt,.md"]')
 
     fireEvent.change(bragInput as HTMLInputElement, {
@@ -1277,6 +1331,7 @@ describe('IdentityPage', () => {
       ],
     })
     render(<IdentityPage />)
+    openOptionalContextSources()
 
     fireEvent.change(screen.getByLabelText('Pasted brag doc text'), {
       target: { value: 'b'.repeat(60_000) },
@@ -1293,6 +1348,7 @@ describe('IdentityPage', () => {
 
   it('rejects oversized pasted supplemental context without truncating into state', () => {
     render(<IdentityPage />)
+    openOptionalContextSources()
 
     fireEvent.change(screen.getByLabelText('Pasted AI export narrative'), {
       target: { value: 'a'.repeat(100_001) },
@@ -1308,6 +1364,7 @@ describe('IdentityPage', () => {
 
   it('rejects oversized pasted brag doc context without truncating into state', () => {
     render(<IdentityPage />)
+    openOptionalContextSources()
 
     fireEvent.change(screen.getByLabelText('Pasted brag doc text'), {
       target: { value: 'a'.repeat(100_001) },
@@ -1319,6 +1376,7 @@ describe('IdentityPage', () => {
 
   it('rejects pasted brag doc context above the per-paste token budget', () => {
     render(<IdentityPage />)
+    openOptionalContextSources()
 
     fireEvent.change(screen.getByLabelText('Pasted brag doc text'), {
       target: { value: 'a'.repeat(80_001) },
@@ -1335,6 +1393,7 @@ describe('IdentityPage', () => {
 
   it('keeps pasted context add actions disabled for empty or whitespace input', () => {
     render(<IdentityPage />)
+    openOptionalContextSources()
 
     const addAiContextButton = screen.getByRole('button', { name: 'Add AI Context' })
     const addBragDocButton = screen.getByRole('button', { name: 'Add Brag Doc' })
@@ -1355,6 +1414,7 @@ describe('IdentityPage', () => {
 
   it('previews suspicious AI exports and requires confirmation before adding context', () => {
     render(<IdentityPage />)
+    openOptionalContextSources()
 
     fireEvent.change(screen.getByLabelText('Pasted AI export narrative'), {
       target: {
@@ -1390,6 +1450,7 @@ describe('IdentityPage', () => {
 
   it('rejects pasted AI export context above the per-paste token budget', () => {
     render(<IdentityPage />)
+    openOptionalContextSources()
 
     fireEvent.change(screen.getByLabelText('Pasted AI export narrative'), {
       target: { value: 'a'.repeat(80_001) },
@@ -1416,6 +1477,7 @@ describe('IdentityPage', () => {
     })
 
     render(<IdentityPage />)
+    openOptionalContextSources()
 
     fireEvent.click(screen.getByRole('button', { name: 'Copy Prompt' }))
 
@@ -1430,6 +1492,7 @@ describe('IdentityPage', () => {
 
   it('synthesizes scanned resumes while passing supplemental context separately', async () => {
     const { container } = render(<IdentityPage />)
+    openOptionalContextSources()
     uploadPdf(container)
 
     await waitFor(() => {
@@ -1478,6 +1541,8 @@ describe('IdentityPage', () => {
     })
 
     render(<IdentityPage />)
+    const contextToggle = openOptionalContextSources()
+    expect(contextToggle.getAttribute('aria-expanded')).toBe('true')
 
     const contextList = screen.getByRole('list', { name: 'Supplemental context sources' })
     expect(within(contextList).getByText('AI conversation export')).toBeTruthy()

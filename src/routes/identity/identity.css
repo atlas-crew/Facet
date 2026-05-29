@@ -1,10 +1,10 @@
 .identity-page {
-  padding: var(--space-4) var(--space-6);
+  padding: var(--space-6) clamp(var(--space-4), 4vw, var(--space-8)) var(--space-8);
   max-width: 1280px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-6);
   height: 100%;
   overflow-y: auto;
 }
@@ -95,7 +95,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
   gap: var(--space-4);
-  padding: var(--space-5) 0;
+  padding: var(--space-6) var(--space-4);
   border-block: 1px solid var(--border-subtle);
 }
 
@@ -358,10 +358,10 @@
     color-mix(in srgb, var(--accent-primary) 4%, var(--bg-surface)) 0%,
     var(--bg-surface) 100%
   );
-  padding: var(--space-4);
+  padding: var(--space-6);
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-4);
 }
 
 .identity-card-secondary {
@@ -612,7 +612,32 @@
 
   .identity-onboarding-guide {
     grid-template-columns: minmax(0, 1fr);
-    padding: var(--space-4) 0;
+    padding: var(--space-4);
+  }
+}
+
+@media (max-width: 640px) {
+  .identity-card,
+  .identity-upload-zone,
+  .identity-scan-status,
+  .identity-scan-card,
+  .identity-scan-section,
+  .identity-context-toggle,
+  .identity-context-card {
+    padding: var(--space-3);
+  }
+
+  .identity-context-body {
+    padding: 0 var(--space-3) var(--space-3);
+  }
+
+  .identity-context-toggle {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .identity-context-toggle > .identity-source-card-badge {
+    grid-column: 2;
+    width: fit-content;
   }
 }
 
@@ -751,7 +776,7 @@
   border-radius: 14px;
   background: color-mix(in srgb, var(--accent-primary) 6%, var(--bg-surface));
   color: var(--text-primary);
-  padding: var(--space-4);
+  padding: var(--space-6);
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -781,7 +806,7 @@
   border: 1px solid var(--border-subtle);
   border-radius: 12px;
   background: color-mix(in srgb, var(--bg-inset) 86%, transparent);
-  padding: var(--space-3);
+  padding: var(--space-4);
 }
 
 .identity-source-list {
@@ -881,10 +906,68 @@
   border: 1px solid var(--border-subtle);
   border-radius: 12px;
   background: color-mix(in srgb, var(--bg-inset) 78%, transparent);
-  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.identity-context-heading {
+  margin: 0;
+}
+
+.identity-context-toggle {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-3);
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  padding: var(--space-4);
+  text-align: left;
+  cursor: pointer;
+}
+
+.identity-context-toggle:hover {
+  background: color-mix(in srgb, var(--accent-primary) 5%, transparent);
+}
+
+.identity-context-toggle:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: -2px;
+  background: color-mix(in srgb, var(--accent-primary) 7%, transparent);
+}
+
+.identity-context-toggle > svg {
+  margin-top: 2px;
+}
+
+.identity-context-toggle-copy {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.identity-context-toggle-copy strong {
+  color: var(--text-primary);
+}
+
+.identity-context-toggle-copy span {
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.identity-context-body {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  padding: 0 var(--space-4) var(--space-4);
+}
+
+.identity-context-body[hidden] {
+  display: none;
 }
 
 .identity-context-grid {
@@ -897,7 +980,7 @@
   border: 1px solid var(--border-subtle);
   border-radius: 12px;
   background: var(--bg-surface);
-  padding: var(--space-3);
+  padding: var(--space-4);
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -1274,7 +1357,7 @@
 
 @media (max-width: 640px) {
   .identity-page {
-    padding: var(--space-3);
+    padding: var(--space-4) var(--space-3) var(--space-6);
   }
 
   .identity-stats {

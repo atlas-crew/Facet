@@ -1,6 +1,8 @@
 import {
   AlertCircle,
   Check,
+  ChevronDown,
+  ChevronRight,
   Clipboard,
   FileText,
   RefreshCcw,
@@ -11,6 +13,7 @@ import {
 } from 'lucide-react'
 import {
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -187,12 +190,20 @@ export function ExtractionAgentCard({
 }: ExtractionAgentCardProps) {
   const bragDocUploadRef = useRef<HTMLInputElement>(null)
   const copyResetTimeoutRef = useRef<number | null>(null)
+  const optionalContextId = useId()
+  const optionalContextHeadingId = `${optionalContextId}-heading`
+  const optionalContextToggleId = `${optionalContextId}-toggle`
+  const optionalContextTitleId = `${optionalContextId}-title`
+  const optionalContextCountId = `${optionalContextId}-count`
+  const optionalContextDescriptionId = `${optionalContextId}-description`
+  const optionalContextBodyId = `${optionalContextId}-body`
   const [agentExportText, setAgentExportText] = useState('')
   const [agentExportReviewed, setAgentExportReviewed] = useState(false)
   const [bragDocText, setBragDocText] = useState('')
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle')
   const [agentExportInputError, setAgentExportInputError] = useState<string | null>(null)
   const [bragDocInputError, setBragDocInputError] = useState<string | null>(null)
+  const [isOptionalContextOpen, setIsOptionalContextOpen] = useState(false)
   const hasRunningBullet = scanResult
     ? Object.values(scanResult.progress.bullets).some((progress) => progress.status === 'running')
     : false
@@ -397,195 +408,237 @@ export function ExtractionAgentCard({
             variants give Facet denser canonical bullet fields, which improves JD-tailored
             regeneration later. OCR and image-only sources are out of scope for this pass.
           </p>
-          <div className="identity-context-panel" aria-labelledby="identity-context-heading">
-            <div className="identity-stack">
-              <h3 id="identity-context-heading">Optional Context Sources</h3>
-              <p className="identity-muted">
-                The more context Facet has, the sharper the first draft gets. AI exports typically
-                reduce setup by 60%; brag docs add accomplishment detail that resumes compress.
-              </p>
-            </div>
-
-            <div className="identity-context-grid">
-              <div className="identity-context-card">
-                <div className="identity-source-card-row">
-                  <Clipboard size={16} aria-hidden="true" />
-                  <strong>AI conversation export</strong>
-                  <button
-                    className="identity-btn"
-                    type="button"
-                    onClick={() => void copyExportPrompt()}
-                  >
-                    {copyStatus === 'copied' ? <Check size={16} /> : <Clipboard size={16} />}
-                    {copyStatus === 'copied' ? 'Copied' : 'Copy Prompt'}
-                  </button>
-                  <span className="sr-only" aria-live="polite">
-                    {copyStatus === 'copied' ? 'AI export prompt copied to clipboard.' : ''}
+          <div
+            className="identity-context-panel"
+            role="group"
+            aria-labelledby={optionalContextHeadingId}
+          >
+            <h3 id={optionalContextHeadingId} className="identity-context-heading">
+              <button
+                id={optionalContextToggleId}
+                className="identity-context-toggle"
+                type="button"
+                aria-expanded={isOptionalContextOpen}
+                aria-controls={optionalContextBodyId}
+                aria-labelledby={`${optionalContextTitleId} ${optionalContextCountId}`}
+                aria-describedby={optionalContextDescriptionId}
+                onClick={() => setIsOptionalContextOpen((current) => !current)}
+              >
+                {isOptionalContextOpen ? (
+                  <ChevronDown size={16} aria-hidden="true" />
+                ) : (
+                  <ChevronRight size={16} aria-hidden="true" />
+                )}
+                <span className="identity-context-toggle-copy">
+                  <strong id={optionalContextTitleId}>Optional Context Sources</strong>
+                  <span id={optionalContextDescriptionId}>
+                    AI exports and brag docs can add goals, voice, constraints, wins, and details
+                    that resumes compress.
                   </span>
-                </div>
-                <p className="identity-muted">
-                  Carries goals, voice, prep history, strategy, constraints, and the context that
-                  never survives a resume.
-                </p>
-                {copyStatus === 'error' ? (
-                  <p className="identity-source-card-error-message" role="alert">
-                    Clipboard access is unavailable. Select and copy the prompt text manually.
-                  </p>
-                ) : null}
-                {agentExportInputError ? (
-                  <p className="identity-source-card-error-message" role="alert">
-                    {agentExportInputError}
-                  </p>
-                ) : null}
-                <textarea
-                  className="identity-textarea identity-context-prompt"
-                  readOnly
-                  value={AI_CONVERSATION_EXPORT_PROMPT}
-                  aria-label="AI conversation export prompt"
-                />
-                <label className="identity-field">
-                  <span className="identity-label">Pasted AI export narrative</span>
-                  <textarea
-                    className="identity-textarea"
-                    value={agentExportText}
-                    onChange={(event) => updateAgentExportText(event.target.value)}
-                    placeholder="Paste the narrative export here after the AI assistant generates it."
-                  />
-                </label>
-                {agentExportText.trim() ? (
-                  <div
-                    className="identity-context-preview"
-                    role="group"
-                    aria-label="AI export preview"
-                  >
-                    <div className="identity-source-card-stats">
-                      <span>{agentExportSecurityScan.wordCount.toLocaleString()} words</span>
-                      <span>
-                        {agentExportSecurityScan.estimatedTokens.toLocaleString()} estimated tokens
-                      </span>
-                      <span>Limit {SUPPLEMENTAL_CONTEXT_MAX_TOKENS.toLocaleString()} tokens</span>
-                    </div>
-                    {agentExportSecurityScan.detectedSections.length > 0 ? (
-                      <div className="identity-context-preview-row">
-                        {agentExportSecurityScan.detectedSections.map((section) => (
-                          <span key={section} className="identity-source-card-badge">
-                            {section}
-                          </span>
-                        ))}
+                </span>
+                <span id={optionalContextCountId} className="identity-source-card-badge">
+                  {contextSources.length} added
+                </span>
+              </button>
+            </h3>
+
+            <div
+              id={optionalContextBodyId}
+              className="identity-context-body"
+              role="region"
+              aria-labelledby={optionalContextToggleId}
+              hidden={!isOptionalContextOpen}
+            >
+              {isOptionalContextOpen ? (
+                <>
+                  <div className="identity-context-grid">
+                    <div className="identity-context-card">
+                      <div className="identity-source-card-row">
+                        <Clipboard size={16} aria-hidden="true" />
+                        <strong>AI conversation export</strong>
+                        <button
+                          className="identity-btn"
+                          type="button"
+                          onClick={() => void copyExportPrompt()}
+                        >
+                          {copyStatus === 'copied' ? <Check size={16} /> : <Clipboard size={16} />}
+                          {copyStatus === 'copied' ? 'Copied' : 'Copy Prompt'}
+                        </button>
+                        <span className="sr-only" aria-live="polite">
+                          {copyStatus === 'copied' ? 'AI export prompt copied to clipboard.' : ''}
+                        </span>
                       </div>
-                    ) : null}
-                    {agentExportSecurityScan.flaggedContent.length > 0 ? (
-                      <div className="identity-context-flags" role="alert">
-                        {agentExportSecurityScan.flaggedContent.map((flag, index) => (
-                          <div key={`${flag.label}:${flag.snippet}:${index}`}>
-                            <strong>{flag.label}</strong>
-                            <span>{flag.snippet}</span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
-                    {agentExportTokenLimitError ? (
-                      <p className="identity-source-card-error-message" role="alert">
-                        {agentExportTokenLimitError}
+                      <p className="identity-muted">
+                        Carries goals, voice, prep history, strategy, constraints, and the context
+                        that never survives a resume.
                       </p>
-                    ) : null}
-                    <label className="identity-checkbox-row">
-                      <input
-                        type="checkbox"
-                        checked={agentExportReviewed}
-                        onChange={(event) => setAgentExportReviewed(event.target.checked)}
+                      {copyStatus === 'error' ? (
+                        <p className="identity-source-card-error-message" role="alert">
+                          Clipboard access is unavailable. Select and copy the prompt text manually.
+                        </p>
+                      ) : null}
+                      {agentExportInputError ? (
+                        <p className="identity-source-card-error-message" role="alert">
+                          {agentExportInputError}
+                        </p>
+                      ) : null}
+                      <textarea
+                        className="identity-textarea identity-context-prompt"
+                        readOnly
+                        value={AI_CONVERSATION_EXPORT_PROMPT}
+                        aria-label="AI conversation export prompt"
                       />
-                      <span>I reviewed this AI export preview.</span>
-                    </label>
-                  </div>
-                ) : null}
-                <div className="identity-card-actions">
-                  <button
-                    className="identity-btn"
-                    type="button"
-                    onClick={addAgentExport}
-                    disabled={
-                      agentExportText.trim().length === 0 ||
-                      !agentExportReviewed ||
-                      Boolean(agentExportTokenLimitError)
-                    }
-                  >
-                    <Sparkles size={16} />
-                    Add AI Context
-                  </button>
-                </div>
-              </div>
-
-              <div className="identity-context-card">
-                <div className="identity-source-card-row">
-                  <FileText size={16} aria-hidden="true" />
-                  <strong>Brag doc</strong>
-                  <button
-                    className="identity-btn"
-                    type="button"
-                    onClick={() => bragDocUploadRef.current?.click()}
-                  >
-                    <Upload size={16} />
-                    Upload Text
-                  </button>
-                </div>
-                <p className="identity-muted">
-                  Adds wins, scope, metrics, feedback, and project details that can become PAIO
-                  bullet evidence.
-                </p>
-                {bragDocInputError ? (
-                  <p className="identity-source-card-error-message" role="alert">
-                    {bragDocInputError}
-                  </p>
-                ) : null}
-                <label className="identity-field">
-                  <span className="identity-label">Pasted brag doc text</span>
-                  <textarea
-                    className="identity-textarea"
-                    value={bragDocText}
-                    onChange={(event) => updateBragDocText(event.target.value)}
-                    placeholder="Paste accomplishments, weekly wins, promotion packets, or project notes."
-                  />
-                </label>
-                <div className="identity-card-actions">
-                  <button
-                    className="identity-btn"
-                    type="button"
-                    onClick={addBragDocText}
-                    disabled={bragDocText.trim().length === 0}
-                  >
-                    <FileText size={16} />
-                    Add Brag Doc
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {contextSources.length > 0 ? (
-              <ul className="identity-source-list" aria-label="Supplemental context sources">
-                {contextSources.map((source) => (
-                  <li key={source.id} className="identity-source-card">
-                    <div className="identity-source-card-row">
-                      {source.kind === 'agent-dump' ? (
-                        <Clipboard size={14} aria-hidden="true" />
-                      ) : (
-                        <FileText size={14} aria-hidden="true" />
-                      )}
-                      <strong>{getSupplementalContextSourceLabel(source)}</strong>
-                      <span className="identity-muted">{source.text.trim().length} chars</span>
-                      <button
-                        className="identity-btn identity-btn-icon"
-                        type="button"
-                        onClick={() => onRemoveSource(source.id)}
-                        aria-label={`Remove ${getSupplementalContextSourceLabel(source)}`}
-                      >
-                        <X size={14} />
-                      </button>
+                      <label className="identity-field">
+                        <span className="identity-label">Pasted AI export narrative</span>
+                        <textarea
+                          className="identity-textarea"
+                          value={agentExportText}
+                          onChange={(event) => updateAgentExportText(event.target.value)}
+                          placeholder="Paste the narrative export here after the AI assistant generates it."
+                        />
+                      </label>
+                      {agentExportText.trim() ? (
+                        <div
+                          className="identity-context-preview"
+                          role="group"
+                          aria-label="AI export preview"
+                        >
+                          <div className="identity-source-card-stats">
+                            <span>{agentExportSecurityScan.wordCount.toLocaleString()} words</span>
+                            <span>
+                              {agentExportSecurityScan.estimatedTokens.toLocaleString()} estimated
+                              tokens
+                            </span>
+                            <span>
+                              Limit {SUPPLEMENTAL_CONTEXT_MAX_TOKENS.toLocaleString()} tokens
+                            </span>
+                          </div>
+                          {agentExportSecurityScan.detectedSections.length > 0 ? (
+                            <div className="identity-context-preview-row">
+                              {agentExportSecurityScan.detectedSections.map((section) => (
+                                <span key={section} className="identity-source-card-badge">
+                                  {section}
+                                </span>
+                              ))}
+                            </div>
+                          ) : null}
+                          {agentExportSecurityScan.flaggedContent.length > 0 ? (
+                            <div className="identity-context-flags" role="alert">
+                              {agentExportSecurityScan.flaggedContent.map((flag, index) => (
+                                <div key={`${flag.label}:${flag.snippet}:${index}`}>
+                                  <strong>{flag.label}</strong>
+                                  <span>{flag.snippet}</span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : null}
+                          {agentExportTokenLimitError ? (
+                            <p className="identity-source-card-error-message" role="alert">
+                              {agentExportTokenLimitError}
+                            </p>
+                          ) : null}
+                          <label className="identity-checkbox-row">
+                            <input
+                              type="checkbox"
+                              checked={agentExportReviewed}
+                              onChange={(event) => setAgentExportReviewed(event.target.checked)}
+                            />
+                            <span>I reviewed this AI export preview.</span>
+                          </label>
+                        </div>
+                      ) : null}
+                      <div className="identity-card-actions">
+                        <button
+                          className="identity-btn"
+                          type="button"
+                          onClick={addAgentExport}
+                          disabled={
+                            agentExportText.trim().length === 0 ||
+                            !agentExportReviewed ||
+                            Boolean(agentExportTokenLimitError)
+                          }
+                        >
+                          <Sparkles size={16} />
+                          Add AI Context
+                        </button>
+                      </div>
                     </div>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
+
+                    <div className="identity-context-card">
+                      <div className="identity-source-card-row">
+                        <FileText size={16} aria-hidden="true" />
+                        <strong>Brag doc</strong>
+                        <button
+                          className="identity-btn"
+                          type="button"
+                          onClick={() => bragDocUploadRef.current?.click()}
+                        >
+                          <Upload size={16} />
+                          Upload Text
+                        </button>
+                      </div>
+                      <p className="identity-muted">
+                        Adds wins, scope, metrics, feedback, and project details that can become
+                        PAIO bullet evidence.
+                      </p>
+                      {bragDocInputError ? (
+                        <p className="identity-source-card-error-message" role="alert">
+                          {bragDocInputError}
+                        </p>
+                      ) : null}
+                      <label className="identity-field">
+                        <span className="identity-label">Pasted brag doc text</span>
+                        <textarea
+                          className="identity-textarea"
+                          value={bragDocText}
+                          onChange={(event) => updateBragDocText(event.target.value)}
+                          placeholder="Paste accomplishments, weekly wins, promotion packets, or project notes."
+                        />
+                      </label>
+                      <div className="identity-card-actions">
+                        <button
+                          className="identity-btn"
+                          type="button"
+                          onClick={addBragDocText}
+                          disabled={bragDocText.trim().length === 0}
+                        >
+                          <FileText size={16} />
+                          Add Brag Doc
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {contextSources.length > 0 ? (
+                    <ul className="identity-source-list" aria-label="Supplemental context sources">
+                      {contextSources.map((source) => (
+                        <li key={source.id} className="identity-source-card">
+                          <div className="identity-source-card-row">
+                            {source.kind === 'agent-dump' ? (
+                              <Clipboard size={14} aria-hidden="true" />
+                            ) : (
+                              <FileText size={14} aria-hidden="true" />
+                            )}
+                            <strong>{getSupplementalContextSourceLabel(source)}</strong>
+                            <span className="identity-muted">
+                              {source.text.trim().length} chars
+                            </span>
+                            <button
+                              className="identity-btn identity-btn-icon"
+                              type="button"
+                              onClick={() => onRemoveSource(source.id)}
+                              aria-label={`Remove ${getSupplementalContextSourceLabel(source)}`}
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </>
+              ) : null}
+            </div>
           </div>
           {resumeSources.length > 0 || failedFiles.length > 0 ? (
             <>
