@@ -23,7 +23,7 @@ import type {
 } from '../types/search'
 import { createId } from './idUtils'
 import { parseJsonWithRepair } from './jsonParsing'
-import { callLlmProxy, extractJsonBlock, JsonExtractionError, isString } from './llmProxy'
+import { callLlmProxyDetailed, extractJsonBlock, JsonExtractionError, isString } from './llmProxy'
 import { normalizeSearchAssumptions } from './searchAssumptions'
 import { EMPTY_SALARY_BAND, normalizeSalaryBand, parseLegacySalaryBand } from './searchSalary'
 
@@ -38,11 +38,16 @@ const VALID_COMPANY_SIZES = new Set<SearchCompanySize>([
 
 const THESIS_GENERATION_TIMEOUT_MS = 90_000
 const THESIS_GENERATION_THINKING_BUDGET = 10_000
-const THESIS_GENERATION_MAX_TOKENS = 32_000
+// The hosted proxy rejects the 32k output window for Opus; 16k preserves the 10k
+// thinking budget plus enough response room for the validated thesis schema.
+const THESIS_GENERATION_MAX_TOKENS = 16_000
 const THESIS_GENERATION_MAX_PROMPT_CHARS = 120_000
 
 const VALID_NOISE_LEVELS = new Set(['low', 'medium', 'high'])
 const VALID_URGENCY = new Set(['critical', 'active', 'exploratory'])
+
+const isOutputTruncationStopReason = (value: string | undefined) =>
+  value === 'max_tokens' || value === 'length'
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -503,7 +508,9 @@ export function validateSearchThesis(
   // An empty moat is a legitimate "not authored yet" state, not a contract violation.
   // We only flag a moat that was authored too tersely.
   if (thesis.competitiveMoat && thesis.competitiveMoat.length < 40) {
-    violations.push('competitiveMoat: too short — author at least 40 characters on Identity → Self Model')
+    violations.push(
+      'competitiveMoat: too short — author at least 40 characters on Identity → Self Model',
+    )
   }
   if (thesis.searchLanes.length === 0) {
     violations.push('searchLanes: expected at least one strategic lane')
@@ -616,7 +623,7 @@ export async function generateSearchThesisFromIdentity(
   }
 
   const usingSonnetFallback = context.modelFallback === 'sonnet'
-  const rawResponse = await callLlmProxy(endpoint, systemPrompt, userPrompt, {
+  const response = await callLlmProxyDetailed(endpoint, systemPrompt, userPrompt, {
     feature: 'research.thesis',
     model: usingSonnetFallback ? 'sonnet' : 'opus',
     timeoutMs: THESIS_GENERATION_TIMEOUT_MS,
@@ -624,6 +631,12 @@ export async function generateSearchThesisFromIdentity(
     thinkingBudget: THESIS_GENERATION_THINKING_BUDGET,
     ...(usingSonnetFallback ? { capabilityFallback: 'opus_unavailable' } : {}),
   })
+  if (isOutputTruncationStopReason(response.stopReason)) {
+    throw new Error(
+      'Generated search thesis response was truncated by the model output limit. Try regenerating after narrowing the Identity context or reducing thesis scope.',
+    )
+  }
+  const rawResponse = response.text
 
   try {
     const json = extractJsonBlock(rawResponse)

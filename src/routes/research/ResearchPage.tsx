@@ -753,6 +753,7 @@ export function ResearchPage() {
   const [isGeneratingThesis, setIsGeneratingThesis] = useState(false)
   const [isSearching, setIsSearching] = useState(false)
   const [pageError, setPageError] = useState<string | null>(null)
+  const [profileImportNotice, setProfileImportNotice] = useState<string | null>(null)
   const [thesisNotice, setThesisNotice] = useState<string | null>(null)
   const [thesisDraft, setThesisDraft] = useState<SearchThesis | null>(null)
   const [thesisDraftIsDirty, setThesisDraftIsDirty] = useState(false)
@@ -1653,24 +1654,50 @@ export function ResearchPage() {
   const handleInfer = async () => {
     try {
       setPageError(null)
+      setProfileImportNotice(null)
       setIsInferring(true)
       if (currentIdentity) {
         const baseProfile = adaptIdentityToSearchProfile(currentIdentity, {
           resumeVersion: resumeData.version,
         })
-        const enhancement = aiEndpoint
-          ? await inferSearchProfileFromIdentity(currentIdentity, aiEndpoint)
-          : {
-              workSummary: baseProfile.workSummary,
-              openQuestions: baseProfile.openQuestions,
-            }
+        const applyIdentityProfile = (enhancement?: Partial<SearchProfile>) => {
+          const nextProfile = setProfile({
+            ...baseProfile,
+            ...enhancement,
+            inferredFromResumeVersion: resumeData.version,
+          })
+          return nextProfile
+        }
+        const importedProfile = applyIdentityProfile()
+        const importedProfileKey = serializeIdentityProfile(importedProfile)
+        const shouldApplyEnhancement = () => {
+          const currentProfile = useSearchStore.getState().profile
+          return Boolean(
+            currentProfile &&
+            currentProfile.id === importedProfile.id &&
+            serializeIdentityProfile(currentProfile) === importedProfileKey,
+          )
+        }
 
-        setProfile({
-          ...baseProfile,
-          ...enhancement,
-          inferredFromResumeVersion: resumeData.version,
-        })
         setActiveTab('search')
+        if (aiEndpoint) {
+          try {
+            const enhancement = await inferSearchProfileFromIdentity(currentIdentity, aiEndpoint)
+            if (!shouldApplyEnhancement()) {
+              return
+            }
+            applyIdentityProfile(enhancement)
+          } catch (error) {
+            if (!shouldApplyEnhancement()) {
+              return
+            }
+            setProfileImportNotice(
+              `Imported Identity profile. AI narrative refresh was unavailable; using the Identity model profile. ${
+                error instanceof Error ? error.message : 'Profile inference failed.'
+              }`,
+            )
+          }
+        }
         return
       }
 
@@ -3101,6 +3128,15 @@ export function ResearchPage() {
           {pageError}
         </div>
       ) : null}
+
+      <div
+        className={profileImportNotice ? 'research-warning' : 'sr-only'}
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        {profileImportNotice}
+      </div>
 
       <div className="research-tabs" role="tablist" aria-label="Research sections">
         {RESEARCH_TAB_DEFS.map((tab) => (

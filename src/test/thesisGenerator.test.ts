@@ -17,6 +17,10 @@ vi.mock('../utils/llmProxy', async () => {
   return {
     ...actual,
     callLlmProxy: (...args: Parameters<typeof actual.callLlmProxy>) => mockCallLlmProxy(...args),
+    callLlmProxyDetailed: async (...args: Parameters<typeof actual.callLlmProxyDetailed>) => {
+      const result = await mockCallLlmProxy(...args)
+      return typeof result === 'string' ? { text: result } : result
+    },
   }
 })
 
@@ -148,7 +152,7 @@ describe('thesisGenerator', () => {
       expect.objectContaining({
         feature: 'research.thesis',
         model: 'opus',
-        maxTokens: 32000,
+        maxTokens: 16000,
         thinkingBudget: 10000,
         timeoutMs: 90000,
       }),
@@ -272,6 +276,17 @@ describe('thesisGenerator', () => {
     await expect(
       generateSearchThesisFromIdentity(cloneIdentityFixture(), 'https://ai.example/proxy'),
     ).rejects.toThrow(/malformed/i)
+  })
+
+  it('surfaces model output truncation before parsing the thesis response', async () => {
+    mockCallLlmProxy.mockResolvedValueOnce({
+      text: '<result>{"narrative":"partial"',
+      stopReason: 'max_tokens',
+    })
+
+    await expect(
+      generateSearchThesisFromIdentity(cloneIdentityFixture(), 'https://ai.example/proxy'),
+    ).rejects.toThrow(/truncated by the model output limit/i)
   })
 
   it('absorbs inferred per-search overrides and persists customDirective from generation context', async () => {

@@ -197,18 +197,23 @@ export interface LlmProxyOptions {
   signal?: AbortSignal
 }
 
+export interface LlmProxyTextResponse {
+  text: string
+  stopReason?: string
+}
+
 /**
- * Call the Facet AI proxy and extract the text response.
+ * Call the Facet AI proxy and extract the text response plus provider stop metadata.
  *
  * Handles both Anthropic-style `{ content: [{ type: 'text', text }] }`
  * and OpenAI-style `{ choices: [{ message: { content } }] }` envelopes.
  */
-export async function callLlmProxy(
+export async function callLlmProxyDetailed(
   endpoint: string,
   systemPrompt: string,
   userPrompt: string,
   options: LlmProxyOptions = {},
-): Promise<string> {
+): Promise<LlmProxyTextResponse> {
   const controller = new AbortController()
   const onAbort = () => controller.abort()
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
@@ -260,13 +265,22 @@ export async function callLlmProxy(
     }
 
     const payload = (await response.json()) as Record<string, unknown>
+    const stopReason =
+      typeof payload.stop_reason === 'string'
+        ? payload.stop_reason
+        : typeof payload.stopReason === 'string'
+          ? payload.stopReason
+          : undefined
 
     // OpenAI-style { choices: [{ message: { content: '...' } }] }
     if (Array.isArray(payload.choices)) {
       const choice = payload.choices[0] as Record<string, unknown>
       const message = choice.message as Record<string, unknown>
       if (typeof message?.content === 'string') {
-        return message.content
+        return {
+          text: message.content,
+          stopReason: typeof choice.finish_reason === 'string' ? choice.finish_reason : stopReason,
+        }
       }
     }
 
@@ -276,16 +290,16 @@ export async function callLlmProxy(
         (part) => part && typeof part === 'object' && (part as { type?: unknown }).type === 'text',
       ) as { text?: string } | undefined
       if (typeof textPart?.text === 'string') {
-        return textPart.text
+        return { text: textPart.text, stopReason }
       }
     }
 
     // Simple envelope (e.g. { analysis: { ... } })
     if (payload.analysis || payload.reframed) {
-      return JSON.stringify(payload)
+      return { text: JSON.stringify(payload), stopReason }
     }
 
-    return JSON.stringify(payload)
+    return { text: JSON.stringify(payload), stopReason }
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
       throw new Error(`AI request timed out after ${timeoutMs}ms.`)
@@ -295,6 +309,20 @@ export async function callLlmProxy(
     options.signal?.removeEventListener('abort', onAbort)
     globalThis.clearTimeout(timeoutId)
   }
+}
+
+/**
+ * Call the Facet AI proxy and return only text. Use `callLlmProxyDetailed`
+ * when a caller needs provider stop metadata such as `max_tokens`.
+ */
+export async function callLlmProxy(
+  endpoint: string,
+  systemPrompt: string,
+  userPrompt: string,
+  options: LlmProxyOptions = {},
+): Promise<string> {
+  const response = await callLlmProxyDetailed(endpoint, systemPrompt, userPrompt, options)
+  return response.text
 }
 
 function resolveProxyPath(endpoint: string, path: string): string {

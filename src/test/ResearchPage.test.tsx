@@ -5,6 +5,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import type { DeepResearchStreamHandlers } from '../utils/deepSearchClient'
 import type {
   ResearchJob,
+  SearchProfile,
   SearchResultEntry,
   SearchThesis,
   SearchThesisSignal,
@@ -28,6 +29,7 @@ const { mockNavigate, mockResearchSearch } = vi.hoisted(() => ({
 
 const {
   mockInferSearchProfile,
+  mockInferSearchProfileFromIdentity,
   mockCreateDeepResearchJob,
   mockFetchDeepResearchJob,
   mockFetchResearchUsage,
@@ -39,6 +41,7 @@ const {
   mockGenerateInterviewPrep,
 } = vi.hoisted(() => ({
   mockInferSearchProfile: vi.fn(),
+  mockInferSearchProfileFromIdentity: vi.fn(),
   mockCreateDeepResearchJob: vi.fn(),
   mockFetchDeepResearchJob: vi.fn(),
   mockFetchResearchUsage: vi.fn(),
@@ -68,6 +71,9 @@ vi.mock('../utils/searchProfileInference', async () => {
     ...actual,
     inferSearchProfile: (...args: Parameters<typeof actual.inferSearchProfile>) =>
       mockInferSearchProfile(...args),
+    inferSearchProfileFromIdentity: (
+      ...args: Parameters<typeof actual.inferSearchProfileFromIdentity>
+    ) => mockInferSearchProfileFromIdentity(...args),
   }
 })
 
@@ -257,6 +263,7 @@ describe('ResearchPage', () => {
     mockNavigate.mockReset()
     mockResearchSearch.review = undefined
     mockInferSearchProfile.mockReset()
+    mockInferSearchProfileFromIdentity.mockReset()
     mockCreateDeepResearchJob.mockReset()
     mockFetchDeepResearchJob.mockReset()
     mockFetchResearchUsage.mockReset()
@@ -662,6 +669,220 @@ describe('ResearchPage', () => {
     expect(
       screen.getByText('Your search profile is being driven by the identity model.'),
     ).toBeTruthy()
+  })
+
+  it('imports the deterministic identity profile even when AI identity enhancement fails', async () => {
+    const identity = cloneIdentityFixture()
+    useIdentityStore.setState({
+      currentIdentity: identity,
+      draftDocument: JSON.stringify(identity, null, 2),
+    })
+    useSearchStore.setState({ profile: null })
+    mockInferSearchProfileFromIdentity.mockRejectedValueOnce(new Error('proxy 500'))
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh from Identity' }))
+
+    await waitFor(() => {
+      expect(useSearchStore.getState().profile?.source?.kind).toBe('identity')
+      expect(screen.queryByRole('alert')).toBeNull()
+      expect(
+        screen.getByText(
+          /Imported Identity profile\. AI narrative refresh was unavailable; using the Identity model profile\. proxy 500/,
+        ),
+      ).toBeTruthy()
+    })
+  })
+
+  it('applies AI identity enhancement when the imported profile remains current', async () => {
+    const identity = cloneIdentityFixture()
+    mockInferSearchProfileFromIdentity.mockResolvedValueOnce({
+      workSummary: [{ title: 'AI summary', summary: 'Richer search narrative.' }],
+      openQuestions: ['AI follow-up question'],
+    })
+    useIdentityStore.setState({
+      currentIdentity: identity,
+      draftDocument: JSON.stringify(identity, null, 2),
+    })
+    useSearchStore.setState({ profile: null })
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh from Identity' }))
+
+    await waitFor(() => {
+      const profile = useSearchStore.getState().profile
+      expect(profile?.workSummary[0]?.title).toBe('AI summary')
+      expect(profile?.openQuestions).toEqual(['AI follow-up question'])
+      expect(screen.queryByText(/AI narrative refresh was unavailable/)).toBeNull()
+    })
+  })
+
+  it('does not apply stale AI identity enhancement after the imported profile changes', async () => {
+    const identity = cloneIdentityFixture()
+    let resolveEnhancement: (
+      value: Pick<SearchProfile, 'workSummary' | 'openQuestions'>,
+    ) => void = () => {}
+    mockInferSearchProfileFromIdentity.mockImplementationOnce(
+      () =>
+        new Promise<Pick<SearchProfile, 'workSummary' | 'openQuestions'>>((resolve) => {
+          resolveEnhancement = resolve
+        }),
+    )
+    useIdentityStore.setState({
+      currentIdentity: identity,
+      draftDocument: JSON.stringify(identity, null, 2),
+    })
+    useSearchStore.setState({ profile: null })
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh from Identity' }))
+
+    await waitFor(() => {
+      expect(useSearchStore.getState().profile?.source?.kind).toBe('identity')
+    })
+    const importedProfile = useSearchStore.getState().profile
+    if (!importedProfile) {
+      throw new Error('Expected identity profile to be imported before AI enhancement resolves.')
+    }
+
+    useSearchStore.getState().setProfile({
+      ...importedProfile,
+      workSummary: [{ title: 'Manual search edit', summary: 'Keep this local edit.' }],
+    })
+    await act(async () => {
+      resolveEnhancement({
+        workSummary: [{ title: 'AI enhancement', summary: 'This arrived too late.' }],
+        openQuestions: ['Late question'],
+      })
+    })
+
+    await waitFor(() => {
+      expect(useSearchStore.getState().profile?.workSummary[0]?.title).toBe('Manual search edit')
+    })
+  })
+
+  it('does not show a stale AI failure notice after the imported profile changes', async () => {
+    const identity = cloneIdentityFixture()
+    let rejectEnhancement: (reason?: unknown) => void = () => {}
+    mockInferSearchProfileFromIdentity.mockImplementationOnce(
+      () =>
+        new Promise<Pick<SearchProfile, 'workSummary' | 'openQuestions'>>((_, reject) => {
+          rejectEnhancement = reject
+        }),
+    )
+    useIdentityStore.setState({
+      currentIdentity: identity,
+      draftDocument: JSON.stringify(identity, null, 2),
+    })
+    useSearchStore.setState({ profile: null })
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh from Identity' }))
+
+    await waitFor(() => {
+      expect(useSearchStore.getState().profile?.source?.kind).toBe('identity')
+    })
+    const importedProfile = useSearchStore.getState().profile
+    if (!importedProfile) {
+      throw new Error('Expected identity profile to be imported before AI enhancement rejects.')
+    }
+
+    useSearchStore.getState().setProfile({
+      ...importedProfile,
+      workSummary: [{ title: 'Manual search edit', summary: 'Keep this local edit.' }],
+    })
+    await act(async () => {
+      rejectEnhancement(new Error('proxy 500'))
+    })
+
+    await waitFor(() => {
+      expect(screen.queryByText(/AI narrative refresh was unavailable/)).toBeNull()
+      expect(useSearchStore.getState().profile?.workSummary[0]?.title).toBe('Manual search edit')
+    })
+  })
+
+  it('clears a prior AI failure notice when identity refresh succeeds later', async () => {
+    const identity = cloneIdentityFixture()
+    mockInferSearchProfileFromIdentity
+      .mockRejectedValueOnce(new Error('proxy 500'))
+      .mockResolvedValueOnce({
+        workSummary: [{ title: 'AI summary', summary: 'Richer search narrative.' }],
+        openQuestions: ['AI follow-up question'],
+      })
+    useIdentityStore.setState({
+      currentIdentity: identity,
+      draftDocument: JSON.stringify(identity, null, 2),
+    })
+    useSearchStore.setState({ profile: null })
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh from Identity' }))
+    await waitFor(() => {
+      expect(screen.getByText(/AI narrative refresh was unavailable/)).toBeTruthy()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh from Identity' }))
+    await waitFor(() => {
+      const profile = useSearchStore.getState().profile
+      expect(profile?.workSummary[0]?.title).toBe('AI summary')
+      expect(screen.queryByText(/AI narrative refresh was unavailable/)).toBeNull()
+    })
+  })
+
+  it('prevents overlapping identity refresh requests from the page action', async () => {
+    const identity = cloneIdentityFixture()
+    let resolveEnhancement: (
+      value: Pick<SearchProfile, 'workSummary' | 'openQuestions'>,
+    ) => void = () => {}
+    mockInferSearchProfileFromIdentity.mockImplementationOnce(
+      () =>
+        new Promise<Pick<SearchProfile, 'workSummary' | 'openQuestions'>>((resolve) => {
+          resolveEnhancement = resolve
+        }),
+    )
+    useIdentityStore.setState({
+      currentIdentity: identity,
+      draftDocument: JSON.stringify(identity, null, 2),
+    })
+    useSearchStore.setState({ profile: null })
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    const refreshButton = screen.getByRole('button', { name: 'Refresh from Identity' })
+    fireEvent.click(refreshButton)
+
+    await waitFor(() => {
+      const busyButton = screen.getByRole('button', { name: 'Refreshing…' })
+      expect(busyButton).toHaveProperty('disabled', true)
+      expect(mockInferSearchProfileFromIdentity).toHaveBeenCalledTimes(1)
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Refreshing…' }))
+    expect(mockInferSearchProfileFromIdentity).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      resolveEnhancement({
+        workSummary: [{ title: 'AI enhancement', summary: 'The only in-flight request applies.' }],
+        openQuestions: ['AI question'],
+      })
+    })
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Refresh from Identity' })).toHaveProperty(
+        'disabled',
+        false,
+      )
+      expect(useSearchStore.getState().profile?.workSummary[0]?.title).toBe('AI enhancement')
+    })
   })
 
   it('generates, edits, and saves a search thesis revision from identity', async () => {
