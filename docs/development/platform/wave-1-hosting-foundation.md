@@ -54,7 +54,7 @@ Rules:
 Responsibilities:
 
 - UI rendering and local editing state
-- local cache, hydration, and encrypted backup UX
+- local cache, hydration, and hosted workspace UX
 - authenticated calls to hosted persistence and AI APIs
 - client-side entitlement messaging only
 

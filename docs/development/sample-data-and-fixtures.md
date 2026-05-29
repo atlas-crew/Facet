@@ -6,7 +6,7 @@ Facet has several kinds of sample data. They look similar in the tree, but they 
 | ------------------------ | --------------------------------------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
 | In-app sample data       | Product walkthroughs and manual QA                        | `src/store/defaultData.ts`, `src/routes/pipeline/samplePipelineData.ts`  | Click the relevant **Load Sample Data** action in the running app.                                             |
 | Dev-only source samples  | Identity extraction smoke tests during local development  | `src/routes/identity/sampleSourceMaterial.ts`                            | Run the dev server, open Identity Workbench, switch to paste mode, and pick a sample from **Load dev sample**. |
-| Golden workspace fixture | Cross-workspace contract tests, hosted mocks, local demos | `src/test/fixtures/goldenWorkspace.ts`, `src/dev/goldenDemoWorkspace.ts` | Import the builder from tests, or use the dev-only backup dialog action to replace the local workspace.        |
+| Golden workspace fixture | Cross-workspace contract tests, hosted mocks, local demos | `src/test/fixtures/goldenWorkspace.ts`, `src/dev/goldenDemoWorkspace.ts` | Import the builder or loader from tests and dev-only utilities.                                                |
 | Small test fixtures      | Focused Vitest and Playwright coverage                    | `src/test/fixtures/`, `tests/hosted/fixtures.ts`, `tests/fixtures/`      | Import them from tests or builders; they are not product import files.                                         |
 
 All sample data must stay fictional. Do not add real candidates, real job-search targets, private compensation notes, secrets, or customer data.
@@ -75,8 +75,8 @@ Important behavior:
 - Hosted Playwright mocks can serve the golden snapshot by passing it to
   `installHostedApiMocks()`.
 - The dev-only demo loader lives in `src/dev/goldenDemoWorkspace.ts` and imports the
-  golden fixture dynamically. The backup dialog exposes **Replace with Demo Workspace**
-  only when `import.meta.env.DEV` is true.
+  golden fixture dynamically. It remains available to tests and development utilities,
+  but it is not exposed through the removed legacy backup dialog.
 - The dev demo path deliberately uses replace semantics for the active local workspace;
   Build and Pipeline route-local **Load Sample Data** actions keep their route-specific
   behavior.
@@ -85,7 +85,7 @@ Run the golden checks after changing cross-workspace contracts or the Maya fixtu
 
 ```bash
 npx vitest run src/test/fixtures/goldenWorkspace.test.ts src/test/fixtures/personas/validate.test.ts src/test/fixtures/personas/validate.negative.test.ts
-npx vitest run src/test/goldenDemoWorkspace.test.ts src/test/WorkspaceBackupDialog.test.tsx
+npx vitest run src/test/goldenDemoWorkspace.test.ts
 VITE_FACET_DEPLOYMENT_MODE=hosted npx playwright test tests/hosted/golden-workspace.spec.ts --project=hosted
 npm run typecheck -- --pretty false
 ```
@@ -189,7 +189,7 @@ Then use:
 - Build empty state -> **Load Sample Data** for the default resume.
 - Pipeline empty state -> **Load Sample Data** for job-search entries.
 - Identity Map -> **Import from resume** or **Start from a resume** -> **Paste Source Text** -> **Load dev sample** for dev-only extraction inputs.
-- Backup dialog -> **Import Backup** -> **Replace with Demo Workspace** for the dev-only golden workspace.
+- Import `loadGoldenDemoWorkspace()` in a local dev utility or focused test when you need the connected golden workspace.
 
 For fixture validation:
 

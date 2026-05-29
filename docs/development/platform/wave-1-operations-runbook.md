@@ -94,10 +94,10 @@ migration, or operator action needs recovery.
 
 1. Stop the risky write path if possible by disabling hosted rollout traffic or
    temporarily switching the affected environment out of hosted mode.
-2. Export the latest known-good workspace snapshot or encrypted backup bundle.
+2. Export the latest known-good workspace snapshot through hosted persistence tooling.
 3. Verify the target workspace id, tenant id, and latest server-authored
    revision before import.
-4. Restore through the existing workspace import or backup flow rather than
+4. Restore through the hosted workspace import flow rather than
    writing store files by hand.
 5. Re-run the hosted bootstrap, workspace load, and one save cycle before
    reopening traffic.

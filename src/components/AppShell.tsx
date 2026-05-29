@@ -46,8 +46,6 @@ import { findStaleArtifacts } from '../types/artifactMeta'
 import { FacetWordmark } from './FacetWordmark'
 import { HostedWorkspaceDialog } from './HostedWorkspaceDialog'
 import { PublicLandingPage } from '../routes/public/PublicLandingPage'
-import { WorkspaceBackupDialog } from './WorkspaceBackupDialog'
-import { WorkspaceBackupReminder } from './WorkspaceBackupReminder'
 
 const CURRENT_YEAR = new Date().getFullYear()
 const AI_ENABLED = Boolean(facetClientEnv.anthropicProxyUrl)
@@ -349,7 +347,6 @@ export function AppShell() {
     return ''
   }, [hostedApp.deploymentMode, entitlement, accountDaysLeft, hasPendingPass])
 
-  const [backupOpen, setBackupOpen] = useState(false)
   const [workspaceDialogOpen, setWorkspaceDialogOpen] = useState(false)
   const [hostedRuntimePhase, setHostedRuntimePhase] = useState<
     'idle' | 'loading' | 'ready' | 'error'
@@ -827,9 +824,6 @@ export function AppShell() {
                   Retry Hosted Workspace
                 </button>
               )}
-              <button className="btn-ghost" type="button" onClick={() => setBackupOpen(true)}>
-                Backup Workspace
-              </button>
               <button
                 className="btn-ghost"
                 type="button"
@@ -912,16 +906,6 @@ export function AppShell() {
               <span className="sidebar-nav-label">Workspaces</span>
             </button>
           ) : null}
-          <button
-            className="sidebar-nav-item"
-            type="button"
-            onClick={() => setBackupOpen(true)}
-            aria-label="Backup workspace"
-            title="Backup"
-          >
-            <Cloud size={18} strokeWidth={1.5} />
-            <span className="sidebar-nav-label">Backup</span>
-          </button>
           <Link
             to="/help"
             className={`sidebar-nav-item ${isHelpRoute ? 'active' : ''}`}
@@ -1001,7 +985,6 @@ export function AppShell() {
         </header>
         <div className="app-main">{renderMainContent()}</div>
 
-        <WorkspaceBackupReminder onOpenBackup={() => setBackupOpen(true)} />
         <footer className="app-footer">
           <span>&copy; {CURRENT_YEAR} Nicholas Crew Ferguson</span>
           <nav className="app-footer-links" aria-label="Footer links">
@@ -1037,7 +1020,6 @@ export function AppShell() {
         onRenameWorkspace={handleRenameHostedWorkspace}
         onDeleteWorkspace={handleDeleteHostedWorkspace}
       />
-      <WorkspaceBackupDialog open={backupOpen} onClose={() => setBackupOpen(false)} />
       {crossTabIdentityToast ? (
         <div
           className="toast info"

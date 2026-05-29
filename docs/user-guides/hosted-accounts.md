@@ -15,7 +15,7 @@ Hosted Facet gives you:
 - a hosted account tied to your sign-in
 - hosted workspaces
 - hosted persistence and sync
-- local backup and restore options
+- local-to-hosted migration for existing browser data
 
 Hosted sync is included on the free hosted plan. You do not need AI Pro to keep
 your workspace saved in the hosted beta.
@@ -41,13 +41,12 @@ Recommended flow:
 2. Choose **Create From Local Data** or **Import Local Workspace**.
 3. Let Facet create the hosted workspace first.
 4. Wait for the migration import to finish before switching workspaces.
-5. Open **Backup** if you want a local snapshot before or after migration.
 
 Notes:
 
 - migration imports your current local workspace into a new hosted workspace
 - hosted persistence becomes the authoritative save path after the hosted workspace opens
-- local backup or export remains available as a fallback
+- route-level JSON exports remain available where a workspace provides them, but the global encrypted backup/restore workflow is no longer part of the hosted beta surface
 
 ## AI Features And Upgrades
 
@@ -80,7 +79,7 @@ If a hosted AI feature is unavailable:
 - **Upgrade required** means your current hosted plan does not include that AI feature
 - **Billing issue** means your AI Pro pass exists but needs billing attention
 
-Hosted persistence, workspaces, and backups should continue to work even when AI is unavailable.
+Hosted persistence and workspace management should continue to work even when AI is unavailable.
 
 ## Common Recovery Paths
 
@@ -105,7 +104,6 @@ What to do:
 
 - verify your network connection
 - retry the hosted workspace
-- use **Backup Workspace** if you want a local copy before retrying
 
 ### Hosted billing state unavailable
 
@@ -148,14 +146,6 @@ Current hosted beta limits:
 - shared or collaborative hosted workspaces are out of scope
 - hosted AI depends on the current AI Pro entitlement and billing state
 - self-hosted operator AI and hosted billing are separate models; hosted BYOK is not supported
-
-## When To Use Backup
-
-Use **Backup Workspace** when:
-
-- you want a local snapshot before a migration
-- hosted sync is offline and you want a safe copy before retrying
-- support asks for a snapshot to help reproduce a problem
 
 ## Related Docs
 

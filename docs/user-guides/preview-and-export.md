@@ -8,7 +8,7 @@ This guide covers every way to view and export your assembled resume in Facet:
 - Live HTML view as an alternative preview mode
 - Downloading a print-ready PDF
 - Copying resume content to the clipboard in plain text or Markdown
-- Exporting and importing your resume data as JSON for backup and portability
+- Exporting and importing your resume data as JSON for portability and versioned checkpoints
 
 ## Prerequisites
 
@@ -111,8 +111,8 @@ Press **Cmd+E** to export your entire resume configuration as a JSON file. This 
 
 ### When to Export
 
-- **Before major restructuring.** If you plan to reorganize roles, delete components, or rework your vector strategy, export first so you can roll back.
-- **For backup.** JSON exports are your portable backup. They contain everything needed to reconstruct your resume in a fresh Facet instance.
+- **Before major restructuring.** If you plan to reorganize roles, delete components, or rework your vector strategy, export first so you have a checkpoint.
+- **For portability.** JSON exports let you move a resume configuration between Facet instances or keep a versioned copy outside the app.
 - **For sharing.** You can send a JSON export to another Facet user as a starting point.
 
 The exported file is a complete, self-contained snapshot of your `ResumeData`.
@@ -127,7 +127,7 @@ Press **Cmd+I** to import a JSON file into Facet. The import dialog presents two
 
 Replaces your entire resume configuration with the contents of the imported file. Your current data is overwritten. Use this when:
 
-- Restoring from a backup
+- Loading a previously exported resume configuration
 - Loading a completely new resume configuration
 - Starting fresh from a shared export
 
@@ -171,7 +171,7 @@ The import process validates the JSON structure before applying changes. If the 
 
 ### Export Before Major Changes
 
-Make it a habit to press **Cmd+E** before any significant editing session. JSON exports are small and fast to create. Having a recent backup eliminates the risk of losing work during large restructures.
+Make it a habit to press **Cmd+E** before any significant editing session. JSON exports are small and fast to create, and a recent checkpoint makes large restructures easier to compare or roll back manually.
 
 ### Verify in PDF Before Sending
 
@@ -194,7 +194,7 @@ If you maintain separate Facet instances for different career chapters (e.g., on
 
 ## Summary
 
-Facet provides a tight feedback loop between editing and output. The real-time Typst preview ensures you always see the true layout. PDF downloads are named by vector for easy identification. Clipboard copy supports both plain text and Markdown. JSON export and import give you full control over backup, restoration, and data portability, with Replace All for clean swaps and Merge for additive combination.
+Facet provides a tight feedback loop between editing and output. The real-time Typst preview ensures you always see the true layout. PDF downloads are named by vector for easy identification. Clipboard copy supports both plain text and Markdown. JSON export and import support resume portability and versioned checkpoints, with Replace All for clean swaps and Merge for additive combination.
 
 ## Next Steps
 

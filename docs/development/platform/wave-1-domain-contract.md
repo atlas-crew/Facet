@@ -163,7 +163,7 @@ including:
 - resume editing
 - theme/design controls
 - pipeline tracking that does not invoke AI
-- import/export and encrypted backups
+- route-level import/export
 - hosted persistence
 
 ## Authoritative AI Access Rules

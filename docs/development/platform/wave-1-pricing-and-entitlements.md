@@ -72,7 +72,6 @@ Wave 1 free hosted functionality includes:
 - hosted workspace creation, rename, selection, and deletion
 - local-to-hosted workspace migration
 - hosted persistence and sync
-- local backup and restore flows
 - resume editing and design controls
 - pipeline tracking that does not invoke AI
 

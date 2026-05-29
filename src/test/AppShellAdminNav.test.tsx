@@ -54,15 +54,6 @@ vi.mock('../components/FacetWordmark', () => ({
   FacetWordmark: () => <span>Facet</span>,
 }))
 
-vi.mock('../components/WorkspaceBackupReminder', () => ({
-  WorkspaceBackupReminder: () => null,
-}))
-
-vi.mock('../components/WorkspaceBackupDialog', () => ({
-  WorkspaceBackupDialog: ({ open }: { open: boolean }) =>
-    open ? <div data-testid="workspace-backup-dialog">Backup Dialog</div> : null,
-}))
-
 if (typeof globalThis.ResizeObserver === 'undefined') {
   globalThis.ResizeObserver = class ResizeObserver {
     observe() {}

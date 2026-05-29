@@ -23,7 +23,7 @@ Wave 1 hosted beta includes:
 - hosted persistence and sync
 - local-to-hosted migration
 - AI Pro entitlement gating for hosted AI features
-- recovery paths for auth expiry, offline sync, billing-state failures, and backup fallback
+- recovery paths for auth expiry, offline sync, billing-state failures, and hosted restore fallback
 
 Wave 1 hosted beta explicitly excludes:
 
@@ -61,7 +61,7 @@ The staging pass is complete only when every line below is validated against the
 - create a hosted workspace from local data
 - confirm the imported workspace opens after runtime start
 - confirm a migration failure surfaces a recoverable error rather than silent success
-- confirm local backup remains available before or after migration
+- confirm migration can be retried from the local browser workspace before switching to hosted authority
 
 ### AI Entitlement Gating
 
@@ -80,7 +80,7 @@ The staging pass is complete only when every line below is validated against the
 
 ### Restore Or Rollback Rehearsal
 
-- export or back up a known-good hosted workspace state
+- export a known-good hosted workspace state through the current hosted persistence tooling
 - rehearse the restore steps from the operations runbook
 - rehearse the rollback steps for a bad hosted deployment
 - verify the environment can return to a healthy hosted bootstrap, save, and AI entitlement state after rehearsal

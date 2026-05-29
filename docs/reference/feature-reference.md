@@ -41,9 +41,10 @@ Facet uses a TanStack Router shell in `src/router.tsx`. Route components live un
 The canonical persistence overview is `src/persistence/README.md`. This reference
 does not duplicate the persistence contract. Current source entry points include
 `src/persistence/runtime.ts`, `src/persistence/hydration.ts`,
-`src/persistence/contracts.ts`, `src/persistence/coordinator.ts`,
-`src/persistence/backupBundle.ts`, `src/persistence/fileSystemAccess.ts`,
-`src/persistence/backupReminder.ts`, and `src/persistence/remoteBackend.ts`.
+`src/persistence/contracts.ts`, `src/persistence/coordinator.ts`, and
+`src/persistence/remoteBackend.ts`. Legacy encrypted-backup helpers remain in
+`src/persistence/` for internal compatibility tests, but the backup/restore dialog
+is no longer a shipped product surface.
 
 Durable workspace stores currently include resume, identity, JD analysis, match,
 pipeline, research, prep, cover letters, LinkedIn drafts, recruiter cards,
@@ -136,7 +137,6 @@ Representative route, store, generator, persistence, and export tests:
 - `src/test/persistence.test.ts`
 - `src/test/persistenceRuntime.test.ts`
 - `src/test/remotePersistenceBackend.test.ts`
-- `src/test/WorkspaceBackupDialog.test.tsx`
 - `src/test/workspaceBackup.test.ts`
 - `src/test/jdAnalysis.test.ts`
 - `src/test/jobMatch.test.ts`

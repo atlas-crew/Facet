@@ -76,13 +76,6 @@ vi.mock('../utils/hostedApi', async () => {
 vi.mock('../components/FacetWordmark', () => ({
   FacetWordmark: () => <span>Facet</span>,
 }))
-vi.mock('../components/WorkspaceBackupReminder', () => ({
-  WorkspaceBackupReminder: () => null,
-}))
-vi.mock('../components/WorkspaceBackupDialog', () => ({
-  WorkspaceBackupDialog: ({ open }: { open: boolean }) =>
-    open ? <div data-testid="workspace-backup-dialog">Backup Dialog</div> : null,
-}))
 
 if (typeof globalThis.ResizeObserver === 'undefined') {
   globalThis.ResizeObserver = class ResizeObserver {
@@ -492,6 +485,8 @@ describe('AppShell hosted workspace bootstrap', () => {
     expect(within(sidebarNav).queryByText('Core')).toBeNull()
     expect(within(sidebarNav).queryByText('Execution')).toBeNull()
     expect(within(sidebarNav).queryByText('Output')).toBeNull()
+    expect(screen.queryByRole('button', { name: /backup workspace/i })).toBeNull()
+    expect(screen.queryByText(/^Backup$/i)).toBeNull()
     expect(document.querySelector('.app-topbar-eyebrow')?.textContent).toBe('Analyze Workspace')
     expect(
       screen.getByText(
@@ -1391,8 +1386,8 @@ describe('AppShell hosted workspace bootstrap', () => {
 
     expect(screen.getByRole('button', { name: /refresh session/i })).toBeTruthy()
     expect(
-      within(screen.getByRole('alert')).getByRole('button', { name: /backup workspace/i }),
-    ).toBeTruthy()
+      within(screen.getByRole('alert')).queryByRole('button', { name: /backup workspace/i }),
+    ).toBeNull()
   })
 
   it('reloads the session when hosted runtime auth expires', async () => {
@@ -1422,7 +1417,7 @@ describe('AppShell hosted workspace bootstrap', () => {
     expect(locationMocks.reloadPage).toHaveBeenCalledTimes(1)
   })
 
-  it('opens the backup dialog from the hosted runtime recovery screen', async () => {
+  it('keeps legacy backup actions out of the hosted runtime recovery screen', async () => {
     setHostedStore({})
     setPersistenceHydration(true, 'ws-previous')
 
@@ -1443,13 +1438,11 @@ describe('AppShell hosted workspace bootstrap', () => {
     render(<AppShell />)
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /backup workspace/i })).toBeTruthy()
+      expect(screen.getByRole('alert').textContent).toContain('Hosted session expired')
     })
 
-    fireEvent.click(
-      within(screen.getByRole('alert')).getByRole('button', { name: /backup workspace/i }),
-    )
-    expect(screen.getByTestId('workspace-backup-dialog')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /backup workspace/i })).toBeNull()
+    expect(screen.queryByTestId('workspace-backup-dialog')).toBeNull()
   })
 
   it('surfaces hosted upgrade requirements distinctly from generic runtime sync failures', async () => {
