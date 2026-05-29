@@ -1,9 +1,11 @@
 ---
 id: TASK-266.1
 title: Add auth-aware root split and public landing shell
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-05-29 00:20'
+updated_date: '2026-05-29 00:33'
 labels:
   - feature
   - landing
@@ -32,6 +34,12 @@ ordinal: 10000
 <!-- SECTION:PLAN:BEGIN -->
 1. Inspect current AppShell hosted auth gate, HomePage route wiring, and hostedAppStore bootstrap states.\n2. Add a public landing component/shell and route selection logic for /.\n3. Preserve HomePage for authenticated users and avoid changing sidebar taxonomy.\n4. Add focused tests for the root auth split and run scoped verification.
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Starting route/auth split and public landing shell.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
