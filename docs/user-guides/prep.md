@@ -1,64 +1,69 @@
 # Interview Prep
 
-The Prep workspace turns job descriptions and match reports into structured interview preparation decks. Each deck contains categorized flashcards with talking points, technical prompts, and company-specific questions that you can practice in a timed, full-screen session.
+The Prep workspace turns Pipeline, JD analysis, and Identity context into
+structured interview preparation sets. Each set can be edited, rehearsed as
+homework, or opened as a live interview cheatsheet.
 
 ## What You Will Learn
 
-- Generate a prep deck from a match report or pipeline entry
+- Generate a prep set from a pipeline entry or blank starting point
 - Understand the four card categories and when each applies
 - Edit deck metadata and individual cards
 - Organize cards with tags and filters
-- Run a practice session with timer, answer reveal, and review marking
-- Import and export decks for backup or sharing
+- Use homework mode for structured recall practice
+- Tune the live cheatsheet rules, don'ts, questions, and guidance
+- Queue prep-discovered Identity gaps for review
+- Import and export prep sets for portability
 
 ## Prerequisites
 
-- A resume loaded in the **Build** workspace with at least one vector defined
-- At least one of the following:
-  - A completed match report (generated in the Match workspace)
-  - A pipeline entry with a job description (created in the Pipeline workspace)
+- A resume loaded in the **Build** workspace with at least one vector defined.
+- A current Identity model for the best generation and gap-review loop.
+- A pipeline entry with a job description when generating job-specific prep.
 - The AI proxy configured for deck generation
 
 ---
 
 ## Opening the Prep Workspace
 
-Click the **Prep** icon in the sidebar to navigate to `/prep`. The workspace opens with two areas:
+Click the **Prep** icon in the sidebar to navigate to `/prep`. The workspace
+opens with a header, a mode switcher, a prep library, and the active set.
 
-1. **Generator section** at the top, where you choose a source and generate decks
-2. **Active deck section** below, where you view, edit, filter, and practice cards
+The main modes are:
 
-If you have no decks yet, the active deck section displays an empty state prompting you to generate or import your first deck.
+| Mode | Use It For |
+| --- | --- |
+| **Edit** | Review and revise generated cards, deck metadata, live guidance, round notes, and context gaps. |
+| **Homework** | Drill cards with reveal, grading, filtered queues, pushback prompts, and follow-up variants. |
+| **Live Cheatsheet** | Open `/prep/live` for a focused in-room view of the active deck. |
 
-![Prep workspace overview](screenshots/prep-overview.png)
-*Screenshot to be added*
+If you have no prep sets yet, the empty state prompts you to generate a set,
+start blank, or import JSON.
 
 ---
 
 ## Deck Generation Flow
 
-Prep decks are generated from two possible sources. The AI reads your resume data, the job context, and any company research you provide, then produces a categorized set of interview cards.
+Prep sets are generated from Pipeline context. The AI reads your resume data,
+Identity context, the selected pipeline entry, any saved JD analysis, and
+optional notes, then produces cards and live guidance.
 
 ```mermaid
 flowchart LR
-    A[Match Report] --> C[AI Generation]
-    B[Pipeline Entry] --> C
-    C --> D[Card Grid]
-    D --> E[Practice Mode]
+    P[Pipeline Entry] --> C[AI Generation]
+    I[Identity Model] --> C
+    J[JD Analysis] --> C
+    C --> D[Prep Set]
+    D --> E[Edit Mode]
+    D --> H[Homework Mode]
+    D --> L[Live Cheatsheet]
 ```
 
 ### Choosing a Source
 
-At the top of the generator section, a **source toggle** lets you switch between two modes:
-
-| Source | When to Use |
-|---|---|
-| **Match report** | You have already analyzed a job description in the Match workspace and have a current match report available. |
-| **Pipeline entry** | You have added a role to the Pipeline workspace and want to prep from that entry's job description and metadata. |
-
-When **Match report** is selected, the generator uses the active match context, including vector recommendations and priority adjustments.
-
-When **Pipeline entry** is selected, a dropdown appears listing your pipeline entries. Select the entry you want to prep for, and the generator pulls in its job description, company, and role metadata.
+Click **Generate** in the header. The generate drawer lets you choose a Pipeline
+entry, vector, round details, and optional notes. Pipeline launchers can prefill
+these fields when you start from an entry.
 
 ### Adding Company Research
 
@@ -72,12 +77,10 @@ Before generating, paste any **company research notes** into the provided text a
 
 ### Generating the Deck
 
-Click **Generate Deck**. The AI processes your resume data, the selected source context, and your research notes, then returns a deck of categorized cards. Generation typically takes 10 to 20 seconds.
+Click **Generate with AI**. The AI processes the selected Pipeline context,
+Identity evidence, resume vector, and notes, then returns a categorized prep set.
 
-You can also click **Create Blank Deck** to start with an empty deck and add cards manually.
-
-![Deck generation section](screenshots/prep-generator.png)
-*Screenshot to be added*
+You can also start from a blank prep set and add cards manually.
 
 ---
 
@@ -137,7 +140,7 @@ Each card in the grid displays:
 - **Title** -- the question or prompt
 - **Category** -- one of the four categories, shown as a colored label
 - **Tags** -- vectors, companies, or skills associated with the card
-- **Script / Talking Points** -- your prepared answer structure (hidden by default, revealed on click or in practice mode)
+- **Script / Talking Points** -- your prepared answer structure, available when a card is expanded or revealed in Homework mode
 - **Notes** -- freeform notes for additional context
 
 ### Adding a Card
@@ -181,31 +184,64 @@ Clearing all filters restores the full card grid.
 
 ---
 
-## Practice Mode
+## Homework Mode
 
-Practice mode transforms the card grid into a full-screen flashcard session optimized for focused rehearsal.
+Homework mode turns the active set into a focused rehearsal queue.
 
 ### Starting a Session
 
-Toggle **Practice Mode** using the button in the deck header. The view switches from the card grid to a single-card display with navigation controls.
+Choose **Homework** from the mode switcher. Prep builds a queue from the active
+cards and study progress.
 
-If you have active filters when entering practice mode, only the filtered cards are included in the session. This lets you focus a practice run on a specific category or topic.
+Use filters such as all cards, openers, needs work, or unreviewed to focus the
+round.
 
 ### Session Controls
 
 | Control | Action |
 |---|---|
-| **Timer** | A visible countdown or elapsed timer to simulate interview pacing. Helps you practice keeping answers within a target duration. |
-| **Reveal Answer** | Click to show the card's script and talking points. Start by reading only the prompt, formulate your answer, then reveal to compare. |
-| **Mark for Review** | Flag the current card so you can revisit it later. Marked cards appear highlighted when you return to the card grid. |
-| **Next / Previous** | Navigate between cards in the session. |
+| **Reveal** | Shows the answer structure after you attempt recall. |
+| **Needs work / Good** | Grades the card and updates study progress. |
+| **Filter chips** | Rebuild the queue around openers, weak cards, or unreviewed material. |
+| **Shuffle / reset** | Starts another homework round from the eligible cards. |
 
-### Ending a Session
+Cards can also include conditional prompts, pushback scripts, and story variants.
+Homework mode expands those into separate drill entries when present.
 
-Toggle Practice Mode off to return to the card grid. Cards you marked for review remain flagged, making it easy to identify weak areas for additional preparation.
+---
 
-![Practice mode view](screenshots/prep-practice-mode.png)
-*Screenshot to be added*
+## Live Cheatsheet
+
+The **Live Cheatsheet** button opens `/prep/live` for the active set. Use it as a
+compact reference during final review or a live interview.
+
+The live view renders the same active deck with quick-scan sections for cards,
+rules, don'ts, questions to ask, interviewer context, and live guidance. Return
+to `/prep` when you need to edit the deck, change modes, import/export, or
+generate the next prep set. Edits are made in `/prep`; `/prep/live` is optimized
+for reference while you are in the room.
+
+Edit mode includes a **Live Guidance** section where you can tune:
+
+- **Rules** -- short reminders that apply to the whole interview.
+- **Don'ts** -- traps or habits to avoid.
+- **Questions to Ask** -- prompts plus context for why each question matters.
+- Category guidance and other live-facing notes.
+
+These fields feed the live view without changing the card library itself.
+
+---
+
+## Identity and Round Feedback
+
+Prep can expose context gaps after generation. Answer the gaps in the active set,
+then either regenerate with those answers or choose **Queue for Identity Review**
+when the answer belongs in the Identity model. Facet opens the Identity import
+workbench with a draft so you can review before applying.
+
+For multi-round interview loops, use the round section to set round number,
+round type, per-round notes, and follow-up debrief details. Later generated sets
+for the same pipeline entry can carry prior-round context forward.
 
 ---
 
@@ -215,7 +251,7 @@ Toggle Practice Mode off to return to the card grid. Cards you marked for review
 
 Click **Export** in the deck header to download the current deck as a JSON file. The export includes all deck metadata, cards, tags, and review flags. Use exports to:
 
-- Back up a deck before making major edits
+- Save a route-level copy before making major edits
 - Share a deck template with someone else using Facet
 - Archive a deck after completing an interview process
 
@@ -233,23 +269,32 @@ Click **Delete Set** in the deck header to permanently remove the active deck an
 
 1. **Add company research before generating.** The more context the AI has, the more targeted and useful the generated cards will be. Even a few bullet points about the company's tech stack or recent product launches make a noticeable difference.
 
-2. **Generate from match reports when possible.** Match reports include vector recommendations and priority adjustments from the JD analysis, which produces cards more tightly aligned to the specific role.
+2. **Generate from analyzed Pipeline entries when possible.** Saved JD analysis
+   gives the generator sharper requirements, gaps, and positioning context.
 
 3. **Edit generated cards aggressively.** AI-generated talking points are a starting framework. Replace generic language with your actual project names, metrics, and outcomes.
 
-4. **Use category filters during practice.** If you know the interview format (for example, a behavioral round followed by a system design round), filter to the relevant category and practice each round separately.
+4. **Use category filters during rehearsal.** If you know the interview format (for example, a behavioral round followed by a system design round), filter to the relevant category and practice each round separately.
 
-5. **Time yourself.** Use the practice mode timer to build a sense of pacing. Most behavioral answers should land between 90 seconds and 3 minutes. Technical walkthroughs vary but benefit from practiced structure.
+5. **Time yourself.** Use rehearsal rounds to build a sense of pacing. Most
+   behavioral answers should land between 90 seconds and 3 minutes. Technical
+   walkthroughs vary but benefit from practiced structure.
 
-6. **Review marked cards the day before.** After a practice session, return to the grid and filter for marked-for-review cards. These are your weak spots. Rewrite the talking points until you can answer confidently without revealing the script.
+6. **Review weak cards the day before.** After a homework round, filter for
+   cards that still need work. These are your weak spots. Rewrite the talking
+   points until you can answer confidently without revealing the script.
 
-7. **Export before interviews.** Create a snapshot of your final deck so you can reference it on a phone or tablet during last-minute review.
+7. **Tune the live view before interviews.** Rules, don'ts, and questions to ask
+   should be short enough to scan quickly.
 
 ---
 
 ## Summary
 
-The Prep workspace closes the loop between resume tailoring and interview readiness. By generating categorized decks from match reports or pipeline entries, you transform job-specific context into structured practice material. The card system lets you refine AI-generated content with your own experiences, and practice mode provides a focused environment for rehearsal with timing and self-assessment.
+The Prep workspace closes the loop between resume tailoring and interview
+readiness. Generate a prep set from Pipeline context, edit the cards and live
+guidance, rehearse weak answers in Homework mode, and queue durable discoveries
+back to Identity when they belong in the source model.
 
 ---
 
@@ -257,5 +302,5 @@ The Prep workspace closes the loop between resume tailoring and interview readin
 
 - [Getting Started](getting-started.md) -- set up your resume data and define your first vector
 - [Vectors](vectors.md) -- understand how vectors shape both resume assembly and prep generation
-- [Pipeline](pipeline.md) -- manage your job search pipeline, the other source for prep decks
-- [Match](match.md) -- generate match reports that feed prep deck generation
+- [Pipeline](pipeline.md) -- manage the job context that feeds prep generation
+- [Identity](identity.md) -- review durable gaps discovered during prep

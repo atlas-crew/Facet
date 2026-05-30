@@ -48,7 +48,7 @@ Use it to paste realistic source material into the Identity extraction flow with
 
 Important behavior:
 
-- `/identity` opens the Identity Map. Click **Import from resume** or **Start from a resume** to open `/identity/workbench`.
+- `/identity` opens the Identity Map. Click **Import from resume** or **Start from a resume** to open `/identity/import`.
 - The Source Intake card defaults to upload mode. Click **Paste Source Text** to reveal the sample dropdown.
 - The dropdown appears only under `import.meta.env.DEV`, so it is hidden in production builds.
 - Selecting a sample only fills the source-material textarea.

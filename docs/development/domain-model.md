@@ -54,8 +54,10 @@ The app uses **TanStack Router** (code-based routing). The current route surface
 
 **Job search workflow**
 
-- `/identity` — Identity model workspace (Phase 0; feeds every other workspace).
-- `/research` — AI-driven opportunity discovery; bulk-imports to Pipeline.
+- `/identity` — Identity Map for the canonical source model.
+- `/identity/import` — Identity import workbench for resume intake, extraction review, draft application, and sending Identity to Build.
+- `/identity/enrich` and `/identity/enrich/$groupId/$skillName` — Skill enrichment overview and per-skill depth editing.
+- `/research` — Identity-backed thesis generation, async deep research, and promotion to Pipeline.
 - `/pipeline` — Central tracker for every job opportunity.
 - `/match` — Match analysis: identity vs. JD; produces match reports.
 - `/build` — Identity-first resume assembly workspace (the original Facet SPA).
@@ -71,6 +73,9 @@ The app uses **TanStack Router** (code-based routing). The current route surface
 - `/account` — Account settings, hosted entitlements, AI access status.
 - `/help` — In-app help docs.
 - `/terms` and `/privacy` — Hosted legal pages.
+
+Segments prefixed with `$` are TanStack Router parameters. For example,
+`$groupId` matches the skill group id in `/identity/enrich/$groupId/$skillName`.
 
 The root route renders `AppShell` (`src/components/AppShell.tsx`) which provides:
 

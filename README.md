@@ -70,7 +70,7 @@ The methodology one-pager lives at [`brand/exports/method/facet-method-dark.webp
 - **Saved variants** — snapshot your override state and switch between configurations per vector
 - **Multiple renderers** — PDF (Typst), plain text, and Markdown (clipboard)
 - **Theme presets** — multiple typographic themes with full control over fonts, spacing, colors, and layout
-- **Import / Export** — YAML and JSON with strict schema validation and additive merge on import
+- **Import / Export** — Build supports YAML/JSON replace or merge; Identity, Pipeline, and Prep expose focused JSON exports
 - **Self-hostable** — open-source under AGPL-3.0; the model you build belongs to you, not the platform
 
 ## Screenshot
@@ -172,7 +172,7 @@ There are also `brand-*` recipes for re-rendering the brand asset library — se
 | Framework | React 19 |
 | Language | TypeScript (strict mode) |
 | Build | Vite 7 |
-| State | Zustand (persisted to localStorage) |
+| State | Zustand + snapshot coordinator (local and hosted persistence) |
 | PDF rendering | Typst (via typst.ts WASM) |
 | Drag & drop | @dnd-kit |
 | Icons | Lucide React |

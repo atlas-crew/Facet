@@ -187,8 +187,8 @@ export function PrivacyPage() {
         <p>You have the right to:</p>
         <ul>
           <li>
-            <strong>Access:</strong> Export your data at any time using the built-in workspace backup
-            feature
+            <strong>Access:</strong> Access and download supported workspace data through built-in
+            export tools, and request a full copy of your personal data by contacting support
           </li>
           <li>
             <strong>Correction:</strong> Edit your career content at any time through the Service
@@ -198,7 +198,9 @@ export function PrivacyPage() {
             contacting us
           </li>
           <li>
-            <strong>Portability:</strong> Download your data in standard formats (JSON/YAML)
+            <strong>Portability:</strong> Download supported workspace data through built-in export
+            tools where available. Export formats are typically JSON or YAML and vary by
+            workspace; contact support for a full data copy.
           </li>
         </ul>
         <p>

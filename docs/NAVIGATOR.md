@@ -22,7 +22,7 @@ End-to-end coverage of each workspace in the Facet job search pipeline, in the o
 | Guide                                       | Description                                                                                              |
 | ------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | [Identity](user-guides/identity.md)         | Build the identity model that feeds every downstream workspace — Phase 0 of the workflow                 |
-| [Research](user-guides/research.md)         | Discover opportunities with an AI-powered search profile and bulk-import to Pipeline                     |
+| [Research](user-guides/research.md)         | Generate a search strategy from Identity, run deep research, and promote matches to Pipeline             |
 | [Pipeline](user-guides/pipeline.md)         | Central hub for tracking every job opportunity from discovery through outcome                            |
 | [Match](user-guides/match.md)               | Compare identity against a job description; produce a quantified match report — Phase 1 of targeting     |
 | [Build](user-guides/build.md)               | Identity-first resume workspace; assemble targeted drafts from the identity model and match reports      |

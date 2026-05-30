@@ -100,9 +100,10 @@ Both copy operations pull from the same assembled result that drives the preview
 
 ---
 
-## JSON Export
+## Build Configuration Export
 
-Press **Cmd+E** to export your entire resume configuration as a JSON file. This export includes:
+Press **Cmd+E** or open **More tools -> Export** to export your Build
+configuration as JSON or YAML. This export includes:
 
 - All components (roles, bullets, skills, education, target lines, etc.)
 - All vectors and their priority mappings
@@ -115,13 +116,16 @@ Press **Cmd+E** to export your entire resume configuration as a JSON file. This 
 - **For portability.** JSON exports let you move a resume configuration between Facet instances or keep a versioned copy outside the app.
 - **For sharing.** You can send a JSON export to another Facet user as a starting point.
 
-The exported file is a complete, self-contained snapshot of your `ResumeData`.
+The exported file is a complete, self-contained snapshot of your Build
+`ResumeData`. It is a route-level portability tool, not the hosted workspace
+sync path.
 
 ---
 
-## JSON Import
+## Build Configuration Import
 
-Press **Cmd+I** to import a JSON file into Facet. The import dialog presents two modes:
+Press **Cmd+I** or open **More tools -> Import** to import JSON or YAML into
+Build. The import dialog validates the source and presents these modes:
 
 ### Replace All
 
@@ -141,11 +145,15 @@ Merges the imported data into your existing configuration without removing anyth
 
 Use Merge when you want to pull in additional components from another export (e.g., adding roles from a colleague's template) without disturbing your current setup.
 
+Professional Identity v3.1 JSON can also be pasted into this dialog. Identity
+imports are adapted into the current Build resume model and support **Replace
+All** only.
+
 ### Import Flow
 
 ```mermaid
 flowchart TD
-    A[User presses Cmd+I] --> B[Select JSON file]
+    A[User presses Cmd+I] --> B[Select JSON or YAML file]
     B --> C{Choose import mode}
     C -->|Replace All| D[Validate JSON structure]
     C -->|Merge| E[Validate JSON structure]
@@ -163,7 +171,21 @@ flowchart TD
 
 ### Import Validation
 
-The import process validates the JSON structure before applying changes. If the file does not match the expected `ResumeData` shape, the import is rejected with an error message. This protects against loading corrupted or incompatible files.
+The import process validates the structure before applying changes. If the file
+does not match a supported resume or identity shape, the import is rejected with
+an error message. This protects against loading corrupted or incompatible files.
+
+---
+
+## Additional Downloads
+
+The **More tools** menu also supports:
+
+- **Copy as Text** for application forms and plain-text review.
+- **Copy as Markdown** for Markdown-aware editors.
+- **Download DOCX** when the recipient expects an editable document.
+- **Download Bundle** to package the rendered PDF, text, and source config
+  together for a single opportunity.
 
 ---
 

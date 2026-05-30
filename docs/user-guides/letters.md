@@ -194,7 +194,9 @@ The sidebar lists all saved templates by name. Use it to:
 - **Create a blank template** -- Click the **New** button in the sidebar to start from scratch.
 - **Delete a template** -- Click the delete action next to a template name to remove it permanently.
 
-Templates are persisted in local storage. They survive page refreshes but are local to the browser.
+Letters are saved with the current workspace. In hosted mode they sync with the
+selected hosted workspace; in self-hosted/local mode they persist in the
+browser.
 
 > **Tip:** Name templates after the company and role (e.g., "Stripe -- Platform Eng") so they are easy to find when you have multiple in progress.
 

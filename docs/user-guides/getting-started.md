@@ -187,14 +187,16 @@ _Screenshot to be added_
 
 ## Importing and Exporting Data
 
-Facet stores all resume data in browser localStorage. To back up your data or transfer it
-between machines:
+Facet saves workspace data through the active persistence mode. In the hosted
+app, your selected hosted workspace syncs to the server. In self-hosted/local
+mode, the workspace persists in the browser. Route-level exports are still
+available for portability and review:
 
-- **Export**: Use the File menu or press **Command+E** to export your configuration as
+- **Export**: Use More tools or press **Command+E** to export your Build configuration as
   YAML or JSON.
-- **Import**: Use the File menu or press **Command+I** to import a previously exported
-  configuration. Imports are additive -- they merge with existing data by ID and never
-  replace existing items.
+- **Import**: Use More tools or press **Command+I** to import a previously exported
+  configuration. The import dialog lets you choose **Replace All** or **Merge** when
+  the source supports both modes.
 
 ---
 
@@ -204,8 +206,8 @@ between machines:
 | ----------- | ------------------------- |
 | `1` - `9`   | Select vector 1 through 9 |
 | `0`         | Select All view           |
-| `Command+I` | Import configuration      |
-| `Command+E` | Export configuration      |
+| `Command+I` | Open import dialog (Replace All or Merge) |
+| `Command+E` | Open export dialog (JSON or YAML) |
 | `Command+P` | Download PDF              |
 
 ---

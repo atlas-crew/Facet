@@ -80,7 +80,9 @@ Maintain a "current default" preset per vector that represents your latest prefe
 4. **Enter a name** for the preset (required) and an optional description.
 5. **Save**. The preset is created with the current override state and linked to the active vector.
 
-The preset is stored in `ResumeData.presets` alongside your component library, meaning it persists across sessions through localStorage and is included in JSON exports.
+The preset is stored in `ResumeData.presets` alongside your component library.
+It persists with the active workspace and is included in Build JSON/YAML
+exports.
 
 ### Updating an Existing Preset
 
@@ -170,7 +172,7 @@ This makes presets portable. You can share a JSON export with preset configurati
 | Concept | Detail |
 |---|---|
 | Snapshot contents | Manual overrides, variants, bullet orders, priorities, theme, target line, profile, skill group order |
-| Storage | `ResumeData.presets` (localStorage + JSON export) |
+| Storage | `ResumeData.presets` (workspace persistence + Build export) |
 | Dirty indicator | `*` in status bar when overrides diverge from saved state |
 | Scope | Each preset is linked to a base vector |
 | Export/Import | Fully portable in JSON format |
