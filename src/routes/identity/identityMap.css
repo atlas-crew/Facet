@@ -1158,6 +1158,13 @@
   gap: var(--space-2);
 }
 
+.strategy-global-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
 .search-section {
   margin-top: var(--space-3);
 }

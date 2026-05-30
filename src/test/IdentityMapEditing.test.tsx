@@ -11,6 +11,7 @@ const navigateMock = vi.fn(async () => undefined)
 const identityParameterMocks = vi.hoisted(() => ({
   generateSearchVectorsFromIdentityMock: vi.fn(),
   generateAwarenessFromIdentityMock: vi.fn(),
+  generateStrategicPositioningFromIdentityMock: vi.fn(),
 }))
 const facetEnvMock = vi.hoisted(() => ({
   facetClientEnv: {
@@ -43,6 +44,8 @@ vi.mock('../utils/facetEnv', () => facetEnvMock)
 vi.mock('../utils/identityParametersGeneration', () => ({
   generateSearchVectorsFromIdentity: identityParameterMocks.generateSearchVectorsFromIdentityMock,
   generateAwarenessFromIdentity: identityParameterMocks.generateAwarenessFromIdentityMock,
+  generateStrategicPositioningFromIdentity:
+    identityParameterMocks.generateStrategicPositioningFromIdentityMock,
 }))
 
 const seed = (modifier?: (id: ReturnType<typeof cloneIdentityFixture>) => void) => {
@@ -70,6 +73,7 @@ describe('Identity Map — match-rule add/remove', () => {
     facetEnvMock.facetClientEnv.anthropicProxyUrl = 'https://ai.example/proxy'
     identityParameterMocks.generateSearchVectorsFromIdentityMock.mockReset()
     identityParameterMocks.generateAwarenessFromIdentityMock.mockReset()
+    identityParameterMocks.generateStrategicPositioningFromIdentityMock.mockReset()
   })
   afterEach(() => cleanup())
 
@@ -189,6 +193,7 @@ describe('Identity Map — search-vector full-edit + add/remove', () => {
     facetEnvMock.facetClientEnv.anthropicProxyUrl = 'https://ai.example/proxy'
     identityParameterMocks.generateSearchVectorsFromIdentityMock.mockReset()
     identityParameterMocks.generateAwarenessFromIdentityMock.mockReset()
+    identityParameterMocks.generateStrategicPositioningFromIdentityMock.mockReset()
   })
   afterEach(() => cleanup())
 
@@ -280,6 +285,359 @@ describe('Identity Map — search-vector full-edit + add/remove', () => {
     expect(v.keywords.secondary).toEqual(['observability'])
     expect(v.supporting_skills).toEqual(['Kubernetes', 'Terraform'])
     expect(v.evidence).toEqual(['Built K8s platform at Contoso', 'Led migration to Terraform'])
+  })
+
+  it('generates full strategy from the current identity and selects the first vector', async () => {
+    seed((id) => {
+      delete id.self_model.competitive_moat
+      delete id.self_model.unfair_advantages
+      id.search_vectors = []
+      id.awareness = { open_questions: [] }
+    })
+    identityParameterMocks.generateStrategicPositioningFromIdentityMock.mockResolvedValueOnce({
+      competitive_moat:
+        'Platform strategy grounded in customer deployment constraints and product tradeoffs.',
+      unfair_advantages: [
+        'Platform infrastructure depth plus product judgment',
+        'Customer deployment architecture evidence',
+      ],
+      search_vectors: [
+        {
+          id: 'generated-platform',
+          title: 'Platform Strategy',
+          priority: 'high',
+          thesis: 'Lead platform bets where deployment architecture changes market access.',
+          target_roles: ['Staff Platform Engineer'],
+          keywords: { primary: ['platform strategy'], secondary: ['kubernetes'] },
+          supporting_skills: ['Kubernetes'],
+          supporting_bullets: ['platform-migration'],
+          evidence: ['Contoso platform migration'],
+          needs_review: true,
+        },
+        {
+          id: 'generated-security',
+          title: 'Security Enablement',
+          priority: 'medium',
+          thesis: 'Use security experience as platform leverage.',
+          target_roles: ['Principal Platform Engineer'],
+          keywords: { primary: ['security enablement'], secondary: ['platform'] },
+          supporting_skills: ['Kubernetes'],
+          supporting_bullets: ['platform-migration'],
+          evidence: ['Contoso platform migration'],
+          needs_review: true,
+        },
+      ],
+      open_questions: [
+        {
+          id: 'generated-question',
+          topic: 'Customer deployment scope',
+          description: 'Clarify the strongest version of the on-prem deployment story.',
+          action: 'Add customer constraints and adoption evidence.',
+          severity: 'medium',
+          evidence: ['Contoso platform migration'],
+          needs_review: true,
+        },
+        {
+          id: 'generated-question-2',
+          topic: 'Security narrative',
+          description: 'Clarify how security depth supports platform strategy.',
+          action: 'Add one security-platform example.',
+          severity: 'low',
+          evidence: ['Contoso platform migration'],
+          needs_review: true,
+        },
+      ],
+    })
+
+    render(<IdentityMapPage />)
+    fireEvent.click(screen.getByRole('button', { name: /^generate strategy$/i }))
+
+    await waitFor(() => {
+      expect(
+        identityParameterMocks.generateStrategicPositioningFromIdentityMock,
+      ).toHaveBeenCalledTimes(1)
+    })
+    expect(identityParameterMocks.generateStrategicPositioningFromIdentityMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        identity: expect.objectContaining({ name: 'Alex Example' }),
+      }),
+      'https://ai.example/proxy',
+    )
+
+    const identity = useIdentityStore.getState().currentIdentity!
+    expect(identity.self_model.competitive_moat).toBe(
+      'Platform strategy grounded in customer deployment constraints and product tradeoffs.',
+    )
+    expect(identity.self_model.unfair_advantages).toEqual([
+      'Platform infrastructure depth plus product judgment',
+      'Customer deployment architecture evidence',
+    ])
+    expect(identity.search_vectors).toHaveLength(2)
+    expect(identity.search_vectors?.[0]).toMatchObject({
+      title: 'Platform Strategy',
+      needs_review: true,
+    })
+    expect(identity.search_vectors?.[0]?.id).not.toBe('generated-platform')
+    expect(identity.awareness?.open_questions).toHaveLength(2)
+    expect(identity.awareness?.open_questions[0]).toMatchObject({
+      topic: 'Customer deployment scope',
+      needs_review: true,
+    })
+    expect(identity.awareness?.open_questions[0]?.id).not.toBe('generated-question')
+    expect(useIdentityStore.getState().mapSelection).toEqual({
+      type: 'search-vector',
+      id: identity.search_vectors?.[0]?.id,
+    })
+    expect(
+      screen.getByText('Generated strategy: moat, 2 advantages, 2 vectors, 2 questions.'),
+    ).toBeTruthy()
+  })
+
+  it('preserves an existing competitive moat when generating full strategy', async () => {
+    seed((id) => {
+      id.self_model.competitive_moat = 'Existing authored moat.'
+      id.self_model.unfair_advantages = ['Existing advantage']
+      id.search_vectors = []
+      id.awareness = { open_questions: [] }
+    })
+    identityParameterMocks.generateStrategicPositioningFromIdentityMock.mockResolvedValueOnce({
+      competitive_moat: 'Generated replacement moat.',
+      unfair_advantages: [' existing   advantage ', 'Security plus platform leverage'],
+      search_vectors: [],
+      open_questions: [],
+    })
+
+    render(<IdentityMapPage />)
+    fireEvent.click(screen.getByRole('button', { name: /^generate strategy$/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Generated strategy: 1 advantage.')).toBeTruthy()
+    })
+    expect(useIdentityStore.getState().currentIdentity?.self_model.competitive_moat).toBe(
+      'Existing authored moat.',
+    )
+    expect(useIdentityStore.getState().currentIdentity?.self_model.unfair_advantages).toEqual([
+      'Existing advantage',
+      'Security plus platform leverage',
+    ])
+  })
+
+  it('shows a configuration error when full strategy generation has no AI proxy', async () => {
+    seed((id) => {
+      delete id.self_model.competitive_moat
+      delete id.self_model.unfair_advantages
+      id.search_vectors = []
+      id.awareness = { open_questions: [] }
+    })
+    facetEnvMock.facetClientEnv.anthropicProxyUrl = ''
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    render(<IdentityMapPage />)
+    fireEvent.click(screen.getByRole('button', { name: /^generate strategy$/i }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Connect the AI proxy before generating search strategy.'),
+      ).toBeTruthy()
+    })
+    expect(consoleErrorSpy).not.toHaveBeenCalled()
+    consoleErrorSpy.mockRestore()
+    expect(identityParameterMocks.generateStrategicPositioningFromIdentityMock).not.toHaveBeenCalled()
+    expect(useIdentityStore.getState().currentIdentity?.self_model.competitive_moat).toBeUndefined()
+    expect(useIdentityStore.getState().currentIdentity?.search_vectors).toEqual([])
+    expect(useIdentityStore.getState().currentIdentity?.awareness?.open_questions).toEqual([])
+  })
+
+  it('shows an alert and preserves identity when full strategy generation fails', async () => {
+    seed((id) => {
+      delete id.self_model.competitive_moat
+      id.self_model.unfair_advantages = ['Existing advantage']
+      id.search_vectors = []
+      id.awareness = { open_questions: [] }
+    })
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    identityParameterMocks.generateStrategicPositioningFromIdentityMock.mockRejectedValueOnce(
+      new Error('proxy timeout'),
+    )
+
+    render(<IdentityMapPage />)
+    fireEvent.click(screen.getByRole('button', { name: /^generate strategy$/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Unable to generate strategy.')).toBeTruthy()
+    })
+    expect(consoleErrorSpy).toHaveBeenCalled()
+    consoleErrorSpy.mockRestore()
+    expect(useIdentityStore.getState().currentIdentity?.self_model.competitive_moat).toBeUndefined()
+    expect(useIdentityStore.getState().currentIdentity?.self_model.unfair_advantages).toEqual([
+      'Existing advantage',
+    ])
+    expect(useIdentityStore.getState().currentIdentity?.search_vectors).toEqual([])
+    expect(useIdentityStore.getState().currentIdentity?.awareness?.open_questions).toEqual([])
+  })
+
+  it('discards generated strategy if the identity revision changes during generation', async () => {
+    seed((id) => {
+      delete id.self_model.competitive_moat
+      delete id.self_model.unfair_advantages
+      id.search_vectors = []
+      id.awareness = { open_questions: [] }
+    })
+    const deferred =
+      createDeferred<
+        Awaited<ReturnType<typeof identityParameterMocks.generateStrategicPositioningFromIdentityMock>>
+      >()
+    identityParameterMocks.generateStrategicPositioningFromIdentityMock.mockReturnValueOnce(
+      deferred.promise,
+    )
+
+    render(<IdentityMapPage />)
+    fireEvent.click(screen.getByRole('button', { name: /^generate strategy$/i }))
+
+    const generatingButton = screen.getByRole('button', { name: /generating strategy/i })
+    expect(generatingButton.getAttribute('aria-busy')).toBe('true')
+
+    const nextIdentity = useIdentityStore.getState().currentIdentity!
+    useIdentityStore.setState({
+      currentIdentity: {
+        ...nextIdentity,
+        model_revision: nextIdentity.model_revision + 1,
+        roles: [...nextIdentity.roles],
+      },
+    })
+
+    await act(async () => {
+      deferred.resolve({
+        competitive_moat: 'Generated moat.',
+        unfair_advantages: ['Generated advantage'],
+        search_vectors: [
+          {
+            id: 'generated-platform',
+            title: 'Platform Strategy',
+            priority: 'high',
+            thesis: 'Lead platform bets.',
+            target_roles: ['Staff Platform Engineer'],
+            keywords: { primary: ['platform'], secondary: [] },
+          },
+        ],
+        open_questions: [
+          {
+            id: 'generated-question',
+            topic: 'Customer scope',
+            description: 'Clarify scope.',
+            action: 'Add one example.',
+          },
+        ],
+      })
+      await deferred.promise
+    })
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Identity changed during generation; discarded the generated strategy.'),
+      ).toBeTruthy()
+    })
+    expect(useIdentityStore.getState().currentIdentity?.self_model.competitive_moat).toBeUndefined()
+    expect(useIdentityStore.getState().currentIdentity?.self_model.unfair_advantages).toBeUndefined()
+    expect(useIdentityStore.getState().currentIdentity?.search_vectors).toEqual([])
+    expect(useIdentityStore.getState().currentIdentity?.awareness?.open_questions).toEqual([])
+  })
+
+  it('selects the first generated open question when full strategy adds no vectors', async () => {
+    seed((id) => {
+      id.search_vectors = []
+      id.awareness = { open_questions: [] }
+    })
+    identityParameterMocks.generateStrategicPositioningFromIdentityMock.mockResolvedValueOnce({
+      unfair_advantages: [],
+      search_vectors: [],
+      open_questions: [
+        {
+          id: 'generated-question',
+          topic: 'Customer scope',
+          description: 'Clarify customer deployment constraints.',
+          action: 'Add one sourced example.',
+          severity: 'high',
+        },
+      ],
+    })
+
+    render(<IdentityMapPage />)
+    fireEvent.click(screen.getByRole('button', { name: /^generate strategy$/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Generated strategy: 1 question.')).toBeTruthy()
+    })
+    const questions = useIdentityStore.getState().currentIdentity?.awareness?.open_questions ?? []
+    expect(questions).toHaveLength(1)
+    expect(useIdentityStore.getState().mapSelection).toEqual({
+      type: 'awareness-question',
+      id: questions[0]?.id,
+    })
+  })
+
+  it('reports no strategy changes when generated items duplicate the existing identity', async () => {
+    seed((id) => {
+      id.self_model.competitive_moat = 'Existing authored moat.'
+      id.self_model.unfair_advantages = ['Existing advantage']
+      id.search_vectors = [
+        {
+          id: 'existing-vector',
+          title: 'Platform Strategy',
+          priority: 'high',
+          thesis: 'Existing thesis.',
+          target_roles: ['Staff Platform Engineer'],
+          keywords: { primary: ['platform'], secondary: [] },
+        },
+      ]
+      id.awareness = {
+        open_questions: [
+          {
+            id: 'existing-question',
+            topic: 'Customer scope',
+            description: 'Existing description.',
+            action: 'Existing action.',
+          },
+        ],
+      }
+    })
+    identityParameterMocks.generateStrategicPositioningFromIdentityMock.mockResolvedValueOnce({
+      competitive_moat: 'Generated replacement moat.',
+      unfair_advantages: [' existing   advantage '],
+      search_vectors: [
+        {
+          id: 'generated-vector',
+          title: ' platform   strategy ',
+          priority: 'medium',
+          thesis: 'Duplicate generated thesis.',
+          target_roles: ['Principal Engineer'],
+          keywords: { primary: ['platform'], secondary: [] },
+        },
+      ],
+      open_questions: [
+        {
+          id: 'generated-question',
+          topic: ' customer   scope ',
+          description: 'Duplicate generated description.',
+          action: 'Duplicate generated action.',
+        },
+      ],
+    })
+
+    render(<IdentityMapPage />)
+    fireEvent.click(screen.getByRole('button', { name: /^generate strategy$/i }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Generated strategy matched existing identity; nothing new was added.'),
+      ).toBeTruthy()
+    })
+    const identity = useIdentityStore.getState().currentIdentity!
+    expect(identity.self_model.competitive_moat).toBe('Existing authored moat.')
+    expect(identity.self_model.unfair_advantages).toEqual(['Existing advantage'])
+    expect(identity.search_vectors).toHaveLength(1)
+    expect(identity.awareness?.open_questions).toHaveLength(1)
+    expect(useIdentityStore.getState().mapSelection).toBeNull()
   })
 
   it('generates search vectors from the current identity and selects the first result', async () => {
@@ -685,6 +1043,7 @@ describe('Identity Map — awareness-question full-edit + add/remove', () => {
     facetEnvMock.facetClientEnv.anthropicProxyUrl = 'https://ai.example/proxy'
     identityParameterMocks.generateSearchVectorsFromIdentityMock.mockReset()
     identityParameterMocks.generateAwarenessFromIdentityMock.mockReset()
+    identityParameterMocks.generateStrategicPositioningFromIdentityMock.mockReset()
   })
   afterEach(() => cleanup())
 
@@ -1005,6 +1364,7 @@ describe('Identity Map — skill inline editing', () => {
     facetEnvMock.facetClientEnv.anthropicProxyUrl = 'https://ai.example/proxy'
     identityParameterMocks.generateSearchVectorsFromIdentityMock.mockReset()
     identityParameterMocks.generateAwarenessFromIdentityMock.mockReset()
+    identityParameterMocks.generateStrategicPositioningFromIdentityMock.mockReset()
   })
   afterEach(() => cleanup())
 
@@ -1244,6 +1604,7 @@ describe('Identity Map — sad-path editing coverage', () => {
     facetEnvMock.facetClientEnv.anthropicProxyUrl = 'https://ai.example/proxy'
     identityParameterMocks.generateSearchVectorsFromIdentityMock.mockReset()
     identityParameterMocks.generateAwarenessFromIdentityMock.mockReset()
+    identityParameterMocks.generateStrategicPositioningFromIdentityMock.mockReset()
   })
   afterEach(() => cleanup())
 

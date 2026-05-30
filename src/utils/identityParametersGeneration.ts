@@ -14,6 +14,13 @@ const GENERATION_MODEL = 'opus'
 const VECTOR_PRIORITY_VALUES = new Set<ProfessionalSearchVectorPriority>(['high', 'medium', 'low'])
 const AWARENESS_SEVERITY_VALUES = new Set<ProfessionalAwarenessSeverity>(['high', 'medium', 'low'])
 
+export interface ProfessionalStrategicInference {
+  competitive_moat?: string
+  unfair_advantages: string[]
+  search_vectors: ProfessionalSearchVector[]
+  open_questions: ProfessionalOpenQuestion[]
+}
+
 const normalizeStringArray = (value: unknown): string[] =>
   Array.isArray(value)
     ? value
@@ -21,6 +28,9 @@ const normalizeStringArray = (value: unknown): string[] =>
         .map((entry) => entry.trim())
         .filter(Boolean)
     : []
+
+const normalizeOptionalString = (value: unknown): string | undefined =>
+  isString(value) && value.trim() ? value.trim() : undefined
 
 const buildGenerationPrompt = (identity: ProfessionalIdentityV3) =>
   JSON.stringify(
@@ -134,6 +144,93 @@ const normalizeGeneratedAwareness = (payload: unknown): ProfessionalOpenQuestion
       } satisfies ProfessionalOpenQuestion,
     ]
   })
+}
+
+const normalizeGeneratedStrategy = (payload: unknown): ProfessionalStrategicInference => {
+  const record = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {}
+  const awarenessRecord =
+    record.awareness && typeof record.awareness === 'object'
+      ? (record.awareness as Record<string, unknown>)
+      : null
+  const openQuestionsPayload = Array.isArray(record.open_questions)
+    ? { open_questions: record.open_questions }
+    : awarenessRecord && Array.isArray(awarenessRecord.open_questions)
+      ? { open_questions: awarenessRecord.open_questions }
+      : { open_questions: [] }
+  const competitiveMoat = normalizeOptionalString(record.competitive_moat)
+
+  return {
+    ...(competitiveMoat ? { competitive_moat: competitiveMoat } : {}),
+    unfair_advantages: normalizeStringArray(record.unfair_advantages),
+    search_vectors: normalizeGeneratedVectors(record),
+    open_questions: normalizeGeneratedAwareness(openQuestionsPayload),
+  }
+}
+
+export async function generateStrategicPositioningFromIdentity(
+  identity: ProfessionalIdentityV3,
+  endpoint: string,
+): Promise<ProfessionalStrategicInference> {
+  const systemPrompt = `You are a senior career strategist for staff-plus engineering candidates. Return JSON only.
+Reason across the full identity model before producing fields. The goal is one coherent market strategy, not independent field filling.
+
+Respect generator_rules.accuracy as hard truth constraints. Do not invent candidate claims. Use the roles, projects, skills, profiles, and existing self_model as evidence.
+
+Strategic reasoning requirements:
+- Identify the candidate's strongest defensible market position.
+- Separate real competitive edge from generic senior-engineer language.
+- Prefer precise, searchable lanes that map to target roles and company signals.
+- Include evidence strings for every proposed vector and open question.
+- Do not repeat existing search vectors, unfair advantages, or awareness items unless the supplied identity supports a stronger, more actionable framing.
+- If competitive_moat already exists, do not return a replacement. Use the existing moat as strategy context and sharpen unfair_advantages, search_vectors, and open_questions around it.
+
+Response schema:
+{
+  "competitive_moat": "optional string",
+  "unfair_advantages": ["string"],
+  "search_vectors": [
+    {
+      "id": "optional string",
+      "title": "string",
+      "priority": "high|medium|low",
+      "subtitle": "optional string",
+      "thesis": "string",
+      "target_roles": ["string"],
+      "keywords": {
+        "primary": ["string"],
+        "secondary": ["string"]
+      },
+      "supporting_skills": ["string"],
+      "supporting_bullets": ["string"],
+      "evidence": ["string"]
+    }
+  ],
+  "open_questions": [
+    {
+      "id": "optional string",
+      "topic": "string",
+      "description": "string",
+      "action": "string",
+      "severity": "high|medium|low",
+      "evidence": ["string"]
+    }
+  ]
+}`
+
+  const rawResponse = await callLlmProxy(endpoint, systemPrompt, buildGenerationPrompt(identity), {
+    feature: 'research.profile-inference',
+    model: GENERATION_MODEL,
+    timeoutMs: RESEARCH_PROFILE_INFERENCE_TIMEOUT_MS,
+  })
+
+  try {
+    return normalizeGeneratedStrategy(parseGeneratedPayload(rawResponse, 'Generated strategy response'))
+  } catch (error) {
+    if (error instanceof JsonExtractionError) {
+      throw error
+    }
+    throw error instanceof Error ? error : new Error('Failed to parse generated strategy.')
+  }
 }
 
 export async function generateSearchVectorsFromIdentity(

@@ -11,12 +11,13 @@ import { searchStrategyFillStrength } from '../../../utils/identityFillStrength'
 import {
   generateAwarenessFromIdentity,
   generateSearchVectorsFromIdentity,
+  generateStrategicPositioningFromIdentity,
 } from '../../../utils/identityParametersGeneration'
 import { createId } from '../../../utils/idUtils'
 import { sanitizeEndpointUrl } from '../../../utils/urlUtils'
 import { IdentityBand } from '../IdentityBand'
 
-type StrategyGenerationKind = 'vectors' | 'questions'
+type StrategyGenerationKind = 'strategy' | 'vectors' | 'questions'
 type StrategyGenerationMessage = {
   id: number
   kind: StrategyGenerationKind
@@ -33,6 +34,10 @@ const getIdentityGenerationKey = (identity: ProfessionalIdentityV3) =>
   // while these collection signatures catch any future direct strategy-list writes.
   [
     identity.model_revision ?? 0,
+    normalizeGenerationSignature(identity.self_model?.competitive_moat),
+    ...(identity.self_model?.unfair_advantages ?? []).map((advantage) =>
+      normalizeGenerationSignature(advantage),
+    ),
     ...(identity.search_vectors ?? []).map((vector) =>
       normalizeGenerationSignature(`${vector.id} ${vector.title}`),
     ),
@@ -69,6 +74,46 @@ const uniquifyGeneratedItems = <Item extends { id: string }>({
   })
 }
 
+const getUniqueGeneratedAdvantages = (existing: string[], generated: string[]) => {
+  const signatures = new Set(existing.map(normalizeGenerationSignature).filter(Boolean))
+
+  return generated.flatMap((advantage) => {
+    const trimmed = advantage.trim()
+    const signature = normalizeGenerationSignature(trimmed)
+    if (!signature) return []
+    if (signatures.has(signature)) return []
+    signatures.add(signature)
+    return [trimmed]
+  })
+}
+
+const formatGeneratedStrategyMessage = ({
+  addedMoat,
+  advantageCount,
+  vectorCount,
+  questionCount,
+}: {
+  addedMoat: boolean
+  advantageCount: number
+  vectorCount: number
+  questionCount: number
+}) => {
+  const parts = [
+    addedMoat ? 'moat' : '',
+    advantageCount > 0
+      ? `${advantageCount} ${advantageCount === 1 ? 'advantage' : 'advantages'}`
+      : '',
+    vectorCount > 0 ? `${vectorCount} ${vectorCount === 1 ? 'vector' : 'vectors'}` : '',
+    questionCount > 0
+      ? `${questionCount} ${questionCount === 1 ? 'question' : 'questions'}`
+      : '',
+  ].filter(Boolean)
+
+  return parts.length > 0
+    ? `Generated strategy: ${parts.join(', ')}.`
+    : 'Generated strategy matched existing identity; nothing new was added.'
+}
+
 const priorityTone = (priority: 'high' | 'medium' | 'low'): string => {
   switch (priority) {
     case 'high':
@@ -97,6 +142,8 @@ export function SearchStrategyBand() {
   const identity = useIdentityStore((s) => s.currentIdentity)
   const selection = useIdentityStore((s) => s.mapSelection)
   const setSelection = useIdentityStore((s) => s.setMapSelection)
+  const updateCompetitiveMoat = useIdentityStore((s) => s.updateCurrentCompetitiveMoat)
+  const updateUnfairAdvantages = useIdentityStore((s) => s.updateCurrentUnfairAdvantages)
   const updateVectors = useIdentityStore((s) => s.updateCurrentSearchVectors)
   const updateQuestions = useIdentityStore((s) => s.updateCurrentAwarenessQuestions)
   const fill = searchStrategyFillStrength(identity)
@@ -108,6 +155,7 @@ export function SearchStrategyBand() {
 
   const vectors = identity?.search_vectors ?? []
   const questions = identity?.awareness?.open_questions ?? []
+  const strategyMessage = generationMessage?.kind === 'strategy' ? generationMessage : null
   const vectorMessage = generationMessage?.kind === 'vectors' ? generationMessage : null
   const questionMessage = generationMessage?.kind === 'questions' ? generationMessage : null
 
@@ -251,6 +299,106 @@ export function SearchStrategyBand() {
     }
   }
 
+  const handleGenerateStrategy = async () => {
+    const currentIdentity = useIdentityStore.getState().currentIdentity
+    if (!currentIdentity || generatingRef.current) return
+
+    try {
+      generatingRef.current = 'strategy'
+      const endpoint = ensureEndpoint()
+      const generationKey = getIdentityGenerationKey(currentIdentity)
+      setGenerating('strategy')
+      showGenerationMessage({
+        kind: 'strategy',
+        tone: 'info',
+        text: 'Generating strategy…',
+        autoDismiss: false,
+      })
+
+      const generated = await generateStrategicPositioningFromIdentity(currentIdentity, endpoint)
+      const latestIdentity = useIdentityStore.getState().currentIdentity
+      if (!latestIdentity || getIdentityGenerationKey(latestIdentity) !== generationKey) {
+        showGenerationMessage({
+          kind: 'strategy',
+          tone: 'info',
+          text: 'Identity changed during generation; discarded the generated strategy.',
+          autoDismiss: true,
+        })
+        return
+      }
+
+      const existingMoat = latestIdentity.self_model?.competitive_moat?.trim() ?? ''
+      const addedMoat = !existingMoat && Boolean(generated.competitive_moat)
+      const existingAdvantages = latestIdentity.self_model?.unfair_advantages ?? []
+      const nextAdvantages = getUniqueGeneratedAdvantages(
+        existingAdvantages,
+        generated.unfair_advantages,
+      )
+      const existingVectors = latestIdentity.search_vectors ?? []
+      const nextVectors = uniquifyGeneratedItems<ProfessionalSearchVector>({
+        existing: existingVectors,
+        generated: generated.search_vectors,
+        idPrefix: 'search-vector',
+        getSignature: (vector) => vector.title,
+      })
+      const existingQuestions = latestIdentity.awareness?.open_questions ?? []
+      const nextQuestions = uniquifyGeneratedItems<ProfessionalOpenQuestion>({
+        existing: existingQuestions,
+        generated: generated.open_questions,
+        idPrefix: 'open-question',
+        getSignature: (question) => question.topic,
+      })
+
+      if (addedMoat && generated.competitive_moat) {
+        updateCompetitiveMoat(generated.competitive_moat)
+      }
+      if (nextAdvantages.length > 0) {
+        updateUnfairAdvantages([...existingAdvantages, ...nextAdvantages])
+      }
+      if (nextVectors.length > 0) {
+        updateVectors([...existingVectors, ...nextVectors])
+      }
+      if (nextQuestions.length > 0) {
+        updateQuestions([...existingQuestions, ...nextQuestions])
+      }
+
+      const [firstVector] = nextVectors
+      const [firstQuestion] = nextQuestions
+      if (firstVector) {
+        setSelection({ type: 'search-vector', id: firstVector.id })
+      } else if (firstQuestion) {
+        setSelection({ type: 'awareness-question', id: firstQuestion.id })
+      }
+
+      showGenerationMessage({
+        kind: 'strategy',
+        tone: 'info',
+        text: formatGeneratedStrategyMessage({
+          addedMoat,
+          advantageCount: nextAdvantages.length,
+          vectorCount: nextVectors.length,
+          questionCount: nextQuestions.length,
+        }),
+        autoDismiss: true,
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : ''
+      const isConfigError = error instanceof StrategyGenerationConfigError
+      if (!isConfigError) {
+        console.error(error)
+      }
+      showGenerationMessage({
+        kind: 'strategy',
+        tone: 'error',
+        text: isConfigError ? message : 'Unable to generate strategy.',
+        autoDismiss: false,
+      })
+    } finally {
+      generatingRef.current = null
+      setGenerating(null)
+    }
+  }
+
   const handleGenerateVectors = () =>
     runStrategyGeneration<ProfessionalSearchVector>({
       kind: 'vectors',
@@ -324,6 +472,44 @@ export function SearchStrategyBand() {
       subtitle="positioning angles · open questions"
       fill={fill}
     >
+      <div className="strategy-global-actions">
+        <button
+          type="button"
+          className="inspector-btn primary"
+          onClick={() => {
+            if (generating !== null) return
+            void handleGenerateStrategy()
+          }}
+          disabled={!identity}
+          aria-disabled={generating !== null}
+          aria-busy={generating === 'strategy'}
+        >
+          <Sparkles size={14} aria-hidden="true" />
+          {generating === 'strategy' ? 'Generating strategy…' : 'Generate strategy'}
+        </button>
+      </div>
+      <div className="strategy-generation-stack">
+        <div
+          className={`strategy-generation-message info ${
+            strategyMessage?.tone === 'info' ? '' : 'empty'
+          }`}
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          {strategyMessage?.tone === 'info' ? strategyMessage.text : ''}
+        </div>
+        <div
+          className={`strategy-generation-message error ${
+            strategyMessage?.tone === 'error' ? '' : 'empty'
+          }`}
+          role="alert"
+          aria-atomic="true"
+        >
+          {strategyMessage?.tone === 'error' ? strategyMessage.text : ''}
+        </div>
+      </div>
+
       <div className="search-section">
         <div className="pref-list-label label-tracked">
           Search Vectors <span className="self-count">{vectors.length}</span>

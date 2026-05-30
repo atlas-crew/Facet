@@ -3,6 +3,7 @@ import { cloneIdentityFixture } from './fixtures/identityFixture'
 import {
   generateAwarenessFromIdentity,
   generateSearchVectorsFromIdentity,
+  generateStrategicPositioningFromIdentity,
 } from '../utils/identityParametersGeneration'
 import { JsonExtractionError } from '../utils/llmProxy'
 import { RESEARCH_PROFILE_INFERENCE_TIMEOUT_MS } from '../utils/researchProfileInferenceConfig'
@@ -104,6 +105,114 @@ describe('identityParametersGeneration', () => {
     setTimeoutSpy.mockRestore()
   })
 
+  it('normalizes a combined strategic positioning response', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                competitive_moat: ' Platform plus product strategy ',
+                unfair_advantages: [' Product judgment ', '', 'Deployment architecture'],
+                search_vectors: [
+                  {
+                    title: 'Platform Strategy',
+                    priority: 'high',
+                    thesis: 'Lead platform strategy roles.',
+                    target_roles: ['Staff Platform Engineer'],
+                    keywords: {
+                      primary: ['platform strategy'],
+                      secondary: ['kubernetes'],
+                    },
+                  },
+                ],
+                open_questions: [
+                  {
+                    topic: 'Customer scope',
+                    description: 'Clarify customer deployment constraints.',
+                    action: 'Add one sourced example.',
+                    severity: 'low',
+                  },
+                ],
+              }),
+            },
+          },
+        ],
+      }),
+    } as Response)
+
+    const strategy = await generateStrategicPositioningFromIdentity(
+      cloneIdentityFixture(),
+      'https://ai.example/proxy',
+    )
+
+    expect(strategy.competitive_moat).toBe('Platform plus product strategy')
+    expect(strategy.unfair_advantages).toEqual(['Product judgment', 'Deployment architecture'])
+    expect(strategy.search_vectors).toHaveLength(1)
+    expect(strategy.search_vectors[0]).toMatchObject({
+      title: 'Platform Strategy',
+      priority: 'high',
+      needs_review: true,
+    })
+    expect(strategy.open_questions).toHaveLength(1)
+    expect(strategy.open_questions[0]).toMatchObject({
+      topic: 'Customer scope',
+      severity: 'low',
+      needs_review: true,
+    })
+  })
+
+  it('normalizes nested awareness questions in a combined strategy response', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                search_vectors: [],
+                awareness: {
+                  open_questions: [
+                    {
+                      topic: 'Nested customer proof',
+                      description: 'Clarify the strongest customer proof.',
+                      action: 'Add one adoption example.',
+                    },
+                  ],
+                },
+              }),
+            },
+          },
+        ],
+      }),
+    } as Response)
+
+    const strategy = await generateStrategicPositioningFromIdentity(
+      cloneIdentityFixture(),
+      'https://ai.example/proxy',
+    )
+
+    expect(strategy.open_questions).toHaveLength(1)
+    expect(strategy.open_questions[0]).toMatchObject({
+      topic: 'Nested customer proof',
+      needs_review: true,
+    })
+  })
+
+  it('preserves extraction errors for missing strategy JSON blocks', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: 'Here is the strategy you requested.' } }],
+      }),
+    } as Response)
+
+    await expect(
+      generateStrategicPositioningFromIdentity(cloneIdentityFixture(), 'https://ai.example/proxy'),
+    ).rejects.toBeInstanceOf(JsonExtractionError)
+  })
+
   it('requests Opus for identity strategy inference', async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce({
@@ -118,18 +227,30 @@ describe('identityParametersGeneration', () => {
           choices: [{ message: { content: '{"open_questions":[]}' } }],
         }),
       } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [{ message: { content: '{"search_vectors":[],"open_questions":[]}' } }],
+        }),
+      } as Response)
 
     await generateSearchVectorsFromIdentity(cloneIdentityFixture(), 'https://ai.example/proxy')
     await generateAwarenessFromIdentity(cloneIdentityFixture(), 'https://ai.example/proxy')
+    await generateStrategicPositioningFromIdentity(cloneIdentityFixture(), 'https://ai.example/proxy')
 
     const vectorRequest = JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body))
     const awarenessRequest = JSON.parse(String(vi.mocked(fetch).mock.calls[1]?.[1]?.body))
+    const strategyRequest = JSON.parse(String(vi.mocked(fetch).mock.calls[2]?.[1]?.body))
 
     expect(vectorRequest).toMatchObject({
       feature: 'research.profile-inference',
       model: 'opus',
     })
     expect(awarenessRequest).toMatchObject({
+      feature: 'research.profile-inference',
+      model: 'opus',
+    })
+    expect(strategyRequest).toMatchObject({
       feature: 'research.profile-inference',
       model: 'opus',
     })
