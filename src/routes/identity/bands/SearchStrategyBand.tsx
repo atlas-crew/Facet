@@ -1,7 +1,73 @@
+import { useEffect, useRef, useState } from 'react'
+import { Sparkles } from 'lucide-react'
+import type {
+  ProfessionalIdentityV3,
+  ProfessionalOpenQuestion,
+  ProfessionalSearchVector,
+} from '../../../identity/schema'
 import { useIdentityStore } from '../../../store/identityStore'
+import { facetClientEnv } from '../../../utils/facetEnv'
 import { searchStrategyFillStrength } from '../../../utils/identityFillStrength'
+import {
+  generateAwarenessFromIdentity,
+  generateSearchVectorsFromIdentity,
+} from '../../../utils/identityParametersGeneration'
 import { createId } from '../../../utils/idUtils'
+import { sanitizeEndpointUrl } from '../../../utils/urlUtils'
 import { IdentityBand } from '../IdentityBand'
+
+type StrategyGenerationKind = 'vectors' | 'questions'
+type StrategyGenerationMessage = {
+  id: number
+  kind: StrategyGenerationKind
+  tone: 'info' | 'error'
+  text: string
+  autoDismiss: boolean
+}
+type StrategySelectionType = 'search-vector' | 'awareness-question'
+
+class StrategyGenerationConfigError extends Error {}
+
+const getIdentityGenerationKey = (identity: ProfessionalIdentityV3) =>
+  // identityStore.syncIdentityDocument advances model_revision for durable identity edits,
+  // while these collection signatures catch any future direct strategy-list writes.
+  [
+    identity.model_revision ?? 0,
+    ...(identity.search_vectors ?? []).map((vector) =>
+      normalizeGenerationSignature(`${vector.id} ${vector.title}`),
+    ),
+    ...(identity.awareness?.open_questions ?? []).map((question) =>
+      normalizeGenerationSignature(`${question.id} ${question.topic}`),
+    ),
+  ].join('\u0000')
+
+const normalizeGenerationSignature = (value: string | null | undefined) =>
+  (value ?? '').trim().replace(/\s+/g, ' ').toLowerCase()
+
+const uniquifyGeneratedItems = <Item extends { id: string }>({
+  existing,
+  generated,
+  idPrefix,
+  getSignature,
+}: {
+  existing: Item[]
+  generated: Item[]
+  idPrefix: string
+  getSignature: (item: Item) => string
+}) => {
+  const signatures = new Set(
+    existing.map((item) => normalizeGenerationSignature(getSignature(item))).filter(Boolean),
+  )
+
+  return generated.flatMap((item) => {
+    const signature = normalizeGenerationSignature(getSignature(item))
+    // Drop empty signatures from generated items; an untitled AI result is not reviewable.
+    if (!signature) return []
+    if (signatures.has(signature)) return []
+    signatures.add(signature)
+    return [{ ...item, id: createId(idPrefix) }]
+  })
+}
 
 const priorityTone = (priority: 'high' | 'medium' | 'low'): string => {
   switch (priority) {
@@ -34,9 +100,192 @@ export function SearchStrategyBand() {
   const updateVectors = useIdentityStore((s) => s.updateCurrentSearchVectors)
   const updateQuestions = useIdentityStore((s) => s.updateCurrentAwarenessQuestions)
   const fill = searchStrategyFillStrength(identity)
+  // The ref closes the pre-render double-click window; state drives the UI.
+  const generatingRef = useRef<StrategyGenerationKind | null>(null)
+  const generationMessageIdRef = useRef(0)
+  const [generating, setGenerating] = useState<StrategyGenerationKind | null>(null)
+  const [generationMessage, setGenerationMessage] = useState<StrategyGenerationMessage | null>(null)
 
   const vectors = identity?.search_vectors ?? []
   const questions = identity?.awareness?.open_questions ?? []
+  const vectorMessage = generationMessage?.kind === 'vectors' ? generationMessage : null
+  const questionMessage = generationMessage?.kind === 'questions' ? generationMessage : null
+
+  useEffect(() => {
+    if (!generationMessage?.autoDismiss) return undefined
+
+    // Guard stale timers so a previous success message cannot clear a newer status/error.
+    const messageId = generationMessage.id
+    const timeoutId = window.setTimeout(() => {
+      setGenerationMessage((current) => (current?.id === messageId ? null : current))
+    }, 8000)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [generationMessage])
+
+  const showGenerationMessage = (message: Omit<StrategyGenerationMessage, 'id'>) => {
+    generationMessageIdRef.current += 1
+    setGenerationMessage({ ...message, id: generationMessageIdRef.current })
+  }
+
+  const ensureEndpoint = () => {
+    const aiEndpoint = sanitizeEndpointUrl(facetClientEnv.anthropicProxyUrl)
+    if (!aiEndpoint) {
+      throw new StrategyGenerationConfigError(
+        'Connect the AI proxy before generating search strategy.',
+      )
+    }
+    return aiEndpoint
+  }
+
+  const runStrategyGeneration = async <Item extends { id: string }>({
+    kind,
+    loadingText,
+    changedText,
+    emptyText,
+    duplicateText,
+    singularText,
+    pluralText,
+    unableText,
+    generate,
+    getExisting,
+    updateItems,
+    selectionType,
+    idPrefix,
+    getSignature,
+  }: {
+    kind: StrategyGenerationKind
+    loadingText: string
+    changedText: string
+    emptyText: string
+    duplicateText: string
+    singularText: string
+    pluralText: string
+    unableText: string
+    generate: (identity: ProfessionalIdentityV3, endpoint: string) => Promise<Item[]>
+    getExisting: (identity: ProfessionalIdentityV3) => Item[]
+    updateItems: (items: Item[]) => void
+    selectionType: StrategySelectionType
+    idPrefix: string
+    getSignature: (item: Item) => string
+  }) => {
+    const currentIdentity = useIdentityStore.getState().currentIdentity
+    if (!currentIdentity || generatingRef.current) return
+
+    try {
+      generatingRef.current = kind
+      const endpoint = ensureEndpoint()
+      const generationKey = getIdentityGenerationKey(currentIdentity)
+      setGenerating(kind)
+      showGenerationMessage({
+        kind,
+        tone: 'info',
+        text: loadingText,
+        autoDismiss: false,
+      })
+      const generated = await generate(currentIdentity, endpoint)
+      const latestIdentity = useIdentityStore.getState().currentIdentity
+      if (!latestIdentity || getIdentityGenerationKey(latestIdentity) !== generationKey) {
+        showGenerationMessage({
+          kind,
+          tone: 'info',
+          text: changedText,
+          autoDismiss: true,
+        })
+        return
+      }
+      if (generated.length === 0) {
+        showGenerationMessage({
+          kind,
+          tone: 'info',
+          text: emptyText,
+          autoDismiss: true,
+        })
+        return
+      }
+
+      const existing = getExisting(latestIdentity)
+      const nextGenerated = uniquifyGeneratedItems<Item>({
+        existing,
+        generated,
+        idPrefix,
+        getSignature,
+      })
+      const [firstGenerated] = nextGenerated
+      if (!firstGenerated) {
+        showGenerationMessage({
+          kind,
+          tone: 'info',
+          text: duplicateText,
+          autoDismiss: true,
+        })
+        return
+      }
+
+      updateItems([...existing, ...nextGenerated])
+      setSelection({ type: selectionType, id: firstGenerated.id })
+      showGenerationMessage({
+        kind,
+        tone: 'info',
+        text:
+          nextGenerated.length === 1
+            ? singularText
+            : pluralText.replace('{count}', String(nextGenerated.length)),
+        autoDismiss: true,
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : ''
+      const isConfigError = error instanceof StrategyGenerationConfigError
+      if (!isConfigError) {
+        console.error(error)
+      }
+      showGenerationMessage({
+        kind,
+        tone: 'error',
+        text: isConfigError ? message : unableText,
+        autoDismiss: false,
+      })
+    } finally {
+      generatingRef.current = null
+      setGenerating(null)
+    }
+  }
+
+  const handleGenerateVectors = () =>
+    runStrategyGeneration<ProfessionalSearchVector>({
+      kind: 'vectors',
+      loadingText: 'Generating search vectors…',
+      changedText: 'Identity changed during generation; discarded the generated vectors.',
+      emptyText: 'No new search vectors came back from the current identity.',
+      duplicateText: 'Generated search vectors matched existing strategy; nothing new was added.',
+      singularText: 'Generated 1 search vector.',
+      pluralText: 'Generated {count} search vectors.',
+      unableText: 'Unable to generate search vectors.',
+      generate: generateSearchVectorsFromIdentity,
+      getExisting: (currentIdentity) => currentIdentity.search_vectors ?? [],
+      updateItems: updateVectors,
+      selectionType: 'search-vector',
+      idPrefix: 'search-vector',
+      getSignature: (vector) => vector.title,
+    })
+
+  const handleGenerateQuestions = () =>
+    runStrategyGeneration<ProfessionalOpenQuestion>({
+      kind: 'questions',
+      loadingText: 'Generating open questions…',
+      changedText: 'Identity changed during generation; discarded the generated questions.',
+      emptyText: 'No new open questions came back from the current identity.',
+      duplicateText: 'Generated open questions matched existing strategy; nothing new was added.',
+      singularText: 'Generated 1 open question.',
+      pluralText: 'Generated {count} open questions.',
+      unableText: 'Unable to generate open questions.',
+      generate: generateAwarenessFromIdentity,
+      getExisting: (currentIdentity) => currentIdentity.awareness?.open_questions ?? [],
+      updateItems: updateQuestions,
+      selectionType: 'awareness-question',
+      idPrefix: 'open-question',
+      getSignature: (question) => question.topic,
+    })
 
   const handleAddVector = () => {
     const id = createId('search-vector')
@@ -95,20 +344,59 @@ export function SearchStrategyBand() {
                   aria-pressed={isSelected}
                 >
                   <span className="pref-item-label">{title}</span>
-                  <span className={`pref-item-weight ${priorityTone(vector.priority)}`}>{vector.priority}</span>
+                  <span className={`pref-item-weight ${priorityTone(vector.priority)}`}>
+                    {vector.priority}
+                  </span>
                 </button>
               )
             })}
           </div>
         )}
-        <button
-          type="button"
-          className="inspector-btn pref-list-add"
-          onClick={handleAddVector}
-          disabled={!identity}
-        >
-          + Add search vector
-        </button>
+        <div className="pref-list-actions">
+          <button
+            type="button"
+            className="inspector-btn"
+            onClick={handleAddVector}
+            disabled={!identity || generating !== null}
+          >
+            + Add search vector
+          </button>
+          <button
+            type="button"
+            className="inspector-btn"
+            onClick={() => {
+              if (generating !== null) return
+              void handleGenerateVectors()
+            }}
+            disabled={!identity}
+            aria-disabled={generating !== null}
+            aria-busy={generating === 'vectors'}
+          >
+            <Sparkles size={14} aria-hidden="true" />
+            {generating === 'vectors' ? 'Generating vectors…' : 'Generate vectors'}
+          </button>
+        </div>
+        <div className="strategy-generation-stack">
+          <div
+            className={`strategy-generation-message info ${
+              vectorMessage?.tone === 'info' ? '' : 'empty'
+            }`}
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            {vectorMessage?.tone === 'info' ? vectorMessage.text : ''}
+          </div>
+          <div
+            className={`strategy-generation-message error ${
+              vectorMessage?.tone === 'error' ? '' : 'empty'
+            }`}
+            role="alert"
+            aria-atomic="true"
+          >
+            {vectorMessage?.tone === 'error' ? vectorMessage.text : ''}
+          </div>
+        </div>
       </div>
 
       <div className="search-section">
@@ -140,14 +428,51 @@ export function SearchStrategyBand() {
             })}
           </div>
         )}
-        <button
-          type="button"
-          className="inspector-btn pref-list-add"
-          onClick={handleAddQuestion}
-          disabled={!identity}
-        >
-          + Add open question
-        </button>
+        <div className="pref-list-actions">
+          <button
+            type="button"
+            className="inspector-btn"
+            onClick={handleAddQuestion}
+            disabled={!identity || generating !== null}
+          >
+            + Add open question
+          </button>
+          <button
+            type="button"
+            className="inspector-btn"
+            onClick={() => {
+              if (generating !== null) return
+              void handleGenerateQuestions()
+            }}
+            disabled={!identity}
+            aria-disabled={generating !== null}
+            aria-busy={generating === 'questions'}
+          >
+            <Sparkles size={14} aria-hidden="true" />
+            {generating === 'questions' ? 'Generating questions…' : 'Generate questions'}
+          </button>
+        </div>
+        <div className="strategy-generation-stack">
+          <div
+            className={`strategy-generation-message info ${
+              questionMessage?.tone === 'info' ? '' : 'empty'
+            }`}
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            {questionMessage?.tone === 'info' ? questionMessage.text : ''}
+          </div>
+          <div
+            className={`strategy-generation-message error ${
+              questionMessage?.tone === 'error' ? '' : 'empty'
+            }`}
+            role="alert"
+            aria-atomic="true"
+          >
+            {questionMessage?.tone === 'error' ? questionMessage.text : ''}
+          </div>
+        </div>
       </div>
     </IdentityBand>
   )
