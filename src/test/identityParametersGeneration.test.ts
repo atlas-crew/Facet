@@ -103,4 +103,35 @@ describe('identityParametersGeneration', () => {
     )
     setTimeoutSpy.mockRestore()
   })
+
+  it('requests Opus for identity strategy inference', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [{ message: { content: '{"search_vectors":[]}' } }],
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [{ message: { content: '{"open_questions":[]}' } }],
+        }),
+      } as Response)
+
+    await generateSearchVectorsFromIdentity(cloneIdentityFixture(), 'https://ai.example/proxy')
+    await generateAwarenessFromIdentity(cloneIdentityFixture(), 'https://ai.example/proxy')
+
+    const vectorRequest = JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body))
+    const awarenessRequest = JSON.parse(String(vi.mocked(fetch).mock.calls[1]?.[1]?.body))
+
+    expect(vectorRequest).toMatchObject({
+      feature: 'research.profile-inference',
+      model: 'opus',
+    })
+    expect(awarenessRequest).toMatchObject({
+      feature: 'research.profile-inference',
+      model: 'opus',
+    })
+  })
 })
