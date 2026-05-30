@@ -1,5 +1,6 @@
 import type {
   ProfessionalIdentityV3,
+  ProfessionalSkillDepth,
   ProfessionalSkillGroup,
   ProfessionalSkillItem,
 } from '../identity/schema'
@@ -76,6 +77,41 @@ export const updateIdentityEnrichmentSkill = (
     ),
   },
 })
+
+export const applySkillDepthEdit = (
+  skill: ProfessionalSkillItem,
+  depth: ProfessionalSkillDepth | '',
+  editedAt = new Date().toISOString(),
+): ProfessionalSkillItem => {
+  const depthChanged = depth !== (skill.depth ?? '')
+  if (!depthChanged) {
+    return skill
+  }
+
+  return {
+    ...skill,
+    ...(depth ? { depth } : { depth: undefined }),
+    ...(depth
+      ? {
+          depthSource: 'corrected' as const,
+          enriched_at: editedAt,
+          enriched_by: 'user' as const,
+          skipped_at: undefined,
+        }
+      : {
+          depthSource: undefined,
+          skipped_at: undefined,
+          ...(!skill.context?.trim() && !skill.positioning?.trim()
+            ? {
+                enriched_at: undefined,
+                enriched_by: undefined,
+              }
+            : {}),
+        }),
+    ...(skill.context?.trim() ? { context_stale: true } : {}),
+    ...(skill.positioning?.trim() ? { positioning_stale: true } : {}),
+  }
+}
 
 const hasContent = (value: string | undefined): boolean => Boolean(value?.trim())
 

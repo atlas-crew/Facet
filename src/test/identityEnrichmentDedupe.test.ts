@@ -4,7 +4,11 @@ import {
   normalizeRuntimeProfessionalIdentity,
 } from '../identity/schema'
 import { dedupeSkillItemsByName } from '../identity/skillDedupe'
-import { skillNamesMatch, updateIdentityEnrichmentSkill } from '../utils/identityEnrichment'
+import {
+  applySkillDepthEdit,
+  skillNamesMatch,
+  updateIdentityEnrichmentSkill,
+} from '../utils/identityEnrichment'
 import { cloneIdentityFixture } from './fixtures/identityFixture'
 
 const createIdentityWithCaseVariantSkills = () => {
@@ -38,6 +42,87 @@ describe('identity enrichment skill dedupe', () => {
     expect(skillNamesMatch('Kubernetes ', 'kubernetes')).toBe(true)
     expect(skillNamesMatch('  ', '')).toBe(true)
     expect(skillNamesMatch('K8s', 'Kubernetes')).toBe(false)
+  })
+
+  it('applies user-corrected depth metadata and marks existing notes stale', () => {
+    const updated = applySkillDepthEdit(
+      {
+        name: 'Kubernetes',
+        tags: ['platform'],
+        depth: 'strong',
+        context: 'Existing context.',
+        positioning: 'Existing positioning.',
+      },
+      'expert',
+      '2026-05-29T12:00:00.000Z',
+    )
+
+    expect(updated).toMatchObject({
+      depth: 'expert',
+      depthSource: 'corrected',
+      enriched_at: '2026-05-29T12:00:00.000Z',
+      enriched_by: 'user',
+      context_stale: true,
+      positioning_stale: true,
+    })
+    expect(updated.skipped_at).toBeUndefined()
+  })
+
+  it('preserves depth metadata when inline edits leave depth unchanged', () => {
+    const skill = {
+      name: 'Kubernetes',
+      tags: ['platform'],
+      depth: 'strong' as const,
+      depthSource: 'corrected' as const,
+      enriched_at: '2026-01-01T00:00:00.000Z',
+      enriched_by: 'user' as const,
+    }
+
+    expect(applySkillDepthEdit(skill, 'strong', '2026-05-29T12:00:00.000Z')).toBe(skill)
+  })
+
+  it('clears depth metadata and marks populated notes stale when depth is cleared', () => {
+    const updated = applySkillDepthEdit(
+      {
+        name: 'Kubernetes',
+        tags: ['platform'],
+        depth: 'strong',
+        depthSource: 'corrected',
+        context: 'Existing context.',
+        positioning: 'Existing positioning.',
+        skipped_at: '2026-01-01T00:00:00.000Z',
+      },
+      '',
+      '2026-05-29T12:00:00.000Z',
+    )
+
+    expect(updated.depth).toBeUndefined()
+    expect(updated.depthSource).toBeUndefined()
+    expect(updated.context_stale).toBe(true)
+    expect(updated.positioning_stale).toBe(true)
+    expect(updated.skipped_at).toBeUndefined()
+  })
+
+  it('clears orphaned enrichment provenance when depth is cleared without notes', () => {
+    const updated = applySkillDepthEdit(
+      {
+        name: 'Kubernetes',
+        tags: ['platform'],
+        depth: 'strong',
+        depthSource: 'corrected',
+        context: '   ',
+        positioning: '',
+        enriched_at: '2026-01-01T00:00:00.000Z',
+        enriched_by: 'user',
+      },
+      '',
+      '2026-05-29T12:00:00.000Z',
+    )
+
+    expect(updated.depth).toBeUndefined()
+    expect(updated.depthSource).toBeUndefined()
+    expect(updated.enriched_at).toBeUndefined()
+    expect(updated.enriched_by).toBeUndefined()
   })
 
   it('dedupes case-variant skills during import and reports the repair', () => {

@@ -999,6 +999,125 @@ describe('Identity Map — awareness-question full-edit + add/remove', () => {
   })
 })
 
+describe('Identity Map — skill inline editing', () => {
+  beforeEach(() => {
+    navigateMock.mockReset()
+    facetEnvMock.facetClientEnv.anthropicProxyUrl = 'https://ai.example/proxy'
+    identityParameterMocks.generateSearchVectorsFromIdentityMock.mockReset()
+    identityParameterMocks.generateAwarenessFromIdentityMock.mockReset()
+  })
+  afterEach(() => cleanup())
+
+  it('edits skill depth inline and marks depth-dependent notes stale', () => {
+    seed()
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Kubernetes' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit skill' }))
+    fireEvent.change(screen.getByLabelText('Depth'), { target: { value: 'expert' } })
+    fireEvent.change(screen.getByLabelText('Tags (comma-separated)'), {
+      target: { value: 'platform, k8s, orchestration' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save skill' }))
+
+    const skill = useIdentityStore.getState().currentIdentity!.skills.groups[0]!.items[0]!
+    expect(skill).toMatchObject({
+      name: 'Kubernetes',
+      depth: 'expert',
+      depthSource: 'corrected',
+      enriched_by: 'user',
+      context_stale: true,
+      positioning_stale: true,
+      tags: ['platform', 'k8s', 'orchestration'],
+    })
+    expect(skill.enriched_at).toBeTruthy()
+    expect(screen.getByText('expert')).toBeTruthy()
+  })
+
+  it('edits skill tags inline without changing depth metadata', () => {
+    seed((id) => {
+      const skill = id.skills.groups[0]!.items[0]!
+      skill.depth = 'strong'
+      skill.depthSource = 'corrected'
+      skill.enriched_at = '2026-01-01T00:00:00.000Z'
+      skill.enriched_by = 'user'
+      skill.context_stale = undefined
+      skill.positioning_stale = undefined
+    })
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Kubernetes' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit skill' }))
+    fireEvent.change(screen.getByLabelText('Tags (comma-separated)'), {
+      target: { value: 'platform, container orchestration' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save skill' }))
+
+    const skill = useIdentityStore.getState().currentIdentity!.skills.groups[0]!.items[0]!
+    expect(skill).toMatchObject({
+      depth: 'strong',
+      depthSource: 'corrected',
+      enriched_at: '2026-01-01T00:00:00.000Z',
+      enriched_by: 'user',
+      tags: ['platform', 'container orchestration'],
+    })
+    expect(skill.context_stale).toBeUndefined()
+    expect(skill.positioning_stale).toBeUndefined()
+  })
+
+  it('clears skill depth inline without marking empty notes stale', () => {
+    seed((id) => {
+      const skill = id.skills.groups[0]!.items[0]!
+      skill.depth = 'strong'
+      skill.depthSource = 'corrected'
+      skill.context = '   '
+      skill.positioning = ''
+      skill.context_stale = undefined
+      skill.positioning_stale = undefined
+      skill.skipped_at = '2026-01-01T00:00:00.000Z'
+    })
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Kubernetes' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit skill' }))
+    fireEvent.change(screen.getByLabelText('Depth'), { target: { value: '' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save skill' }))
+
+    const skill = useIdentityStore.getState().currentIdentity!.skills.groups[0]!.items[0]!
+    expect(skill.depth).toBeUndefined()
+    expect(skill.depthSource).toBeUndefined()
+    expect(skill.context_stale).toBeUndefined()
+    expect(skill.positioning_stale).toBeUndefined()
+    expect(skill.skipped_at).toBeUndefined()
+    expect(
+      screen.getByText(
+        'Depth is missing. Context and positioning can still be refined in the wizard.',
+      ),
+    ).toBeTruthy()
+  })
+
+  it('resets inline skill drafts after cancel and re-edit', () => {
+    seed()
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Kubernetes' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit skill' }))
+    fireEvent.change(screen.getByLabelText('Depth'), { target: { value: 'expert' } })
+    fireEvent.change(screen.getByLabelText('Tags (comma-separated)'), {
+      target: { value: 'discarded, tags' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit skill' }))
+
+    expect(screen.getByLabelText('Depth')).toHaveProperty('value', 'strong')
+    expect(screen.getByLabelText('Tags (comma-separated)')).toHaveProperty(
+      'value',
+      'platform, kubernetes',
+    )
+  })
+})
+
 describe('Identity Map — sad-path editing coverage', () => {
   beforeEach(() => {
     navigateMock.mockReset()
