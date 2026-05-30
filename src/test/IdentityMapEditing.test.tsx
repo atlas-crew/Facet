@@ -1034,6 +1034,70 @@ describe('Identity Map — skill inline editing', () => {
     expect(screen.getByText('expert')).toBeTruthy()
   })
 
+  it('renames skill groups from the map inspector', () => {
+    seed()
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Platform' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit group details' }))
+    fireEvent.change(screen.getByLabelText('Group name'), {
+      target: { value: 'Platform Engineering' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save group' }))
+
+    expect(useIdentityStore.getState().currentIdentity!.skills.groups[0]!.label).toBe(
+      'Platform Engineering',
+    )
+    expect(screen.getByRole('button', { name: 'Platform Engineering' })).toBeTruthy()
+  })
+
+  it('saves skill group renames through the form submit path', () => {
+    seed()
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Platform' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit group details' }))
+    const groupNameInput = screen.getByLabelText('Group name')
+    fireEvent.change(groupNameInput, {
+      target: { value: 'Infrastructure Platform' },
+    })
+    fireEvent.submit(groupNameInput.closest('form')!)
+
+    expect(useIdentityStore.getState().currentIdentity!.skills.groups[0]!.label).toBe(
+      'Infrastructure Platform',
+    )
+  })
+
+  it('keeps the original skill group name when the rename draft is blank', () => {
+    seed()
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Platform' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit group details' }))
+    const groupNameInput = screen.getByLabelText('Group name')
+    fireEvent.change(groupNameInput, { target: { value: '   ' } })
+
+    expect(screen.getByRole('button', { name: 'Save group' })).toHaveProperty('disabled', true)
+    fireEvent.submit(groupNameInput.closest('form')!)
+
+    expect(useIdentityStore.getState().currentIdentity!.skills.groups[0]!.label).toBe('Platform')
+  })
+
+  it('cancels skill group edits with Escape', () => {
+    seed()
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Platform' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit group details' }))
+    fireEvent.change(screen.getByLabelText('Group name'), {
+      target: { value: 'Discarded Platform' },
+    })
+    fireEvent.keyDown(screen.getByLabelText('Group name'), { key: 'Escape' })
+
+    expect(useIdentityStore.getState().currentIdentity!.skills.groups[0]!.label).toBe('Platform')
+    expect(screen.queryByLabelText('Group name')).toBeNull()
+  })
+
   it('edits skill tags inline without changing depth metadata', () => {
     seed((id) => {
       const skill = id.skills.groups[0]!.items[0]!
@@ -1051,7 +1115,7 @@ describe('Identity Map — skill inline editing', () => {
     fireEvent.change(screen.getByLabelText('Tags (comma-separated)'), {
       target: { value: 'platform, container orchestration' },
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Save skill' }))
+    fireEvent.submit(screen.getByLabelText('Tags (comma-separated)').closest('form')!)
 
     const skill = useIdentityStore.getState().currentIdentity!.skills.groups[0]!.items[0]!
     expect(skill).toMatchObject({
@@ -1115,6 +1179,62 @@ describe('Identity Map — skill inline editing', () => {
       'value',
       'platform, kubernetes',
     )
+  })
+
+  it('removes skills from the map inspector and returns to the group', () => {
+    seed()
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Kubernetes' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Remove skill' }))
+    expect(screen.getByText('Remove Kubernetes and its enrichment data?')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm remove' }))
+
+    expect(useIdentityStore.getState().currentIdentity!.skills.groups[0]!.items).toEqual([])
+    expect(useIdentityStore.getState().mapSelection).toEqual({ type: 'skill-group', id: 'platform' })
+    expect(screen.queryByRole('button', { name: 'Kubernetes' })).toBeNull()
+    expect(screen.getByText('0 items')).toBeTruthy()
+  })
+
+  it('cancels pending skill removal without mutating identity', () => {
+    seed()
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Kubernetes' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Remove skill' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(useIdentityStore.getState().currentIdentity!.skills.groups[0]!.items).toHaveLength(1)
+    expect(screen.queryByRole('button', { name: 'Confirm remove' })).toBeNull()
+  })
+
+  it('resets pending skill removal when selecting another skill', () => {
+    seed((id) => {
+      id.skills.groups[0]!.items.push({ name: 'Docker', tags: [] })
+    })
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Kubernetes' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Remove skill' }))
+    expect(screen.getByText('Remove Kubernetes and its enrichment data?')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Docker' }))
+
+    expect(screen.queryByRole('button', { name: 'Confirm remove' })).toBeNull()
+    expect(screen.queryByText('Remove Kubernetes and its enrichment data?')).toBeNull()
+  })
+
+  it('omits the enrichment warning for raw skills', () => {
+    seed((id) => {
+      id.skills.groups[0]!.items[0] = { name: 'Kubernetes', tags: [] }
+    })
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Kubernetes' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Remove skill' }))
+
+    expect(screen.getByText('Remove Kubernetes?')).toBeTruthy()
+    expect(screen.queryByText('Remove Kubernetes and its enrichment data?')).toBeNull()
   })
 })
 

@@ -1256,6 +1256,21 @@ describe('identityStore skill enrichment', () => {
     ).toBe(false)
   })
 
+  it('removes current-identity skills with case-variant names', () => {
+    useIdentityStore.setState({
+      currentIdentity: createIdentity(),
+      draftDocument: '',
+    })
+
+    useIdentityStore.getState().removeSkillFromCurrentIdentity('platform', 'kubernetes')
+
+    expect(
+      useIdentityStore
+        .getState()
+        .currentIdentity?.skills.groups[0]?.items.some((skill) => skill.name === 'Kubernetes'),
+    ).toBe(false)
+  })
+
   it('does not add duplicate skills within the same group', () => {
     useIdentityStore.setState({
       currentIdentity: createIdentity(),

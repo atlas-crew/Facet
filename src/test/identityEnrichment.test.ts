@@ -4,6 +4,7 @@ import {
   findNextPendingIdentitySkill,
   getIdentityEnrichmentProgress,
   getSkillEnrichmentStatus,
+  hasSkillEnrichmentData,
   listIdentityEnrichmentSkills,
   resolveIdentityEnrichmentSkill,
 } from '../utils/identityEnrichment'
@@ -69,6 +70,26 @@ describe('identityEnrichment helpers', () => {
         skipped_at: undefined,
       }),
     ).toBe('complete')
+  })
+
+  it('detects whether a skill has enrichment data', () => {
+    expect(hasSkillEnrichmentData({})).toBe(false)
+    expect(hasSkillEnrichmentData({ depth: 'strong' })).toBe(true)
+    expect(hasSkillEnrichmentData({ context: 'Evidence note.' })).toBe(true)
+    expect(hasSkillEnrichmentData({ positioning: 'Positioning note.' })).toBe(true)
+    expect(hasSkillEnrichmentData({ enriched_at: '2026-05-30T00:00:00.000Z' })).toBe(true)
+    expect(hasSkillEnrichmentData({ enriched_by: 'user' })).toBe(true)
+    expect(hasSkillEnrichmentData({ skipped_at: '2026-05-30T00:00:00.000Z' })).toBe(
+      true,
+    )
+    expect(
+      hasSkillEnrichmentData({
+        context: '   ',
+        positioning: '',
+        enriched_at: ' ',
+        skipped_at: '',
+      }),
+    ).toBe(false)
   })
 
   it('computes progress counts from the current identity', () => {

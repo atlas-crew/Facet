@@ -124,6 +124,19 @@ export const isSkillEnrichmentStale = (
   (Boolean(skill.context_stale) && hasContent(skill.context)) ||
   (Boolean(skill.positioning_stale) && hasContent(skill.positioning))
 
+export const hasSkillEnrichmentData = (
+  skill: Pick<
+    ProfessionalSkillItem,
+    'depth' | 'context' | 'positioning' | 'enriched_at' | 'enriched_by' | 'skipped_at'
+  >,
+): boolean =>
+  Boolean(skill.depth) ||
+  hasContent(skill.context) ||
+  hasContent(skill.positioning) ||
+  hasContent(skill.enriched_at) ||
+  hasContent(skill.enriched_by) ||
+  hasContent(skill.skipped_at)
+
 export const getSkillEnrichmentStatus = (
   skill: Pick<ProfessionalSkillItem, 'depth' | 'context' | 'positioning' | 'skipped_at'>,
 ): IdentityEnrichmentStatus => {

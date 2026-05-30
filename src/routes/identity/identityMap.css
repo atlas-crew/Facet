@@ -1273,6 +1273,25 @@
   border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
   border-radius: 4px;
 }
+.inspector-confirm-row {
+  margin-top: var(--space-2);
+  padding: var(--space-2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border-default));
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--danger) 6%, var(--bg-surface));
+}
+.inspector-confirm-copy {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-secondary);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 .inspector-btn {
   display: inline-flex;
   align-items: center;
@@ -1309,6 +1328,15 @@
   background: var(--accent-primary-hover);
   border-color: var(--accent-primary-hover);
   color: var(--text-inverse);
+}
+.inspector-btn.danger {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--border-default));
+}
+.inspector-btn.danger:hover:not(:disabled):not([aria-disabled='true']) {
+  background: color-mix(in srgb, var(--danger) 8%, var(--bg-surface-hover));
+  border-color: color-mix(in srgb, var(--danger) 55%, var(--border-default));
+  color: var(--danger);
 }
 .inspector-meta {
   display: flex;
