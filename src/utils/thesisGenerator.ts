@@ -45,6 +45,28 @@ const THESIS_GENERATION_MAX_PROMPT_CHARS = 120_000
 
 const VALID_NOISE_LEVELS = new Set(['low', 'medium', 'high'])
 const VALID_URGENCY = new Set(['critical', 'active', 'exploratory'])
+// Enforcement backstop for the thesis prompt's long-dash ban.
+const GENERATED_LONG_DASH_CHAR_CLASS = '\\u2013\\u2014\\u2015'
+const GENERATED_LONG_DASH_CHAR_PATTERN = new RegExp(`[${GENERATED_LONG_DASH_CHAR_CLASS}]`)
+const GENERATED_LONG_DASH_RUN_PATTERN = new RegExp(
+  `\\s*[${GENERATED_LONG_DASH_CHAR_CLASS}]+(?:\\s*[${GENERATED_LONG_DASH_CHAR_CLASS}]+)*\\s*`,
+  'g',
+)
+const TIGHT_COMPOUND_PREFIXES = new Set([
+  'anti',
+  'co',
+  'cross',
+  'ex',
+  'mid',
+  'multi',
+  'non',
+  'post',
+  'pre',
+  're',
+  'self',
+  'zero',
+])
+const RANGE_TOKEN_PATTERN = /^(?:\$?\d[\d.,]*(?:[kmb%+])?|q[1-4]|h[12]|fy\d{2,4})$/i
 
 const isOutputTruncationStopReason = (value: string | undefined) =>
   value === 'max_tokens' || value === 'length'
@@ -54,8 +76,60 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const normalizeString = (value: unknown): string => (isString(value) ? value.trim() : '')
 
-const normalizeStringArray = (value: unknown): string[] =>
-  Array.isArray(value) ? value.map(normalizeString).filter(Boolean) : []
+const mapStringArray = (
+  value: unknown,
+  normalize: (value: unknown) => string = normalizeString,
+): string[] => (Array.isArray(value) ? value.map(normalize).filter(Boolean) : [])
+
+const replacementForLongDashRun = (match: string, offset: number, source: string): string => {
+  const contentBefore = source.slice(0, offset)
+  const contentAfter = source.slice(offset + match.length)
+  if (!contentBefore.trim() || !contentAfter.trim()) return ''
+
+  const previousToken = contentBefore.match(/\S+$/)?.[0] ?? ''
+  const nextToken = contentAfter.match(/^\S+/)?.[0] ?? ''
+  const isTightDash = !/\s/.test(match)
+  if (RANGE_TOKEN_PATTERN.test(previousToken) && RANGE_TOKEN_PATTERN.test(nextToken)) {
+    return ' to '
+  }
+
+  const previousLower = previousToken.toLowerCase()
+  if (
+    isTightDash &&
+    /^[a-z-]+$/i.test(previousToken) &&
+    /^[a-z-]+$/i.test(nextToken) &&
+    (TIGHT_COMPOUND_PREFIXES.has(previousLower) || previousLower.includes('-'))
+  ) {
+    return '-'
+  }
+
+  return ' - '
+}
+
+const normalizeProseEnforcingDashBan = (value: string): string => {
+  const trimmed = value.trim()
+  if (!GENERATED_LONG_DASH_CHAR_PATTERN.test(trimmed)) {
+    return trimmed
+  }
+
+  // LLM-authored prose uses generated normalizers; ids, enums, dates, and
+  // structural references use plain normalization. This backstop is deliberately
+  // lossy for ranges and compounds because the product rule is a hard ban on
+  // U+2013, U+2014, and U+2015 in thesis prose.
+  return trimmed
+    .replace(GENERATED_LONG_DASH_RUN_PATTERN, (match, offset, source) =>
+      replacementForLongDashRun(match, offset, source),
+    )
+    .trim()
+}
+
+const normalizeGeneratedString = (value: unknown): string =>
+  normalizeProseEnforcingDashBan(normalizeString(value))
+
+const normalizeStringArray = (value: unknown): string[] => mapStringArray(value)
+
+const normalizeGeneratedStringArray = (value: unknown): string[] =>
+  mapStringArray(value, normalizeGeneratedString)
 
 const normalizeEnumArray = <TValue extends string>(
   value: unknown,
@@ -201,8 +275,8 @@ const normalizeUnfairAdvantages = (value: unknown): SearchUnfairAdvantage[] =>
   Array.isArray(value)
     ? value.flatMap((entry) => {
         if (!isRecord(entry)) return []
-        const combination = normalizeString(entry.combination)
-        const targetCompanyProfile = normalizeString(entry.targetCompanyProfile)
+        const combination = normalizeGeneratedString(entry.combination)
+        const targetCompanyProfile = normalizeGeneratedString(entry.targetCompanyProfile)
         return combination && targetCompanyProfile
           ? [
               {
@@ -219,18 +293,17 @@ const normalizeSearchLanes = (value: unknown): SearchLane[] =>
   Array.isArray(value)
     ? value.flatMap((entry, index) => {
         if (!isRecord(entry)) return []
-        const title = normalizeString(entry.title)
-        const rationale = normalizeString(entry.rationale)
+        const title = normalizeGeneratedString(entry.title)
+        const rationale = normalizeGeneratedString(entry.rationale)
         if (!title || !rationale) return []
-        const targetSignals = normalizeStringArray(entry.targetSignals)
+        const competitiveContext = normalizeGeneratedString(entry.competitiveContext)
+        const targetSignals = normalizeGeneratedStringArray(entry.targetSignals)
         return [
           {
             id: normalizeString(entry.id) || createId('slane'),
             title,
             rationale,
-            ...(normalizeString(entry.competitiveContext)
-              ? { competitiveContext: normalizeString(entry.competitiveContext) }
-              : {}),
+            ...(competitiveContext ? { competitiveContext } : {}),
             targetSignals:
               targetSignals.length > 0 ? targetSignals : [title || 'Lane ' + String(index + 1)],
           },
@@ -246,7 +319,7 @@ const appendUniqueSignals = (
   const seen = new Set(signals.map((signal) => normalizeSignalKey(signal.label)))
   const next = [...signals]
   legacyLabels.forEach((legacyLabel) => {
-    const label = legacyLabel.trim()
+    const label = normalizeProseEnforcingDashBan(legacyLabel)
     const key = normalizeSignalKey(label)
     if (!label || seen.has(key)) return
     seen.add(key)
@@ -263,12 +336,12 @@ const normalizeLookFor = (
     Array.isArray(value)
       ? value.flatMap((entry) => {
           if (isString(entry)) {
-            const label = entry.trim()
+            const label = normalizeProseEnforcingDashBan(entry)
             return label ? [{ id: createId('ssig'), label, severity: 'soft' as const }] : []
           }
           if (!isRecord(entry)) return []
-          const label = normalizeString(entry.label)
-          const condition = normalizeString(entry.condition)
+          const label = normalizeGeneratedString(entry.label)
+          const condition = normalizeGeneratedString(entry.condition)
           if (!label) return []
           return [
             {
@@ -295,12 +368,12 @@ const normalizeAvoid = (
     Array.isArray(value)
       ? value.flatMap((entry) => {
           if (isString(entry)) {
-            const label = entry.trim()
+            const label = normalizeProseEnforcingDashBan(entry)
             return label ? [{ id: createId('ssig'), label, severity: 'soft' as const }] : []
           }
           if (!isRecord(entry)) return []
-          const label = normalizeString(entry.label)
-          const condition = normalizeString(entry.condition)
+          const label = normalizeGeneratedString(entry.label)
+          const condition = normalizeGeneratedString(entry.condition)
           return label
             ? [
                 {
@@ -325,11 +398,12 @@ const normalizeTimeline = (value: unknown): SearchTimeline | undefined => {
   const urgency = VALID_URGENCY.has(value.urgency as string)
     ? (value.urgency as SearchTimeline['urgency'])
     : 'active'
-  const strategyImpact = normalizeString(value.strategyImpact)
+  const strategyImpact = normalizeGeneratedString(value.strategyImpact)
   if (!strategyImpact) return undefined
+  const deadline = normalizeString(value.deadline)
   return {
     urgency,
-    ...(normalizeString(value.deadline) ? { deadline: normalizeString(value.deadline) } : {}),
+    ...(deadline ? { deadline } : {}),
     strategyImpact,
   }
 }
@@ -341,7 +415,7 @@ const normalizeKeywordCombinations = (
   Array.isArray(value)
     ? value.flatMap((entry) => {
         if (!isRecord(entry)) return []
-        const query = normalizeString(entry.query)
+        const query = normalizeGeneratedString(entry.query)
         if (!query) return []
         const noiseLevel = VALID_NOISE_LEVELS.has(entry.noiseLevel as string)
           ? (entry.noiseLevel as SearchKeywordCombination['noiseLevel'])
@@ -374,8 +448,8 @@ const normalizeOverrides = (value: unknown): SearchInstanceOverrides | undefined
   return {
     constraints: {
       salary,
-      locations: normalizeStringArray(constraintsRecord.locations),
-      clearance: normalizeString(constraintsRecord.clearance),
+      locations: normalizeGeneratedStringArray(constraintsRecord.locations),
+      clearance: normalizeGeneratedString(constraintsRecord.clearance),
       companySize,
       industriesToAvoid: normalizeEnumArray<SearchIndustry>(
         constraintsRecord.industriesToAvoid,
@@ -389,15 +463,15 @@ const normalizeOverrides = (value: unknown): SearchInstanceOverrides | undefined
         constraintsRecord.remotePolicies,
         REMOTE_POLICY_BANK,
       ),
-      remotePolicyNote: normalizeString(constraintsRecord.remotePolicyNote),
+      remotePolicyNote: normalizeGeneratedString(constraintsRecord.remotePolicyNote),
       employmentTypes: normalizeEnumArray<SearchEmploymentType>(
         constraintsRecord.employmentTypes,
         EMPLOYMENT_TYPE_BANK,
       ),
     },
     interviewPrefs: {
-      strongFit: normalizeStringArray(interviewRecord.strongFit),
-      redFlags: normalizeStringArray(interviewRecord.redFlags),
+      strongFit: normalizeGeneratedStringArray(interviewRecord.strongFit),
+      redFlags: normalizeGeneratedStringArray(interviewRecord.redFlags),
     },
     hiddenSkillIds: normalizeStringArray(value.hiddenSkillIds),
   }
@@ -408,8 +482,8 @@ const normalizeLegacyOverrideFilters = (
 ): { prioritize: string[]; avoid: string[] } => {
   if (!isRecord(value) || !isRecord(value.filters)) return { prioritize: [], avoid: [] }
   return {
-    prioritize: normalizeStringArray(value.filters.prioritize),
-    avoid: normalizeStringArray(value.filters.avoid),
+    prioritize: normalizeGeneratedStringArray(value.filters.prioritize),
+    avoid: normalizeGeneratedStringArray(value.filters.avoid),
   }
 }
 
@@ -417,10 +491,10 @@ const normalizeLegacyOverrideFilters = (
  * Build the per-thesis `skillDepthMap` from LLM output. The LLM emits only
  * `skill` (must match an identity skill name) and an optional `calibration`
  * (per-thesis honest framing). Depth, context, and search signal are sourced
- * from `identity.skills.*.{depth, context, positioning}` — they are identity-
+ * from `identity.skills.*.{depth, context, positioning}`; they are identity-
  * canonical fields that artifacts mirror by reference (audit entries A1, D1).
  *
- * Entries whose `skill` doesn't match an identity skill are dropped — they're
+ * Entries whose `skill` doesn't match an identity skill are dropped because they're
  * either hallucinations or stale references. Entries whose matched identity
  * skill lacks depth/context/positioning are also dropped because the validator
  * and downstream deep-research consumers require all three.
@@ -440,7 +514,7 @@ const normalizeSkillDepthMap = (
     const context = identitySkill.context ?? ''
     const searchSignal = identitySkill.positioning ?? ''
     if (!depth || !context || !searchSignal) return []
-    const calibration = normalizeString(entry.calibration)
+    const calibration = normalizeGeneratedString(entry.calibration)
     return [
       {
         skill: identitySkill.name,
@@ -466,7 +540,9 @@ export function normalizeGeneratedSearchThesis(
   const timeline = normalizeTimeline(record.timeline)
   const legacyFilters = normalizeLegacyOverrideFilters(record.searchOverrides)
   const overrides = normalizeOverrides(record.searchOverrides)
-  const assumptions = normalizeSearchAssumptions(record.assumptions)
+  const assumptions = normalizeSearchAssumptions(record.assumptions, {
+    normalizeText: normalizeProseEnforcingDashBan,
+  })
   const feedbackEventIds = new Set(feedbackEvents.map((event) => event.id))
   const feedbackIncorporated = normalizeStringArray(record.feedbackIncorporated).filter((id) =>
     feedbackEventIds.has(id),
@@ -477,7 +553,11 @@ export function normalizeGeneratedSearchThesis(
   // and snapshotted onto the thesis so historical theses reflect what was true
   // at run time. The LLM does NOT generate it; any value in `record.competitiveMoat`
   // is ignored.
-  const competitiveMoat = normalizeString(identity.self_model?.competitive_moat ?? '')
+  const competitiveMoat = normalizeProseEnforcingDashBan(
+    normalizeString(identity.self_model?.competitive_moat ?? ''),
+  )
+  // Validate after prose normalization so the stored thesis matches the same
+  // text users see in review and downstream search strategy surfaces.
   return {
     id: normalizeString(record.id) || createId('sthesis'),
     createdAt: normalizeString(record.createdAt) || createdAt,
@@ -509,7 +589,7 @@ export function validateSearchThesis(
   // We only flag a moat that was authored too tersely.
   if (thesis.competitiveMoat && thesis.competitiveMoat.length < 40) {
     violations.push(
-      'competitiveMoat: too short — author at least 40 characters on Identity → Self Model',
+      'competitiveMoat: too short; author at least 40 characters in the Identity page Self Model section',
     )
   }
   if (thesis.searchLanes.length === 0) {
@@ -564,16 +644,24 @@ export async function generateSearchThesisFromIdentity(
     'Use Opus-level reasoning. The thesis is the user decision artifact before an expensive deep-research job.',
     'Do not introduce uncited external factual claims. If you include factual claims from supplied reference material, mark them with [cite:<id>] and ensure downstream deep-research prompts can resolve that id to a Citation with id, source, optional url/type/claim.',
     '',
+    'Voice and style contract:',
+    '- Follow identity.generator_rules.voice_skill when present, unless it conflicts with factual grounding.',
+    '- Write like a sharp search strategist, not a marketing page.',
+    '- Use direct, concrete language with varied sentence length.',
+    '- Hard ban: do not output Unicode U+2013, U+2014, or U+2015 in any string field, even if they appear in identity, feedback, or user corrections. Use commas, periods, parentheses, colons, or short separate sentences instead.',
+    '- Avoid AI tells: "not merely X but Y", "uniquely positioned", "robust", "leverage" unless quoted from source, generic senior-engineer praise, inflated certainty, and interchangeable SaaS phrasing.',
+    '- Do not inflate. If the evidence is narrow, say that plainly and record assumptions when relevant.',
+    '',
     'Per-search overrides (`searchOverrides`): infer plausible per-search values from identity context and the chosen lanes. These are starting points the user will correct, NOT static placeholders. Better to make a confident guess that teaches the user what the field means than to leave fields blank. Concrete > abstract: prefer { "salary": { "min": 240000, "max": 340000, "currency": "USD" } } over "competitive comp"; prefer "Tampa Bay (Remote-friendly)" over "Remote".',
     '',
     'Identity-canonical fields (do NOT generate; these are sourced from identity at normalization):',
-    '- `skillDepthMap[].depth`, `skillDepthMap[].context`, `skillDepthMap[].searchSignal` come from `identity.skills.*.depth`, `.context`, and `.positioning`. Emit only the `skill` name (must match an identity skill — by name or alias) and an optional per-thesis `calibration` framing.',
+    '- `skillDepthMap[].depth`, `skillDepthMap[].context`, `skillDepthMap[].searchSignal` come from `identity.skills.*.depth`, `.context`, and `.positioning`. Emit only the `skill` name (must match an identity skill by name or alias) and an optional per-thesis `calibration` framing.',
     '- `unfairAdvantages[].depth` is duplicate. Express depth through the `combination` phrase itself ("Production Kubernetes + product-aware platform judgment") rather than a separate depth field.',
     '',
     'Editorial fields with guardrails (LLM generates per-thesis but stays grounded):',
     '- `skillDepthMap[].calibration`: per-thesis honest framing ("not a K8s admin; building around it is fine"). Cite identity calibration_notes; do not invent new claims about the candidate.',
     '',
-    'If a custom search directive is provided in the user prompt, prioritize it over identity-implied direction — it represents intent the identity model does not encode.',
+    'If a custom search directive is provided in the user prompt, prioritize it over identity-implied direction; it represents intent the identity model does not encode.',
     'If user corrections are provided, weave them into the new thesis without quoting them verbatim, and update overrides to reflect them.',
     'If any material input is unspecified or ambiguous (visa status, location precision, compensation flexibility, travel willingness, remote/hybrid scope, sponsorship, timeline, etc.) you MUST record the assumption in `assumptions[]`. Do not silently assume. Every filled gap must include claim, source, rationale, confidence, and overridable.',
     'Use only these bank values in searchOverrides constraint arrays:',

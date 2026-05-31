@@ -21,13 +21,28 @@ const normalizeString = (value: unknown): string => (typeof value === 'string' ?
 const normalizeBoolean = (value: unknown): boolean | null =>
   typeof value === 'boolean' ? value : null
 
-export function normalizeSearchAssumptions(value: unknown): SearchAssumption[] {
+const preserveText = (text: string): string => text
+
+export interface NormalizeSearchAssumptionsOptions {
+  /**
+   * Callers normalizing LLM output should pass their prose sanitizer here.
+   * This utility is shared outside thesis generation, so the default preserves text.
+   */
+  normalizeText?: (value: string) => string
+}
+
+export function normalizeSearchAssumptions(
+  value: unknown,
+  options: NormalizeSearchAssumptionsOptions = {},
+): SearchAssumption[] {
   if (!Array.isArray(value)) return []
+
+  const normalizeText = options.normalizeText ?? preserveText
 
   return value.flatMap((entry) => {
     if (!isRecord(entry)) return []
 
-    const claim = normalizeString(entry.claim)
+    const claim = normalizeText(normalizeString(entry.claim))
     const source = normalizeString(entry.source)
     const confidence = normalizeString(entry.confidence)
     const overridable = normalizeBoolean(entry.overridable)
@@ -41,7 +56,7 @@ export function normalizeSearchAssumptions(value: unknown): SearchAssumption[] {
       return []
     }
 
-    const rationale = normalizeString(entry.rationale)
+    const rationale = normalizeText(normalizeString(entry.rationale))
     return [
       {
         id: normalizeString(entry.id) || createId('sassump'),

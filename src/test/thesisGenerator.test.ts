@@ -60,7 +60,7 @@ describe('thesisGenerator', () => {
   it('appends user corrections and a custom directive to the prompt when supplied', () => {
     const identity = cloneIdentityFixture()
     const prompt = buildThesisGenerationPrompt(identity, [], {
-      userCorrections: 'Steer away from Kubernetes admin framing — emphasize platform leverage.',
+      userCorrections: 'Steer away from Kubernetes admin framing - emphasize platform leverage.',
       customDirective: 'Research adjacent CTO roles at platform-modernization startups.',
     })
 
@@ -158,6 +158,10 @@ describe('thesisGenerator', () => {
       }),
     )
     const systemPrompt = mockCallLlmProxy.mock.calls[0]?.[1]
+    expect(systemPrompt).toContain('Voice and style contract:')
+    expect(systemPrompt).toContain('Follow identity.generator_rules.voice_skill')
+    expect(systemPrompt).toContain('Hard ban: do not output Unicode U+2013, U+2014, or U+2015')
+    expect(systemPrompt).toContain('Avoid AI tells')
     expect(systemPrompt).toContain('industriesToAvoid: adtech')
     expect(systemPrompt).toContain('fundingStagesAcceptable: bootstrapped')
     expect(systemPrompt).toContain('remotePolicies: remote-only')
@@ -450,6 +454,197 @@ describe('thesisGenerator', () => {
     expect(thesis.avoid[0]?.id).toBe('ssig-existing-avoid')
     expect(thesis.lookFor[1]?.id).toMatch(/^ssig-/)
     expect(thesis.avoid[1]?.id).toMatch(/^ssig-/)
+  })
+
+  it('removes long dash characters from LLM-authored thesis fields', () => {
+    const identity = cloneIdentityFixture()
+    const emDash = '\u2014'
+    const enDash = '\u2013'
+    const horizontalBar = '\u2015'
+    identity.self_model.competitive_moat =
+      `Kubernetes delivery${emDash}with product-aware platform judgment.`
+    const thesis = normalizeGeneratedSearchThesis(
+      {
+        narrative,
+        competitiveMoat: 'Kubernetes delivery depth combined with product-aware platform strategy.',
+        unfairAdvantages: [
+          {
+            combination: `Kubernetes delivery${emDash}product judgment`,
+            targetCompanyProfile: `Modernization teams${emDash}not ops-only teams`,
+          },
+          {
+            combination: emDash,
+            targetCompanyProfile: 'This entry should be dropped.',
+          },
+        ],
+        searchLanes: [
+          {
+            id: 'lane-modernization',
+            title: `Platform${emDash}modernization`,
+            rationale:
+              `This lane targets strategic platform migration work ${emDash} not commodity operations. ` +
+              `It matches the candidate evidence${emDash}without reducing the role to admin work.`,
+            competitiveContext: `Rare mix${enDash}platform and product judgment.`,
+            targetSignals: [
+              `installability${emDash}customer-hosted delivery`,
+              `2020${enDash}2024 modernization`,
+              `revenue 2020 ${enDash} 2024 growth`,
+              `pre${enDash}launch delivery`,
+              `customer-hosted${emDash}delivery`,
+              emDash,
+              '  ',
+            ],
+          },
+          {
+            title: emDash,
+            rationale: 'This lane should be dropped.',
+          },
+        ],
+        lookFor: [
+          { label: `Platform leverage${emDash}with product stakes` },
+          { label: `${emDash}leading boundary` },
+          { label: `trailing boundary${emDash}` },
+          { label: `${emDash} ${emDash}double leading` },
+          { label: `double trailing${emDash} ${emDash}` },
+          { label: `adjacent${emDash}${enDash}middle` },
+          `string${emDash}signal`,
+          { label: `preexisting - - separator${emDash}tail` },
+          { label: '-keep ascii hyphen' },
+          { label: `-flag ${emDash} enabled` },
+          { label: emDash },
+        ],
+        avoid: [
+          `string avoid${emDash}signal`,
+          {
+            label: `Cluster admin${horizontalBar}as the whole job`,
+            condition: `Unless it includes platform strategy${emDash}not ticket work`,
+          },
+        ],
+        timeline: {
+          urgency: 'active',
+          deadline: 'Q1-Q2 2026',
+          strategyImpact: `Narrow toward platform leverage${emDash}not operations coverage.`,
+        },
+        keywordCombinations: [
+          {
+            query: `"platform modernization"${emDash}Kubernetes`,
+            lane: 'lane-modernization',
+            noiseLevel: 'low',
+          },
+          {
+            query: emDash,
+            lane: 'lane-modernization',
+            noiseLevel: 'low',
+          },
+        ],
+        skillDepthMap: [
+          {
+            skill: 'Kubernetes',
+            calibration: `Use as platform evidence${emDash}not admin positioning.`,
+          },
+        ],
+        assumptions: [
+          {
+            claim: `Remote-first roles${emDash}US-friendly are acceptable.`,
+            source: 'inferred',
+            rationale: `Location preference implies remote flexibility${emDash}but needs review.`,
+            confidence: 'medium',
+            overridable: true,
+          },
+        ],
+        searchOverrides: {
+          constraints: {
+            locations: [`Tampa Bay${emDash}remote-friendly`],
+            clearance: `No clearance${emDash}unless role is exceptional`,
+            remotePolicyNote: `Prefer remote${emDash}hybrid only near Tampa.`,
+          },
+          filters: {
+            prioritize: [`Platform orgs${emDash}with product stakes`],
+            avoid: [`Ops-only teams${emDash}without product leverage`],
+          },
+          interviewPrefs: {
+            strongFit: [`Platform strategy${emDash}customer deployment`],
+            redFlags: [`Cluster babysitting${emDash}no product scope`],
+          },
+          hiddenSkillIds: [],
+        },
+      },
+      identity,
+    )
+
+    expect(JSON.stringify(thesis)).not.toContain(emDash)
+    expect(JSON.stringify(thesis)).not.toContain(enDash)
+    expect(JSON.stringify(thesis)).not.toContain(horizontalBar)
+    expect(thesis.unfairAdvantages).toHaveLength(1)
+    expect(thesis.searchLanes).toHaveLength(1)
+    expect(thesis.keywordCombinations).toHaveLength(1)
+    expect(thesis.searchLanes[0]?.title).toBe('Platform - modernization')
+    expect(thesis.searchLanes[0]?.rationale).toBe(
+      'This lane targets strategic platform migration work - not commodity operations. It matches the candidate evidence - without reducing the role to admin work.',
+    )
+    expect(thesis.searchLanes[0]?.targetSignals).toEqual([
+      'installability - customer-hosted delivery',
+      '2020 to 2024 modernization',
+      'revenue 2020 to 2024 growth',
+      'pre-launch delivery',
+      'customer-hosted-delivery',
+    ])
+    expect(thesis.searchLanes[0]?.competitiveContext).toBe(
+      'Rare mix - platform and product judgment.',
+    )
+    expect(thesis.unfairAdvantages[0]?.combination).toBe(
+      'Kubernetes delivery - product judgment',
+    )
+    expect(thesis.unfairAdvantages[0]?.targetCompanyProfile).toBe(
+      'Modernization teams - not ops-only teams',
+    )
+    expect(thesis.competitiveMoat).toBe(
+      'Kubernetes delivery - with product-aware platform judgment.',
+    )
+    expect(thesis.lookFor.map((signal) => signal.label)).toEqual([
+      'Platform leverage - with product stakes',
+      'leading boundary',
+      'trailing boundary',
+      'double leading',
+      'double trailing',
+      'adjacent - middle',
+      'string - signal',
+      'preexisting - - separator - tail',
+      '-keep ascii hyphen',
+      '-flag - enabled',
+      'Platform orgs - with product stakes',
+    ])
+    expect(thesis.avoid.map((signal) => signal.label)).toEqual([
+      'string avoid - signal',
+      'Cluster admin - as the whole job',
+      'Ops-only teams - without product leverage',
+    ])
+    expect(thesis.skillDepthMap[0]?.calibration).toBe(
+      'Use as platform evidence - not admin positioning.',
+    )
+    expect(thesis.timeline?.strategyImpact).toBe(
+      'Narrow toward platform leverage - not operations coverage.',
+    )
+    expect(thesis.timeline?.deadline).toBe('Q1-Q2 2026')
+    expect(thesis.keywordCombinations[0]?.query).toBe('"platform modernization" - Kubernetes')
+    expect(thesis.assumptions?.[0]?.rationale).toBe(
+      'Location preference implies remote flexibility - but needs review.',
+    )
+    expect(thesis.searchOverrides?.constraints.locations).toEqual([
+      'Tampa Bay - remote-friendly',
+    ])
+    expect(thesis.searchOverrides?.constraints.clearance).toBe(
+      'No clearance - unless role is exceptional',
+    )
+    expect(thesis.searchOverrides?.constraints.remotePolicyNote).toBe(
+      'Prefer remote - hybrid only near Tampa.',
+    )
+    expect(thesis.searchOverrides?.interviewPrefs.strongFit).toEqual([
+      'Platform strategy - customer deployment',
+    ])
+    expect(thesis.searchOverrides?.interviewPrefs.redFlags).toEqual([
+      'Cluster babysitting - no product scope',
+    ])
   })
 
   it('normalizes generated thesis assumptions and drops malformed entries', () => {
@@ -752,7 +947,7 @@ describe('thesisGenerator', () => {
 
     expect(violations).toEqual(
       expect.arrayContaining([
-        'competitiveMoat: too short — author at least 40 characters on Identity → Self Model',
+        'competitiveMoat: too short; author at least 40 characters in the Identity page Self Model section',
         'searchLanes[0].rationale: expected prose rationale with at least 2 sentences',
         'skillDepthMap: expected at least one skill-depth entry',
         'skillDepthMap: missing identity skills: Kubernetes',
