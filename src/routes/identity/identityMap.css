@@ -85,42 +85,9 @@
     background var(--duration-fast) var(--easing),
     border-color var(--duration-fast) var(--easing);
 }
-.identity-map-topbar-action:not(:disabled):not([aria-disabled='true']):hover {
+.identity-map-topbar-action:hover {
   background: var(--accent-primary-hover);
   border-color: var(--accent-primary-hover);
-}
-.identity-map-topbar-action.secondary {
-  background: transparent;
-  border-color: var(--border-default);
-  color: var(--text-secondary);
-}
-.identity-map-topbar-action.secondary:hover:not(:disabled):not([aria-disabled='true']) {
-  background: var(--bg-surface);
-  border-color: var(--text-secondary);
-  color: var(--text-primary);
-}
-.identity-map-topbar-action:disabled {
-  cursor: wait;
-  opacity: 0.65;
-}
-.identity-map-topbar-action[aria-disabled='true'] {
-  cursor: wait;
-  opacity: 0.65;
-}
-.identity-map-spin {
-  transform-origin: center;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .identity-map-spin {
-    animation: identity-map-spin 0.9s linear infinite;
-  }
-
-  @keyframes identity-map-spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
 }
 
 .identity-map-empty-cta {
@@ -187,19 +154,6 @@
 .identity-map-notice-dismiss:hover {
   border-color: var(--text-secondary);
   color: var(--text-primary);
-}
-.identity-map-notice.thesis-generation.success {
-  border-color: var(--success);
-}
-.identity-map-notice.thesis-generation.error {
-  border-color: var(--error);
-}
-.identity-map-notice-actions {
-  display: flex;
-  gap: var(--space-2);
-  align-items: center;
-  flex-wrap: wrap;
-  justify-content: flex-end;
 }
 .identity-map-empty-cta p {
   color: var(--text-tertiary);
