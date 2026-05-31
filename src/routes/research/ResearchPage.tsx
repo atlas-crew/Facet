@@ -90,6 +90,7 @@ import { SearchAssumptionsDisclosure } from './searchWorkspaceComponents'
 import './research.css'
 
 type ResearchTab = 'search' | 'results'
+type ResearchRetryIdentityMode = 'current' | 'profile'
 type ThesisSignalEditTarget = 'lookFor' | 'avoid'
 type ThesisSignalsFocusRequest = { id: number; target: ThesisSignalEditTarget }
 const RESEARCH_TABS: ResearchTab[] = ['search', 'results']
@@ -2818,10 +2819,37 @@ export function ResearchPage() {
     }
   }
 
-  const handleRetryActiveRun = async () => {
+  const handleRetryActiveRun = async (options: { identityMode: ResearchRetryIdentityMode }) => {
     if (!activeRun?.thesisSnapshot || !activeRequest || !executableProfile) {
       setPageError('The preserved thesis or request was not available for retry.')
       return
+    }
+
+    const retriedAt = new Date().toISOString()
+    const baseRetryThesisSnapshot: SearchThesis = {
+      ...activeRun.thesisSnapshot,
+      updatedAt: retriedAt,
+    }
+    let retryThesisSnapshot = baseRetryThesisSnapshot
+    let retryIdentityEvidence: DeepResearchIdentityEvidence
+
+    // Both modes refresh updatedAt; only current mode rebases thesis metadata to Identity.
+    if (options.identityMode === 'current') {
+      const latestIdentityRevision = currentIdentityRevision
+      if (!currentIdentity || typeof latestIdentityRevision !== 'number') {
+        setPageError('Load an Identity model before rerunning with current Identity.')
+        return
+      }
+
+      retryThesisSnapshot = {
+        ...baseRetryThesisSnapshot,
+        identityVersion: latestIdentityRevision,
+        // Field dependencies are thesis-shape metadata; evidence values come from current Identity.
+        identityFields: collectThesisIdentityFieldDependencies(activeRun.thesisSnapshot),
+      }
+      retryIdentityEvidence = buildDeepResearchIdentityEvidence(currentIdentity, executableProfile)
+    } else {
+      retryIdentityEvidence = buildDeepResearchIdentityEvidence(null, executableProfile)
     }
 
     try {
@@ -2831,11 +2859,8 @@ export function ResearchPage() {
       prepareResearchNotifications()
       await startDeepResearchRun({
         request: activeRequest,
-        thesisSnapshot: {
-          ...activeRun.thesisSnapshot,
-          updatedAt: new Date().toISOString(),
-        },
-        identityEvidence: buildDeepResearchIdentityEvidence(currentIdentity, executableProfile),
+        thesisSnapshot: retryThesisSnapshot,
+        identityEvidence: retryIdentityEvidence,
       })
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Retry failed.'
@@ -3012,6 +3037,15 @@ export function ResearchPage() {
     visibleResearchJobIdentityVersion !== null &&
     currentIdentityRevision !== null &&
     visibleResearchJobIdentityVersion < currentIdentityRevision
+  const defaultRetryIdentityMode: ResearchRetryIdentityMode = currentIdentity
+    ? 'current'
+    : 'profile'
+  const retryPreservedThesisLabel = currentIdentity
+    ? 'Retry preserved thesis with current Identity'
+    : 'Retry preserved thesis'
+  const regeneratePreservedThesisLabel = currentIdentity
+    ? 'Regenerate preserved thesis with current Identity'
+    : 'Regenerate from preserved thesis'
   const activeRunNarrativeState = activeRun?.narrativeState
   const activeRunNarrative =
     activeRunNarrativeState?.status === 'ready' ? activeRunNarrativeState.narrative : null
@@ -4553,10 +4587,14 @@ export function ResearchPage() {
                       <button
                         type="button"
                         className="research-btn"
-                        onClick={() => void handleRetryActiveRun()}
+                        onClick={() =>
+                          void handleRetryActiveRun({
+                            identityMode: defaultRetryIdentityMode,
+                          })
+                        }
                         disabled={isSearching}
                       >
-                        Retry preserved thesis
+                        {retryPreservedThesisLabel}
                       </button>
                     ) : null}
                   </div>
@@ -4633,8 +4671,8 @@ export function ResearchPage() {
                           <button
                             type="button"
                             className="research-btn"
-                            onClick={() => void handleRetryActiveRun()}
-                            disabled={isSearching}
+                            onClick={() => void handleRetryActiveRun({ identityMode: 'current' })}
+                            disabled={isSearching || !currentIdentity}
                           >
                             Rerun with current Identity
                           </button>
@@ -4660,10 +4698,14 @@ export function ResearchPage() {
                       <button
                         type="button"
                         className="research-btn"
-                        onClick={() => void handleRetryActiveRun()}
+                        onClick={() =>
+                          void handleRetryActiveRun({
+                            identityMode: defaultRetryIdentityMode,
+                          })
+                        }
                         disabled={isSearching}
                       >
-                        Regenerate from preserved thesis
+                        {regeneratePreservedThesisLabel}
                       </button>
                     ) : null}
                   </div>

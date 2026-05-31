@@ -3489,6 +3489,57 @@ describe('ResearchPage', () => {
     ).toBeTruthy()
   })
 
+  it('stamps the current identity revision when rerunning a stale completed research job', async () => {
+    const identity = cloneIdentityFixture()
+    identity.model_revision = 4
+    useIdentityStore.setState({
+      currentIdentity: identity,
+      draftDocument: JSON.stringify(identity, null, 2),
+    })
+    seedLaunchThesis({ id: 'thesis-stale-rerun', identityVersion: 2 })
+    mockFetchDeepResearchJob.mockResolvedValueOnce(
+      buildResearchJob({
+        id: 'job-stale-rerun',
+        status: 'completed',
+        thesisSnapshot: buildTestThesis({ id: 'thesis-stale-rerun', identityVersion: 2 }),
+        identityVersion: 2,
+        result: {
+          narrative: {
+            competitiveMoat: 'Stale moat.',
+            selectionMethodology: 'Stale methodology.',
+            marketContext: 'Stale market context.',
+            executiveSummary: 'Stale summary.',
+          },
+          results: [],
+          tokenUsage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+        },
+      }),
+    )
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Search Launcher' }))
+    fireEvent.click(screen.getByRole('button', { name: /Launch Search/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Research job used an earlier Identity version')).toBeTruthy()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rerun with current Identity' }))
+
+    await waitFor(() => {
+      expect(mockCreateDeepResearchJob).toHaveBeenCalledTimes(2)
+    })
+    const rerunRequest = mockCreateDeepResearchJob.mock.calls[1]?.[0]
+    expect(rerunRequest?.thesisSnapshot).toMatchObject({
+      id: 'thesis-stale-rerun',
+      identityVersion: 4,
+    })
+    expect(rerunRequest?.thesisSnapshot.identityFields).toContain('skills.TypeScript.depth')
+    expect(useSearchStore.getState().runs.at(-1)?.identityVersion).toBe(4)
+  })
+
   it('shows an error when search launch is missing the AI endpoint', async () => {
     vi.stubEnv('VITE_ANTHROPIC_PROXY_URL', '')
     seedLaunchThesis({ id: 'thesis-missing-endpoint' })
@@ -3833,9 +3884,16 @@ describe('ResearchPage', () => {
     expect(useSearchStore.getState().runs[0]?.error).toContain('canceled')
   })
 
-  it('retries a failed run from its preserved thesis snapshot', async () => {
+  it('retries a failed run with current identity evidence metadata when identity is loaded', async () => {
+    const identity = cloneIdentityFixture()
+    identity.model_revision = 4
+    useIdentityStore.setState({
+      currentIdentity: identity,
+      draftDocument: JSON.stringify(identity, null, 2),
+    })
     const thesisSnapshot = buildTestThesis({
       id: 'thesis-retry',
+      identityVersion: 2,
     })
     useSearchStore.setState((state) => ({
       ...state,
@@ -3854,7 +3912,9 @@ describe('ResearchPage', () => {
     render(<ResearchPage />)
 
     fireEvent.click(screen.getByRole('tab', { name: 'Results Viewer' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Retry preserved thesis' }))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Retry preserved thesis with current Identity' }),
+    )
 
     await waitFor(() => {
       expect(mockCreateDeepResearchJob).toHaveBeenCalledWith(
@@ -3862,9 +3922,113 @@ describe('ResearchPage', () => {
           thesisSnapshot: expect.objectContaining({
             id: 'thesis-retry',
             competitiveMoat: 'Default moat.',
+            identityVersion: 4,
           }),
         }),
       )
+      expect(mockCreateDeepResearchJob.mock.calls[0]?.[0].thesisSnapshot.identityFields).toContain(
+        'skills.TypeScript.depth',
+      )
+    })
+  })
+
+  it('retries a failed run from profile evidence when no identity is loaded', async () => {
+    const thesisSnapshot = buildTestThesis({
+      id: 'thesis-retry-profile',
+      identityVersion: 2,
+    })
+    useSearchStore.setState((state) => ({
+      ...state,
+      runs: [
+        {
+          id: 'run-retry-profile',
+          requestId: 'sreq-1',
+          createdAt: '2026-03-10T10:06:00.000Z',
+          status: 'failed',
+          thesisId: thesisSnapshot.id,
+          thesisSnapshot,
+          searchLog: [],
+          narrativeState: { status: 'failed', error: 'canceled', contractViolations: [] },
+          results: [],
+          error: 'canceled',
+        },
+      ],
+      activeRunId: 'run-retry-profile',
+    }))
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Results Viewer' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Retry preserved thesis' }))
+
+    await waitFor(() => {
+      expect(mockCreateDeepResearchJob).toHaveBeenCalledWith(
+        expect.objectContaining({
+          thesisSnapshot: expect.objectContaining({
+            id: 'thesis-retry-profile',
+            competitiveMoat: 'Default moat.',
+            identityVersion: 2,
+          }),
+        }),
+      )
+      expect(
+        mockCreateDeepResearchJob.mock.calls[0]?.[0].thesisSnapshot.identityFields,
+      ).toBeUndefined()
+      expect(useSearchStore.getState().runs.at(-1)?.identityVersion).toBe(2)
+    })
+  })
+
+  it('regenerates a contract-violating run from profile evidence when no identity is loaded', async () => {
+    const thesisSnapshot = buildTestThesis({
+      id: 'thesis-regenerate-profile',
+      identityVersion: 2,
+    })
+    useSearchStore.setState((state) => ({
+      ...state,
+      runs: [
+        {
+          id: 'run-regenerate-profile',
+          requestId: 'sreq-1',
+          createdAt: '2026-03-10T10:06:00.000Z',
+          status: 'completed',
+          thesisId: thesisSnapshot.id,
+          thesisSnapshot,
+          searchLog: [],
+          narrativeState: {
+            status: 'ready',
+            narrative: {
+              competitiveMoat: 'Short.',
+              selectionMethodology: 'Short.',
+              marketContext: 'Short.',
+              executiveSummary: 'Short.',
+            },
+            contractViolations: ['executiveSummary too short'],
+          },
+          results: [],
+        },
+      ],
+      activeRunId: 'run-regenerate-profile',
+    }))
+
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+    render(<ResearchPage />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Results Viewer' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Regenerate from preserved thesis' }))
+
+    await waitFor(() => {
+      expect(mockCreateDeepResearchJob).toHaveBeenCalledWith(
+        expect.objectContaining({
+          thesisSnapshot: expect.objectContaining({
+            id: 'thesis-regenerate-profile',
+            identityVersion: 2,
+          }),
+        }),
+      )
+      expect(
+        mockCreateDeepResearchJob.mock.calls[0]?.[0].thesisSnapshot.identityFields,
+      ).toBeUndefined()
     })
   })
 
