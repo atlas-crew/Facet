@@ -1352,6 +1352,32 @@
   gap: var(--space-3);
 }
 
+.identity-readonly-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.identity-readonly-value {
+  min-height: 40px;
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-inset);
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.identity-readonly-value.empty {
+  color: var(--text-tertiary);
+  font-style: italic;
+}
+
 .identity-scan-bullet-card {
   gap: var(--space-3);
 }

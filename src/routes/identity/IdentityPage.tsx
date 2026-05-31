@@ -151,18 +151,6 @@ export function IdentityPage() {
   const appendIntakeSource = useIdentityStore((state) => state.appendIntakeSource)
   const removeIntakeSource = useIdentityStore((state) => state.removeIntakeSource)
   const setIntakeSourceLabel = useIdentityStore((state) => state.setIntakeSourceLabel)
-  const updateScannedIdentityCore = useIdentityStore((state) => state.updateScannedIdentityCore)
-  const updateScannedRole = useIdentityStore((state) => state.updateScannedRole)
-  const updateScannedBulletSourceText = useIdentityStore(
-    (state) => state.updateScannedBulletSourceText,
-  )
-  const updateScannedBulletTextField = useIdentityStore(
-    (state) => state.updateScannedBulletTextField,
-  )
-  const updateScannedBulletListField = useIdentityStore(
-    (state) => state.updateScannedBulletListField,
-  )
-  const updateScannedBulletMetrics = useIdentityStore((state) => state.updateScannedBulletMetrics)
   const startScannedBulletDeepen = useIdentityStore((state) => state.startScannedBulletDeepen)
   const completeScannedBulletDeepen = useIdentityStore((state) => state.completeScannedBulletDeepen)
   const failScannedBulletDeepen = useIdentityStore((state) => state.failScannedBulletDeepen)
@@ -170,12 +158,6 @@ export function IdentityPage() {
   const updateScanBulkProgress = useIdentityStore((state) => state.updateScanBulkProgress)
   const requestCancelScanBulkDeepen = useIdentityStore((state) => state.requestCancelScanBulkDeepen)
   const finishScanBulkDeepen = useIdentityStore((state) => state.finishScanBulkDeepen)
-  const updateScannedSkillGroupLabel = useIdentityStore(
-    (state) => state.updateScannedSkillGroupLabel,
-  )
-  const updateScannedSkillItemName = useIdentityStore((state) => state.updateScannedSkillItemName)
-  const updateScannedProjectEntry = useIdentityStore((state) => state.updateScannedProjectEntry)
-  const updateScannedEducationEntry = useIdentityStore((state) => state.updateScannedEducationEntry)
   const importIdentity = useIdentityStore((state) => state.importIdentity)
   const applyDraft = useIdentityStore((state) => state.applyDraft)
   const acceptProposedVector = useIdentityStore((state) => state.acceptProposedVector)
@@ -706,65 +688,6 @@ export function IdentityPage() {
     event.stopPropagation()
     const files = Array.from(event.dataTransfer.files ?? [])
     await scanFileBatch(files)
-  }
-
-  const handleDeepenBullet = async (roleId: string, bulletId: string) => {
-    const liveScan = getActiveResumeScan(useIdentityStore.getState())
-    if (!liveScan) {
-      return
-    }
-
-    if (
-      Object.values(liveScan.progress.bullets).some((progress) => progress.status === 'running')
-    ) {
-      return
-    }
-
-    const targetRole = liveScan.identity.roles.find((role) => role.id === roleId)
-    const targetBullet = targetRole?.bullets.find((bullet) => bullet.id === bulletId)
-    if (!targetBullet?.source_text?.trim()) {
-      setPageNotice(null)
-      setPageError('Add source text to the bullet before deepening it.')
-      return
-    }
-
-    let controller: AbortController | null = null
-    try {
-      deepenAbortRef.current?.abort()
-      controller = new AbortController()
-      deepenAbortRef.current = controller
-      ensureEndpoint()
-      setPageError(null)
-      setPageNotice(null)
-      startScannedBulletDeepen(roleId, bulletId)
-      const result = await deepenIdentityBullet({
-        endpoint: aiEndpoint,
-        identity: getActiveResumeScan(useIdentityStore.getState())?.identity ?? liveScan.identity,
-        roleId,
-        bulletId,
-        correctionNotes,
-        signal: controller.signal,
-      })
-      if (controller.signal.aborted) {
-        return
-      }
-
-      completeScannedBulletDeepen(result)
-      setPageNotice(result.summary)
-    } catch (error) {
-      if (controller?.signal.aborted && error instanceof DOMException) {
-        return
-      }
-
-      const message = error instanceof Error ? error.message : 'Bullet deepening failed.'
-      failScannedBulletDeepen(roleId, bulletId, message)
-      setPageNotice(null)
-      setPageError(message)
-    } finally {
-      if (controller && deepenAbortRef.current === controller) {
-        deepenAbortRef.current = null
-      }
-    }
   }
 
   const handleDeepenAll = async () => {
@@ -1449,17 +1372,6 @@ export function IdentityPage() {
                 setFailedFiles([])
                 setPageNotice('Cleared the scanned resume structure.')
               }}
-              onUpdateIdentityCore={updateScannedIdentityCore}
-              onUpdateRole={updateScannedRole}
-              onUpdateBulletSourceText={updateScannedBulletSourceText}
-              onUpdateBulletTextField={updateScannedBulletTextField}
-              onUpdateBulletListField={updateScannedBulletListField}
-              onUpdateBulletMetrics={updateScannedBulletMetrics}
-              onDeepenBullet={handleDeepenBullet}
-              onUpdateSkillGroupLabel={updateScannedSkillGroupLabel}
-              onUpdateSkillItemName={updateScannedSkillItemName}
-              onUpdateProjectEntry={updateScannedProjectEntry}
-              onUpdateEducationEntry={updateScannedEducationEntry}
             />
 
             <div ref={draftPanelRef}>

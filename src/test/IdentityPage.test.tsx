@@ -470,19 +470,19 @@ describe('IdentityPage', () => {
     uploadPdf(container)
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
+      expect(screen.getByText('Alex Example')).toBeTruthy()
     })
 
     expect(screen.getByText('Recommended next step')).toBeTruthy()
     expect(screen.getByText(/turns terse resume bullets into richer raw material/i)).toBeTruthy()
     expect(
       screen.getByText(
-        'Confirm the contact details from the resume scan before applying the draft.',
+        'Review extracted contact details. Apply the draft, then refine durable fields on the Map.',
       ),
     ).toBeTruthy()
-    expect(screen.getByDisplayValue('Facet')).toBeTruthy()
-    expect(screen.getByDisplayValue('Vector-based job search platform.')).toBeTruthy()
-    expect(screen.getByDisplayValue('Rivertown, OR')).toBeTruthy()
+    expect(screen.getAllByText('Facet').length).toBeGreaterThan(0)
+    expect(screen.getByText('Vector-based job search platform.')).toBeTruthy()
+    expect(screen.getByText('Rivertown, OR')).toBeTruthy()
     expect(screen.getByLabelText('Projects: 1')).toBeTruthy()
     const skillGroupToggle = screen.getByRole('button', {
       name: /Platform.*1 skill.*Expand/i,
@@ -492,8 +492,8 @@ describe('IdentityPage', () => {
     fireEvent.click(skillGroupToggle)
 
     expect(skillGroupToggle.getAttribute('aria-expanded')).toBe('true')
-    expect(screen.getByRole('textbox', { name: 'Group Label' })).toBeTruthy()
-    expect((screen.getByLabelText('Skill 1') as HTMLInputElement).value).toBe('Kubernetes')
+    expect(screen.getByText('Group Label')).toBeTruthy()
+    expect(screen.getAllByText('Kubernetes').length).toBeGreaterThan(0)
 
     const projectToggle = screen.getByRole('button', {
       name: /Facet.*Project link included.*Expand/i,
@@ -503,26 +503,11 @@ describe('IdentityPage', () => {
     fireEvent.click(projectToggle)
 
     expect(projectToggle.getAttribute('aria-expanded')).toBe('true')
-    expect(screen.getByDisplayValue('Facet')).toBeTruthy()
-
-    fireEvent.change(
-      screen.getByDisplayValue('Ported the platform to Kubernetes-based installs.'),
-      {
-        target: {
-          value: 'Ported the platform to Kubernetes-based installs for on-prem customers.',
-        },
-      },
-    )
-
+    expect(screen.getAllByText('Facet').length).toBeGreaterThan(0)
     expect(
-      getActiveResumeScan(useIdentityStore.getState())?.identity.roles[0]?.bullets[0]?.source_text,
-    ).toBe('Ported the platform to Kubernetes-based installs for on-prem customers.')
-    fireEvent.change(screen.getByDisplayValue('Facet'), {
-      target: { value: 'Facet OSS' },
-    })
-    expect(getActiveResumeScan(useIdentityStore.getState())?.identity.projects[0]?.name).toBe(
-      'Facet OSS',
-    )
+      screen.queryByRole('textbox', { name: 'Bullet 1 Source' }),
+    ).toBeNull()
+    expect(screen.queryByRole('textbox', { name: 'Group Label' })).toBeNull()
     expect(screen.getByText(/two-column layout/i)).toBeTruthy()
 
     fireEvent.click(
@@ -545,8 +530,7 @@ describe('IdentityPage', () => {
               expect.objectContaining({
                 bullets: [
                   expect.objectContaining({
-                    source_text:
-                      'Ported the platform to Kubernetes-based installs for on-prem customers.',
+                    source_text: 'Ported the platform to Kubernetes-based installs.',
                   }),
                 ],
               }),
@@ -566,7 +550,7 @@ describe('IdentityPage', () => {
     uploadPdf(container)
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
+      expect(screen.getByText('Alex Example')).toBeTruthy()
     })
 
     const generateButton = clickSourceGenerateDraft()
@@ -608,7 +592,7 @@ describe('IdentityPage', () => {
     uploadPdf(container)
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
+      expect(screen.getByText('Alex Example')).toBeTruthy()
     })
 
     clickSourceGenerateDraft()
@@ -634,7 +618,7 @@ describe('IdentityPage', () => {
     uploadPdf(container)
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
+      expect(screen.getByText('Alex Example')).toBeTruthy()
     })
 
     clickSourceGenerateDraft()
@@ -665,7 +649,7 @@ describe('IdentityPage', () => {
     uploadPdf(container)
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
+      expect(screen.getByText('Alex Example')).toBeTruthy()
     })
 
     clickSourceGenerateDraft()
@@ -703,7 +687,7 @@ describe('IdentityPage', () => {
     uploadPdf(container)
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
+      expect(screen.getByText('Alex Example')).toBeTruthy()
     })
 
     clickSourceGenerateDraft()
@@ -722,7 +706,7 @@ describe('IdentityPage', () => {
     uploadPdf(container)
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
+      expect(screen.getByText('Alex Example')).toBeTruthy()
     })
 
     fireEvent.click(within(getSourceIntakeSection()).getByRole('button', { name: 'Regenerate' }))
@@ -764,7 +748,7 @@ describe('IdentityPage', () => {
     uploadPdf(container)
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
+      expect(screen.getByText('Alex Example')).toBeTruthy()
     })
 
     expect(
@@ -804,7 +788,7 @@ describe('IdentityPage', () => {
     uploadPdf(container)
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
+      expect(screen.getByText('Alex Example')).toBeTruthy()
     })
 
     clickSourceGenerateDraft()
@@ -844,7 +828,7 @@ describe('IdentityPage', () => {
     uploadPdf(container)
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
+      expect(screen.getByText('Alex Example')).toBeTruthy()
     })
 
     clickSourceGenerateDraft()
@@ -879,7 +863,7 @@ describe('IdentityPage', () => {
     uploadPdf(container)
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
+      expect(screen.getByText('Alex Example')).toBeTruthy()
     })
 
     fireEvent.click(
@@ -948,7 +932,7 @@ describe('IdentityPage', () => {
     })
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
+      expect(screen.getByText('Alex Example')).toBeTruthy()
     })
     expect(
       within(getSourceIntakeSection()).getByRole('button', {
@@ -1514,7 +1498,7 @@ describe('IdentityPage', () => {
     uploadPdf(container)
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
+      expect(screen.getByText('Alex Example')).toBeTruthy()
     })
 
     fireEvent.change(screen.getByLabelText('Pasted AI export narrative'), {
@@ -1661,7 +1645,7 @@ describe('IdentityPage', () => {
     uploadPdf(container)
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
+      expect(screen.getByText('Alex Example')).toBeTruthy()
     })
 
     fireEvent.click(
@@ -1798,15 +1782,17 @@ describe('IdentityPage', () => {
     expect(createObjectUrlMock).not.toHaveBeenCalled()
   })
 
-  it('deepens a scanned bullet inline and marks manual edits as corrected', async () => {
+  it('deepens scanned bullets from the scanner card and renders results read-only', async () => {
     const { container } = render(<IdentityPage />)
     uploadPdf(container)
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
+      expect(screen.getByText('Alex Example')).toBeTruthy()
     })
 
-    fireEvent.click(screen.getByText('Deepen'))
+    expect(screen.queryByRole('button', { name: /Deepen bullet/i })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Deepen all bullets' }))
 
     await waitFor(() => {
       expect(identityExtractionMocks.deepenIdentityBulletMock).toHaveBeenCalledTimes(1)
@@ -1820,23 +1806,17 @@ describe('IdentityPage', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('Cloud-only delivery blocked on-prem installs.')).toBeTruthy()
+      expect(screen.getByText('Cloud-only delivery blocked on-prem installs.')).toBeTruthy()
     })
 
-    fireEvent.change(screen.getByDisplayValue('Cloud-only delivery blocked on-prem installs.'), {
-      target: {
-        value: 'Cloud-only delivery blocked on-prem customer installs.',
-      },
-    })
-
-    expect(getActiveResumeScan(useIdentityStore.getState())?.counts.editedBullets).toBe(1)
     expect(
       getActiveResumeScan(useIdentityStore.getState())?.identity.roles[0]?.bullets[0]?.problem,
-    ).toBe('Cloud-only delivery blocked on-prem customer installs.')
-    expect(screen.getAllByText('Edited').length).toBeGreaterThan(0)
+    ).toBe('Cloud-only delivery blocked on-prem installs.')
+    expect(screen.getAllByText('Deepened').length).toBeGreaterThan(0)
+    expect(screen.queryByRole('textbox', { name: 'Problem' })).toBeNull()
   })
 
-  it('does not gate per-bullet deepening behind the intake replacement confirmation', async () => {
+  it('does not gate bulk deepening behind the intake replacement confirmation', async () => {
     useIdentityStore.setState({
       currentIdentity: cloneIdentityFixture(),
     })
@@ -1845,16 +1825,48 @@ describe('IdentityPage', () => {
     uploadPdf(container)
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
+      expect(screen.getByText('Alex Example')).toBeTruthy()
     })
 
-    fireEvent.click(screen.getByText('Deepen'))
+    fireEvent.click(screen.getByRole('button', { name: 'Deepen all bullets' }))
 
     await waitFor(() => {
       expect(identityExtractionMocks.deepenIdentityBulletMock).toHaveBeenCalledTimes(1)
     })
     expect(screen.queryByRole('dialog', { name: 'Replace current identity?' })).toBeNull()
     expect(identityExtractionMocks.generateIdentityDraftMock).toHaveBeenCalledTimes(0)
+  })
+
+  it('shows read-only fallback text for missing scanned fields', async () => {
+    const sparseScan = scanFixture()
+    sparseScan.identity.identity.title = ''
+    sparseScan.identity.identity.links = [
+      {
+        id: 'github',
+        url: 'https://github.com/alex',
+      },
+    ]
+    sparseScan.identity.roles[0].subtitle = ''
+    sparseScan.identity.roles[0].bullets[0].problem = 'Parsed problem for review.'
+    sparseScan.identity.roles[0].bullets[0].impact = []
+    sparseScan.identity.roles[0].bullets[0].technologies = ['Kubernetes', '', ' ']
+    sparseScan.identity.roles[0].bullets[0].tags = []
+    sparseScan.identity.roles[0].bullets[0].metrics = {}
+    resumeScannerMocks.scanResumePdfMock.mockResolvedValueOnce(sparseScan)
+
+    const { container } = render(<IdentityPage />)
+    uploadPdf(container)
+
+    await waitFor(() => {
+      expect(screen.getByText('Parsed problem for review.')).toBeTruthy()
+    })
+
+    expect(screen.getByText('github: https://github.com/alex')).toBeTruthy()
+    expect(screen.getByText('Technologies').parentElement?.textContent).toBe(
+      'TechnologiesKubernetes',
+    )
+    expect(screen.getAllByText('Not parsed').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('None parsed').length).toBeGreaterThanOrEqual(3)
   })
 
   it('shows structured-only deepen results inline even when prose fields stay empty', async () => {
@@ -1882,18 +1894,18 @@ describe('IdentityPage', () => {
     uploadPdf(container)
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
+      expect(screen.getByText('Alex Example')).toBeTruthy()
     })
 
-    fireEvent.click(screen.getByText('Deepen'))
+    fireEvent.click(screen.getByRole('button', { name: 'Deepen all bullets' }))
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Technologies')).toBeTruthy()
+      expect(screen.getByText('Unlocked customer-hosted deployments')).toBeTruthy()
     })
 
-    expect((screen.getByLabelText('Technologies') as HTMLTextAreaElement).value).toContain(
-      'Kubernetes',
-    )
+    expect(screen.getAllByText('Kubernetes').length).toBeGreaterThan(0)
+    expect(screen.getByText('installs: 12')).toBeTruthy()
+    expect(screen.queryByRole('textbox', { name: 'Technologies' })).toBeNull()
   })
 
   it('shows guessed rewrite details and correction guidance after deepening a bullet', async () => {
@@ -1926,10 +1938,10 @@ describe('IdentityPage', () => {
     uploadPdf(container)
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
+      expect(screen.getByText('Alex Example')).toBeTruthy()
     })
 
-    fireEvent.click(screen.getByText('Deepen'))
+    fireEvent.click(screen.getByRole('button', { name: 'Deepen all bullets' }))
 
     await waitFor(() => {
       expect(screen.getByText('Current AI rewrite')).toBeTruthy()
@@ -1944,10 +1956,10 @@ describe('IdentityPage', () => {
       screen.getAllByText('Double-check whether the rollout was customer-hosted or internal-only.')
         .length,
     ).toBeGreaterThan(0)
-    expect(screen.getByText(/Edit the fields below to correct any guessed details/i)).toBeTruthy()
+    expect(screen.queryByText(/Edit the fields below to correct any guessed details/i)).toBeNull()
   })
 
-  it('surfaces single-bullet deepen failures and marks the bullet failed', async () => {
+  it('surfaces bulk deepen failures and marks the bullet failed', async () => {
     identityExtractionMocks.deepenIdentityBulletMock.mockRejectedValueOnce(
       new Error('Bullet decomposition failed.'),
     )
@@ -1956,10 +1968,10 @@ describe('IdentityPage', () => {
     uploadPdf(container)
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
+      expect(screen.getByText('Alex Example')).toBeTruthy()
     })
 
-    fireEvent.click(screen.getByText('Deepen'))
+    fireEvent.click(screen.getByRole('button', { name: 'Deepen all bullets' }))
 
     await waitFor(() => {
       expect(screen.getAllByText('Bullet decomposition failed.').length).toBeGreaterThan(0)
@@ -1987,161 +1999,16 @@ describe('IdentityPage', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByDisplayValue('Legacy delivery path blocked on-prem installs.'),
+        screen.getByText('Legacy delivery path blocked on-prem installs.'),
       ).toBeTruthy()
     })
 
     expect(screen.getAllByText('Guessing').length).toBeGreaterThan(0)
     expect(
       screen.getByText(
-        'This decomposition was inferred from the scanned source text. Review and edit the fields below to confirm any guessed details. Your first edit will switch this bullet from Guessing to Corrected.',
+        'This decomposition was inferred from the scanned source text. Apply the draft, then correct guessed details on the Map.',
       ),
     ).toBeTruthy()
-  })
-
-  it('disables bullet deepening when the scanned source text is blank', async () => {
-    const { container } = render(<IdentityPage />)
-    uploadPdf(container)
-
-    await waitFor(() => {
-      expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
-    })
-
-    fireEvent.change(
-      screen.getByDisplayValue('Ported the platform to Kubernetes-based installs.'),
-      {
-        target: { value: '' },
-      },
-    )
-
-    const deepenButton = screen.getByText('Deepen') as HTMLButtonElement
-    expect(deepenButton.disabled).toBe(true)
-
-    fireEvent.click(deepenButton)
-    expect(identityExtractionMocks.deepenIdentityBulletMock).toHaveBeenCalledTimes(0)
-  })
-
-  it('disables Deepen all bullets while a single bullet deepen is running', async () => {
-    let resolveDeepen!: (
-      value: Awaited<ReturnType<typeof identityExtractionMocks.deepenIdentityBulletMock>>,
-    ) => void
-    identityExtractionMocks.deepenIdentityBulletMock.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          resolveDeepen = resolve
-        }),
-    )
-
-    const { container } = render(<IdentityPage />)
-    uploadPdf(container)
-
-    await waitFor(() => {
-      expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
-    })
-
-    fireEvent.click(screen.getByText('Deepen'))
-
-    await waitFor(() => {
-      expect(identityExtractionMocks.deepenIdentityBulletMock).toHaveBeenCalledTimes(1)
-    })
-
-    const deepenAllButton = screen.getByRole('button', { name: 'Deepen all bullets' })
-    expect((deepenAllButton as HTMLButtonElement).disabled).toBe(true)
-
-    await act(async () => {
-      resolveDeepen({
-        summary: 'Deepened the migration bullet.',
-        roleId: 'contoso',
-        bulletId: 'platform-migration',
-        bullet: {
-          id: 'platform-migration',
-          problem: 'Cloud-only delivery blocked on-prem installs.',
-          action: 'Ported the platform to Kubernetes-based installs for on-prem customers.',
-          outcome: 'Made the product deployable in customer environments.',
-          impact: ['Unlocked customer-hosted deployments'],
-          metrics: { installs: 12 },
-          technologies: ['Kubernetes'],
-          source_text: 'ignored',
-          tags: ['platform', 'kubernetes'],
-        },
-        rewrite: 'Ported the platform to Kubernetes-based installs for on-prem customers.',
-        assumptions: [],
-        warnings: [],
-      })
-      await flushMicrotasks()
-    })
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Deepen all bullets' })).toBeTruthy()
-    })
-  })
-
-  it('ignores overlapping single-bullet deepen requests while one is already running', async () => {
-    let resolveFirstDeepen!: (
-      value: Awaited<ReturnType<typeof identityExtractionMocks.deepenIdentityBulletMock>>,
-    ) => void
-    resumeScannerMocks.scanResumePdfMock.mockResolvedValueOnce(scanFixtureWithTwoBullets())
-    identityExtractionMocks.deepenIdentityBulletMock.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          resolveFirstDeepen = resolve
-        }),
-    )
-
-    const { container } = render(<IdentityPage />)
-    uploadPdf(container)
-
-    await waitFor(() => {
-      expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
-    })
-
-    fireEvent.click(screen.getByText('Deepen'))
-    fireEvent.click(screen.getByText('Migrated workloads to EKS with Helm charts.'))
-    fireEvent.click(screen.getByText('Deepen'))
-
-    await waitFor(() => {
-      expect(identityExtractionMocks.deepenIdentityBulletMock).toHaveBeenCalledTimes(1)
-    })
-
-    await act(async () => {
-      resolveFirstDeepen({
-        summary: 'Deepened the migration bullet.',
-        roleId: 'contoso',
-        bulletId: 'platform-migration',
-        bullet: {
-          id: 'platform-migration',
-          problem: 'Cloud-only delivery blocked on-prem installs.',
-          action: 'Ported the platform to Kubernetes-based installs for on-prem customers.',
-          outcome: 'Made the product deployable in customer environments.',
-          impact: ['Unlocked customer-hosted deployments'],
-          metrics: { installs: 12 },
-          technologies: ['Kubernetes'],
-          source_text: 'ignored',
-          tags: ['platform', 'kubernetes'],
-        },
-        rewrite: 'Ported the platform to Kubernetes-based installs for on-prem customers.',
-        assumptions: [],
-        warnings: [],
-      })
-      await flushMicrotasks()
-    })
-
-    await waitFor(() => {
-      expect(
-        getActiveResumeScan(useIdentityStore.getState())?.progress.bullets[
-          'contoso::platform-migration'
-        ]?.status,
-      ).toBe('completed')
-    })
-
-    expect(
-      getActiveResumeScan(useIdentityStore.getState())?.progress.bullets[
-        'contoso::second-migration'
-      ]?.status,
-    ).toBe('idle')
-    expect(
-      (screen.getByRole('button', { name: 'Deepen all bullets' }) as HTMLButtonElement).disabled,
-    ).toBe(false)
   })
 
   it('switches the detail pane when a different scanned bullet is selected', async () => {
@@ -2151,14 +2018,14 @@ describe('IdentityPage', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByDisplayValue('Ported the platform to Kubernetes-based installs.'),
-      ).toBeTruthy()
+        screen.getAllByText('Ported the platform to Kubernetes-based installs.').length,
+      ).toBeGreaterThan(0)
     })
 
     fireEvent.click(screen.getByText('Migrated workloads to EKS with Helm charts.'))
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('Migrated workloads to EKS with Helm charts.')).toBeTruthy()
+      expect(screen.getAllByText('Migrated workloads to EKS with Helm charts.').length).toBe(2)
     })
   })
 
@@ -2167,7 +2034,7 @@ describe('IdentityPage', () => {
     uploadPdf(container)
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
+      expect(screen.getByText('Alex Example')).toBeTruthy()
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Deepen all bullets' }))
@@ -2225,7 +2092,7 @@ describe('IdentityPage', () => {
     uploadPdf(container)
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
+      expect(screen.getByText('Alex Example')).toBeTruthy()
     })
 
     const activeScan = getActiveResumeScan(useIdentityStore.getState())
@@ -2281,7 +2148,7 @@ describe('IdentityPage', () => {
     uploadPdf(container)
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
+      expect(screen.getByText('Alex Example')).toBeTruthy()
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Deepen all bullets' }))
@@ -2291,41 +2158,6 @@ describe('IdentityPage', () => {
     })
     expect(getActiveResumeScan(useIdentityStore.getState())?.counts.deepenedBullets).toBe(1)
     expect(getActiveResumeScan(useIdentityStore.getState())?.counts.failedBullets).toBe(1)
-  })
-
-  it('preserves focused impact edits across progress updates and keeps comma-bearing statements intact', async () => {
-    const { container } = render(<IdentityPage />)
-    uploadPdf(container)
-
-    await waitFor(() => {
-      expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
-    })
-
-    fireEvent.click(screen.getByText('Deepen'))
-
-    await waitFor(() => {
-      expect(screen.getByDisplayValue('Cloud-only delivery blocked on-prem installs.')).toBeTruthy()
-    })
-
-    const impactField = screen.getByLabelText('Impact')
-    const impactValue = 'Reduced latency by 40%, improving p99 to 12ms'
-
-    fireEvent.focus(impactField)
-    fireEvent.change(impactField, {
-      target: { value: impactValue },
-    })
-
-    act(() => {
-      useIdentityStore.getState().startScanBulkDeepen()
-    })
-
-    expect((screen.getByLabelText('Impact') as HTMLTextAreaElement).value).toBe(impactValue)
-
-    fireEvent.blur(impactField)
-
-    expect(
-      getActiveResumeScan(useIdentityStore.getState())?.identity.roles[0]?.bullets[0]?.impact,
-    ).toEqual([impactValue])
   })
 
   it('cancels bulk deepening without failing the current bullet', async () => {
@@ -2341,7 +2173,7 @@ describe('IdentityPage', () => {
     uploadPdf(container)
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
+      expect(screen.getByText('Alex Example')).toBeTruthy()
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Deepen all bullets' }))
@@ -2349,8 +2181,12 @@ describe('IdentityPage', () => {
     await waitFor(() => {
       expect(screen.getByText('Cancel')).toBeTruthy()
     })
+    expect(screen.getByText('Bulk running')).toBeTruthy()
 
     fireEvent.click(screen.getByText('Cancel'))
+    await waitFor(() => {
+      expect(screen.getByText('Bulk cancelling')).toBeTruthy()
+    })
     await rejectWithAbort(rejectDeepen)
 
     expect(getActiveResumeScan(useIdentityStore.getState())?.progress.bulk.status).toBe('idle')
@@ -2370,7 +2206,7 @@ describe('IdentityPage', () => {
     uploadPdf(container)
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
+      expect(screen.getByText('Alex Example')).toBeTruthy()
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Deepen all bullets' }))
@@ -2386,35 +2222,6 @@ describe('IdentityPage', () => {
     expect(screen.getByText('Cleared the scanned resume structure.')).toBeTruthy()
     expect(screen.queryByText('Deepened 1 scanned bullet(s).')).toBeNull()
     expect(screen.queryByText('Stopped bulk deepening after completing 0 bullet(s).')).toBeNull()
-  })
-
-  it('aborts an in-flight bullet deepen when the scan is cleared', async () => {
-    let rejectDeepen!: (reason?: unknown) => void
-    identityExtractionMocks.deepenIdentityBulletMock.mockImplementationOnce(
-      () =>
-        new Promise((_resolve, reject) => {
-          rejectDeepen = reject
-        }),
-    )
-
-    const { container } = render(<IdentityPage />)
-    uploadPdf(container)
-
-    await waitFor(() => {
-      expect(screen.getByDisplayValue('Alex Example')).toBeTruthy()
-    })
-
-    fireEvent.click(screen.getByText('Deepen'))
-
-    await waitFor(() => {
-      expect(identityExtractionMocks.deepenIdentityBulletMock).toHaveBeenCalledTimes(1)
-    })
-
-    fireEvent.click(screen.getByText('Clear Scan'))
-    await rejectWithAbort(rejectDeepen)
-
-    expect(getActiveResumeScan(useIdentityStore.getState())).toBeNull()
-    expect(screen.queryByText('Bullet deepening failed.')).toBeNull()
   })
 
   it('exports the current identity model and revokes the object URL after download', async () => {

@@ -107,46 +107,6 @@ interface ExtractionAgentCardProps {
   onSetSourceLabel: (id: string, label: string) => void
   onDismissFailedFile: (id: string) => void
   onClearScan: () => void
-  onUpdateIdentityCore: (
-    field: keyof ProfessionalIdentityV3['identity'],
-    value: string | boolean | ProfessionalIdentityV3['identity']['links'],
-  ) => void
-  onUpdateRole: (
-    roleIndex: number,
-    field: 'company' | 'title' | 'dates' | 'subtitle',
-    value: string,
-  ) => void
-  onUpdateBulletSourceText: (roleIndex: number, bulletIndex: number, value: string) => void
-  onUpdateBulletTextField: (
-    roleId: string,
-    bulletId: string,
-    field: 'problem' | 'action' | 'outcome',
-    value: string,
-  ) => void
-  onUpdateBulletListField: (
-    roleId: string,
-    bulletId: string,
-    field: 'impact' | 'technologies' | 'tags',
-    value: string[],
-  ) => void
-  onUpdateBulletMetrics: (
-    roleId: string,
-    bulletId: string,
-    value: Record<string, string | number | boolean>,
-  ) => void
-  onDeepenBullet: (roleId: string, bulletId: string) => Promise<void>
-  onUpdateSkillGroupLabel: (groupIndex: number, value: string) => void
-  onUpdateSkillItemName: (groupIndex: number, itemIndex: number, value: string) => void
-  onUpdateProjectEntry: (
-    projectIndex: number,
-    field: 'name' | 'description' | 'url',
-    value: string,
-  ) => void
-  onUpdateEducationEntry: (
-    educationIndex: number,
-    field: keyof ProfessionalIdentityV3['education'][number],
-    value: string,
-  ) => void
 }
 
 export function ExtractionAgentCard({
@@ -181,17 +141,6 @@ export function ExtractionAgentCard({
   onSetSourceLabel,
   onDismissFailedFile,
   onClearScan,
-  onUpdateIdentityCore,
-  onUpdateRole,
-  onUpdateBulletSourceText,
-  onUpdateBulletTextField,
-  onUpdateBulletListField,
-  onUpdateBulletMetrics,
-  onDeepenBullet,
-  onUpdateSkillGroupLabel,
-  onUpdateSkillItemName,
-  onUpdateProjectEntry,
-  onUpdateEducationEntry,
 }: ExtractionAgentCardProps) {
   const bragDocUploadRef = useRef<HTMLInputElement>(null)
   const copyResetTimeoutRef = useRef<number | null>(null)
@@ -881,17 +830,6 @@ export function ExtractionAgentCard({
               <ScanReviewPane
                 scanResult={scanResult}
                 bulkStatus={bulkStatus ?? 'idle'}
-                onUpdateIdentityCore={onUpdateIdentityCore}
-                onUpdateRole={onUpdateRole}
-                onUpdateBulletSourceText={onUpdateBulletSourceText}
-                onUpdateBulletTextField={onUpdateBulletTextField}
-                onUpdateBulletListField={onUpdateBulletListField}
-                onUpdateBulletMetrics={onUpdateBulletMetrics}
-                onDeepenBullet={onDeepenBullet}
-                onUpdateSkillGroupLabel={onUpdateSkillGroupLabel}
-                onUpdateSkillItemName={onUpdateSkillItemName}
-                onUpdateProjectEntry={onUpdateProjectEntry}
-                onUpdateEducationEntry={onUpdateEducationEntry}
               />
             </>
           ) : (

@@ -1,113 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ProfessionalIdentityV3 } from '../../identity/schema'
 import type { ResumeScanBulletProgress, ResumeScanResult } from '../../types/identity'
 
 interface ScanReviewPaneProps {
   scanResult: ResumeScanResult
   bulkStatus: ResumeScanResult['progress']['bulk']['status']
-  onUpdateIdentityCore: (
-    field: keyof ProfessionalIdentityV3['identity'],
-    value: string | boolean | ProfessionalIdentityV3['identity']['links'],
-  ) => void
-  onUpdateRole: (
-    roleIndex: number,
-    field: 'company' | 'title' | 'dates' | 'subtitle',
-    value: string,
-  ) => void
-  onUpdateBulletSourceText: (roleIndex: number, bulletIndex: number, value: string) => void
-  onUpdateBulletTextField: (
-    roleId: string,
-    bulletId: string,
-    field: 'problem' | 'action' | 'outcome',
-    value: string,
-  ) => void
-  onUpdateBulletListField: (
-    roleId: string,
-    bulletId: string,
-    field: 'impact' | 'technologies' | 'tags',
-    value: string[],
-  ) => void
-  onUpdateBulletMetrics: (
-    roleId: string,
-    bulletId: string,
-    value: Record<string, string | number | boolean>,
-  ) => void
-  onDeepenBullet: (roleId: string, bulletId: string) => Promise<void>
-  onUpdateSkillGroupLabel: (groupIndex: number, value: string) => void
-  onUpdateSkillItemName: (groupIndex: number, itemIndex: number, value: string) => void
-  onUpdateProjectEntry: (
-    projectIndex: number,
-    field: 'name' | 'description' | 'url',
-    value: string,
-  ) => void
-  onUpdateEducationEntry: (
-    educationIndex: number,
-    field: keyof ProfessionalIdentityV3['education'][number],
-    value: string,
-  ) => void
-}
-
-const linksToDocument = (links: ProfessionalIdentityV3['identity']['links']): string =>
-  links.map((link) => `${link.id} | ${link.url}`).join('\n')
-
-const parseLinksDocument = (value: string): ProfessionalIdentityV3['identity']['links'] =>
-  value
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line, index) => {
-      const [id, ...rest] = line.split('|')
-      return {
-        id: id.trim() || `link-${index + 1}`,
-        url: rest.join('|').trim(),
-      }
-    })
-    .filter((entry) => entry.url)
-
-const listToDocument = (items: string[]): string => items.join('\n')
-
-const parseListDocument = (value: string, options?: { splitOnComma?: boolean }): string[] =>
-  value
-    .split(options?.splitOnComma ? /\n|,/ : /\n/)
-    .map((entry) => entry.trim())
-    .filter(Boolean)
-
-const metricsToDocument = (metrics: Record<string, string | number | boolean>): string =>
-  JSON.stringify(metrics, null, 2)
-
-const parseMetricsDocument = (
-  value: string,
-): {
-  data: Record<string, string | number | boolean> | null
-  error: string | null
-} => {
-  if (!value.trim()) {
-    return { data: {}, error: null }
-  }
-
-  try {
-    const parsed = JSON.parse(value) as Record<string, unknown>
-    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-      return {
-        data: null,
-        error: 'Metrics must be a JSON object before you leave this field.',
-      }
-    }
-    const normalized = Object.fromEntries(
-      Object.entries(parsed).filter(
-        (entry): entry is [string, string | number | boolean] =>
-          typeof entry[1] === 'string' ||
-          typeof entry[1] === 'number' ||
-          typeof entry[1] === 'boolean',
-      ),
-    )
-    return { data: normalized, error: null }
-  } catch {
-    return {
-      data: null,
-      error: 'Metrics must be valid JSON before you leave this field.',
-    }
-  }
 }
 
 const STATUS_LABELS: Record<ResumeScanBulletProgress['status'], string> = {
@@ -138,7 +35,6 @@ type ScannedBulletFilter = 'all' | 'needs-review' | 'guessing' | 'failed' | 'edi
 interface ScannedBulletRef {
   key: string
   role: ProfessionalIdentityV3['roles'][number]
-  roleIndex: number
   bullet: ProfessionalIdentityV3['roles'][number]['bullets'][number]
   bulletIndex: number
   progress: ResumeScanBulletProgress
@@ -157,9 +53,7 @@ const getBulletPreview = (
   bullet: ProfessionalIdentityV3['roles'][number]['bullets'][number],
 ): string => {
   const source = bullet.source_text?.trim()
-  if (source) {
-    return source
-  }
+  if (source) return source
 
   const structured = [bullet.problem, bullet.action, bullet.outcome]
     .map((entry) => entry.trim())
@@ -206,9 +100,7 @@ const bulletMatchesFilter = (
       .join(' ')
       .toLowerCase()
 
-    if (!haystack.includes(normalizedQuery)) {
-      return false
-    }
+    if (!haystack.includes(normalizedQuery)) return false
   }
 
   if (filter === 'all') return true
@@ -233,147 +125,52 @@ const hasDecomposition = (
   bullet.tags.length > 0 ||
   Object.keys(bullet.metrics).length > 0
 
-function DeferredListField({
+const formatText = (value: string | null | undefined, fallback = 'Not parsed'): string =>
+  value?.trim() || fallback
+
+const formatList = (items: readonly string[] | undefined, fallback = 'None parsed'): string =>
+  items?.map((item) => item.trim()).filter(Boolean).join('\n') || fallback
+
+const formatLinks = (links: ProfessionalIdentityV3['identity']['links'] | undefined): string =>
+  links?.map((link) => `${link.id}: ${link.url}`).join('\n') || 'None parsed'
+
+const formatMetrics = (metrics: Record<string, string | number | boolean> | undefined): string => {
+  if (!metrics) return 'None parsed'
+  const entries = Object.entries(metrics)
+  if (entries.length === 0) return 'None parsed'
+  return entries.map(([key, value]) => `${key}: ${String(value)}`).join('\n')
+}
+
+function ReadOnlyField({
   label,
   value,
-  onCommit,
-  splitOnComma = true,
+  wide = false,
 }: {
   label: string
-  value: string[]
-  onCommit: (nextValue: string[]) => void
-  splitOnComma?: boolean
+  value: string
+  wide?: boolean
 }) {
-  const [document, setDocument] = useState(() => listToDocument(value))
-  const isFocusedRef = useRef(false)
-
-  useEffect(() => {
-    const nextDocument = listToDocument(value)
-    setDocument((current) =>
-      isFocusedRef.current || current === nextDocument ? current : nextDocument,
-    )
-  }, [value])
-
+  const isEmpty = value === 'Not parsed' || value === 'None parsed'
   return (
-    <label className="identity-field">
+    <div className={`identity-readonly-field${wide ? ' identity-field-wide' : ''}`}>
       <span className="identity-label">{label}</span>
-      <textarea
-        className="identity-textarea"
-        value={document}
-        onFocus={() => {
-          isFocusedRef.current = true
-        }}
-        onChange={(event) => setDocument(event.target.value)}
-        onBlur={() => {
-          isFocusedRef.current = false
-          const nextValue = parseListDocument(document, { splitOnComma })
-          onCommit(nextValue)
-          setDocument(listToDocument(nextValue))
-        }}
-      />
-    </label>
+      <p className={`identity-readonly-value${isEmpty ? ' empty' : ''}`}>{value}</p>
+    </div>
   )
 }
 
-function DeferredMetricsField({
-  roleId,
-  bulletId,
-  metrics,
-  onCommit,
-}: {
-  roleId: string
-  bulletId: string
-  metrics: Record<string, string | number | boolean>
-  onCommit: (
-    roleId: string,
-    bulletId: string,
-    value: Record<string, string | number | boolean>,
-  ) => void
-}) {
-  const [document, setDocument] = useState(() => metricsToDocument(metrics))
-  const [error, setError] = useState<string | null>(null)
-  const isFocusedRef = useRef(false)
-  const errorId = `${roleId}-${bulletId}-metrics-error`
-
-  useEffect(() => {
-    const nextDocument = metricsToDocument(metrics)
-    setDocument((current) =>
-      isFocusedRef.current || current === nextDocument ? current : nextDocument,
-    )
-    if (!isFocusedRef.current) {
-      setError(null)
-    }
-  }, [metrics])
-
-  return (
-    <label className="identity-field identity-field-wide">
-      <span className="identity-label">Metrics (JSON)</span>
-      <textarea
-        className="identity-textarea"
-        value={document}
-        aria-invalid={error ? 'true' : undefined}
-        aria-describedby={error ? errorId : undefined}
-        onFocus={() => {
-          isFocusedRef.current = true
-        }}
-        onChange={(event) => {
-          setDocument(event.target.value)
-          if (error) {
-            setError(null)
-          }
-        }}
-        onBlur={() => {
-          isFocusedRef.current = false
-          const parsed = parseMetricsDocument(document)
-          if (!parsed.data) {
-            setError(parsed.error)
-            return
-          }
-
-          onCommit(roleId, bulletId, parsed.data)
-          setDocument(metricsToDocument(parsed.data))
-          setError(null)
-        }}
-      />
-      {error ? (
-        <span className="identity-muted" id={errorId}>
-          {error}
-        </span>
-      ) : null}
-    </label>
-  )
-}
-
-export function ScanReviewPane({
-  scanResult,
-  bulkStatus,
-  onUpdateIdentityCore,
-  onUpdateRole,
-  onUpdateBulletSourceText,
-  onUpdateBulletTextField,
-  onUpdateBulletListField,
-  onUpdateBulletMetrics,
-  onDeepenBullet,
-  onUpdateSkillGroupLabel,
-  onUpdateSkillItemName,
-  onUpdateProjectEntry,
-  onUpdateEducationEntry,
-}: ScanReviewPaneProps) {
+export function ScanReviewPane({ scanResult, bulkStatus }: ScanReviewPaneProps) {
   const { identity, progress } = scanResult
-  const hasRunningBullet = Object.values(progress.bullets).some(
-    (entry) => entry.status === 'running',
-  )
   const [bulletFilter, setBulletFilter] = useState<ScannedBulletFilter>('all')
   const [bulletQuery, setBulletQuery] = useState('')
   const bulletRefs = useMemo<ScannedBulletRef[]>(
     () =>
-      identity.roles.flatMap((role, roleIndex) =>
+      identity.roles.flatMap((role) =>
         role.bullets.map((bullet, bulletIndex) => {
           const key = `${role.id}::${bullet.id}`
           return {
             key,
             role,
-            roleIndex,
             bullet,
             bulletIndex,
             progress: getBulletProgressState(progress, key),
@@ -406,9 +203,7 @@ export function ScanReviewPane({
   }, [bulletRefs, preferredBulletKey])
 
   useEffect(() => {
-    if (visibleBulletRefs.length === 0) {
-      return
-    }
+    if (visibleBulletRefs.length === 0) return
 
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedBulletKey((current) =>
@@ -422,9 +217,7 @@ export function ScanReviewPane({
     bulletRefs.find((bulletRef) => bulletRef.key === selectedBulletKey) ?? bulletRefs[0] ?? null
 
   useEffect(() => {
-    if (!selectedBulletRef) {
-      return
-    }
+    if (!selectedBulletRef) return
 
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setExpandedRoleIds((current) =>
@@ -479,82 +272,21 @@ export function ScanReviewPane({
     )
   }
 
-  const handleDeepenSelectedBullet = async () => {
-    if (!selectedBulletRef) {
-      return
-    }
-
-    await onDeepenBullet(selectedBulletRef.role.id, selectedBulletRef.bullet.id)
-  }
-
   return (
     <div className="identity-scan-editor">
       <section className="identity-scan-section">
         <div>
           <h3>Contact</h3>
-          <p>Confirm the contact details from the resume scan before applying the draft.</p>
+          <p>Review extracted contact details. Apply the draft, then refine durable fields on the Map.</p>
         </div>
         <div className="identity-scan-form-grid">
-          <label className="identity-field">
-            <span className="identity-label">Name</span>
-            <input
-              className="identity-input"
-              value={identity.identity.name}
-              onChange={(event) => onUpdateIdentityCore('name', event.target.value)}
-            />
-          </label>
-          <label className="identity-field">
-            <span className="identity-label">Title</span>
-            <input
-              className="identity-input"
-              value={identity.identity.title ?? ''}
-              onChange={(event) => onUpdateIdentityCore('title', event.target.value)}
-            />
-          </label>
-          <label className="identity-field">
-            <span className="identity-label">Email</span>
-            <input
-              className="identity-input"
-              value={identity.identity.email}
-              onChange={(event) => onUpdateIdentityCore('email', event.target.value)}
-            />
-          </label>
-          <label className="identity-field">
-            <span className="identity-label">Phone</span>
-            <input
-              className="identity-input"
-              value={identity.identity.phone}
-              onChange={(event) => onUpdateIdentityCore('phone', event.target.value)}
-            />
-          </label>
-          <label className="identity-field">
-            <span className="identity-label">Location</span>
-            <input
-              className="identity-input"
-              value={identity.identity.location}
-              onChange={(event) => onUpdateIdentityCore('location', event.target.value)}
-            />
-          </label>
-          <label className="identity-field identity-field-wide">
-            <span className="identity-label">Links</span>
-            <textarea
-              className="identity-textarea"
-              value={linksToDocument(identity.identity.links)}
-              onChange={(event) =>
-                onUpdateIdentityCore('links', parseLinksDocument(event.target.value))
-              }
-              placeholder="github | https://github.com/you"
-            />
-          </label>
-          <label className="identity-field identity-field-wide">
-            <span className="identity-label">Summary / Thesis</span>
-            <textarea
-              className="identity-textarea"
-              value={identity.identity.thesis}
-              onChange={(event) => onUpdateIdentityCore('thesis', event.target.value)}
-              placeholder="Short summary extracted from the resume."
-            />
-          </label>
+          <ReadOnlyField label="Name" value={formatText(identity.identity.name)} />
+          <ReadOnlyField label="Title" value={formatText(identity.identity.title)} />
+          <ReadOnlyField label="Email" value={formatText(identity.identity.email)} />
+          <ReadOnlyField label="Phone" value={formatText(identity.identity.phone)} />
+          <ReadOnlyField label="Location" value={formatText(identity.identity.location)} />
+          <ReadOnlyField label="Links" value={formatLinks(identity.identity.links)} wide />
+          <ReadOnlyField label="Summary / Thesis" value={formatText(identity.identity.thesis)} wide />
         </div>
       </section>
 
@@ -600,9 +332,7 @@ export function ScanReviewPane({
                 <div className="identity-scan-role-list">
                   {identity.roles.map((role) => {
                     const roleBullets = visibleBulletsByRole.get(role.id) ?? []
-                    if (roleBullets.length === 0 && role.bullets.length > 0) {
-                      return null
-                    }
+                    if (roleBullets.length === 0 && role.bullets.length > 0) return null
 
                     const reviewCount = roleBullets.filter((bulletRef) =>
                       bulletNeedsReview(bulletRef),
@@ -718,50 +448,14 @@ export function ScanReviewPane({
                     </div>
 
                     <div className="identity-scan-form-grid">
-                      <label className="identity-field">
-                        <span className="identity-label">Company</span>
-                        <input
-                          className="identity-input"
-                          value={selectedBulletRef.role.company}
-                          onChange={(event) =>
-                            onUpdateRole(selectedBulletRef.roleIndex, 'company', event.target.value)
-                          }
-                        />
-                      </label>
-                      <label className="identity-field">
-                        <span className="identity-label">Title</span>
-                        <input
-                          className="identity-input"
-                          value={selectedBulletRef.role.title}
-                          onChange={(event) =>
-                            onUpdateRole(selectedBulletRef.roleIndex, 'title', event.target.value)
-                          }
-                        />
-                      </label>
-                      <label className="identity-field">
-                        <span className="identity-label">Dates</span>
-                        <input
-                          className="identity-input"
-                          value={selectedBulletRef.role.dates}
-                          onChange={(event) =>
-                            onUpdateRole(selectedBulletRef.roleIndex, 'dates', event.target.value)
-                          }
-                        />
-                      </label>
-                      <label className="identity-field identity-field-wide">
-                        <span className="identity-label">Subtitle</span>
-                        <input
-                          className="identity-input"
-                          value={selectedBulletRef.role.subtitle ?? ''}
-                          onChange={(event) =>
-                            onUpdateRole(
-                              selectedBulletRef.roleIndex,
-                              'subtitle',
-                              event.target.value,
-                            )
-                          }
-                        />
-                      </label>
+                      <ReadOnlyField label="Company" value={formatText(selectedBulletRef.role.company)} />
+                      <ReadOnlyField label="Title" value={formatText(selectedBulletRef.role.title)} />
+                      <ReadOnlyField label="Dates" value={formatText(selectedBulletRef.role.dates)} />
+                      <ReadOnlyField
+                        label="Subtitle"
+                        value={formatText(selectedBulletRef.role.subtitle)}
+                        wide
+                      />
                     </div>
                   </section>
 
@@ -770,8 +464,6 @@ export function ScanReviewPane({
                       bullet,
                       bulletIndex,
                       progress: bulletProgress,
-                      role,
-                      roleIndex,
                     } = selectedBulletRef
                     const bulletExplanation = bulletProgress.explanation
                     const showGuessingFallback =
@@ -805,39 +497,19 @@ export function ScanReviewPane({
                             >
                               {CONFIDENCE_LABELS[bulletProgress.confidence]}
                             </span>
+                            {bulkStatus === 'running' || bulkStatus === 'cancelling' ? (
+                              <span className="identity-chip identity-chip-guessing">
+                                Bulk {bulkStatus}
+                              </span>
+                            ) : null}
                           </div>
-                          <button
-                            className="identity-btn"
-                            type="button"
-                            onClick={() => void handleDeepenSelectedBullet()}
-                            aria-label={`Deepen bullet ${bulletIndex + 1} in ${role.company}`}
-                            disabled={
-                              hasRunningBullet ||
-                              bulletProgress.status === 'running' ||
-                              !bullet.source_text?.trim() ||
-                              bulkStatus === 'running' ||
-                              bulkStatus === 'cancelling'
-                            }
-                          >
-                            {bulletProgress.status === 'completed' ||
-                            bulletProgress.status === 'edited'
-                              ? 'Re-deepen'
-                              : bulletProgress.status === 'running'
-                                ? 'Deepening…'
-                                : 'Deepen'}
-                          </button>
                         </div>
 
-                        <label className="identity-field">
-                          <span className="identity-label">Bullet {bulletIndex + 1} Source</span>
-                          <textarea
-                            className="identity-textarea"
-                            value={bullet.source_text ?? ''}
-                            onChange={(event) =>
-                              onUpdateBulletSourceText(roleIndex, bulletIndex, event.target.value)
-                            }
-                          />
-                        </label>
+                        <ReadOnlyField
+                          label={`Bullet ${bulletIndex + 1} Source`}
+                          value={formatText(bullet.source_text)}
+                          wide
+                        />
 
                         {bulletProgress.lastError ? (
                           <p className="identity-muted">{bulletProgress.lastError}</p>
@@ -853,9 +525,7 @@ export function ScanReviewPane({
                                 {showGuessingFallback ? (
                                   <p className="identity-scan-guidance-text">
                                     This decomposition was inferred from the scanned source text.
-                                    Review and edit the fields below to confirm any guessed details.
-                                    Your first edit will switch this bullet from Guessing to
-                                    Corrected.
+                                    Apply the draft, then correct guessed details on the Map.
                                   </p>
                                 ) : bulletExplanation?.summary ? (
                                   <p className="identity-scan-guidance-text">
@@ -892,99 +562,26 @@ export function ScanReviewPane({
                                     {bulletExplanation.warnings.join(' ')}
                                   </p>
                                 ) : null}
-                                {bulletProgress.confidence === 'guessing' &&
-                                !showGuessingFallback ? (
-                                  <p className="identity-muted">
-                                    Edit the fields below to correct any guessed details. Your first
-                                    edit will switch this bullet from Guessing to Corrected.
-                                  </p>
-                                ) : null}
                               </section>
                             ) : null}
 
                             <div className="identity-scan-form-grid">
-                              <label className="identity-field identity-field-wide">
-                                <span className="identity-label">Problem</span>
-                                <textarea
-                                  className="identity-textarea"
-                                  value={bullet.problem}
-                                  onChange={(event) =>
-                                    onUpdateBulletTextField(
-                                      role.id,
-                                      bullet.id,
-                                      'problem',
-                                      event.target.value,
-                                    )
-                                  }
-                                />
-                              </label>
-                              <label className="identity-field identity-field-wide">
-                                <span className="identity-label">Action</span>
-                                <textarea
-                                  className="identity-textarea"
-                                  value={bullet.action}
-                                  onChange={(event) =>
-                                    onUpdateBulletTextField(
-                                      role.id,
-                                      bullet.id,
-                                      'action',
-                                      event.target.value,
-                                    )
-                                  }
-                                />
-                              </label>
-                              <label className="identity-field identity-field-wide">
-                                <span className="identity-label">Outcome</span>
-                                <textarea
-                                  className="identity-textarea"
-                                  value={bullet.outcome}
-                                  onChange={(event) =>
-                                    onUpdateBulletTextField(
-                                      role.id,
-                                      bullet.id,
-                                      'outcome',
-                                      event.target.value,
-                                    )
-                                  }
-                                />
-                              </label>
-                              <DeferredListField
+                              <ReadOnlyField label="Problem" value={formatText(bullet.problem)} wide />
+                              <ReadOnlyField label="Action" value={formatText(bullet.action)} wide />
+                              <ReadOnlyField label="Outcome" value={formatText(bullet.outcome)} wide />
+                              <ReadOnlyField
                                 label="Impact"
-                                value={bullet.impact}
-                                splitOnComma={false}
-                                onCommit={(nextValue) =>
-                                  onUpdateBulletListField(role.id, bullet.id, 'impact', nextValue)
-                                }
+                                value={formatList(bullet.impact)}
                               />
-                              <DeferredListField
+                              <ReadOnlyField
                                 label="Technologies"
-                                value={bullet.technologies}
-                                onCommit={(nextValue) =>
-                                  onUpdateBulletListField(
-                                    role.id,
-                                    bullet.id,
-                                    'technologies',
-                                    nextValue,
-                                  )
-                                }
+                                value={formatList(bullet.technologies)}
                               />
-                              <DeferredListField
-                                label="Tags"
-                                value={bullet.tags}
-                                onCommit={(nextValue) =>
-                                  onUpdateBulletListField(
-                                    role.id,
-                                    bullet.id,
-                                    'tags',
-                                    nextValue.map((entry) => entry.toLowerCase()),
-                                  )
-                                }
-                              />
-                              <DeferredMetricsField
-                                roleId={role.id}
-                                bulletId={bullet.id}
-                                metrics={bullet.metrics}
-                                onCommit={onUpdateBulletMetrics}
+                              <ReadOnlyField label="Tags" value={formatList(bullet.tags)} />
+                              <ReadOnlyField
+                                label="Metrics"
+                                value={formatMetrics(bullet.metrics)}
+                                wide
                               />
                             </div>
                           </>
@@ -996,7 +593,7 @@ export function ScanReviewPane({
               ) : (
                 <div className="identity-empty">
                   <h3>No Bullet Selected</h3>
-                  <p>Select a bullet from the browser to inspect and correct its decomposition.</p>
+                  <p>Select a bullet from the browser to inspect its decomposition.</p>
                 </div>
               )}
             </div>
@@ -1009,11 +606,11 @@ export function ScanReviewPane({
       <section className="identity-scan-section">
         <div>
           <h3>Skills</h3>
-          <p>Expand a skill group when you want to rename it or adjust the parsed skills inline.</p>
+          <p>Review parsed skill groups. Apply the draft, then rename or remove skills on the Map.</p>
         </div>
         {identity.skills.groups.length > 0 ? (
           <div className="identity-scan-stack">
-            {identity.skills.groups.map((group, groupIndex) => {
+            {identity.skills.groups.map((group) => {
               const isExpanded = expandedSkillGroupIds.includes(group.id)
               return (
                 <section className="identity-scan-role-group" key={group.id}>
@@ -1041,28 +638,14 @@ export function ScanReviewPane({
                     id={group.id + '-skills-panel'}
                     hidden={!isExpanded}
                   >
-                    <label className="identity-field">
-                      <span className="identity-label">Group Label</span>
-                      <input
-                        className="identity-input"
-                        value={group.label}
-                        onChange={(event) =>
-                          onUpdateSkillGroupLabel(groupIndex, event.target.value)
-                        }
-                      />
-                    </label>
+                    <ReadOnlyField label="Group Label" value={formatText(group.label)} />
                     <div className="identity-scan-stack">
                       {group.items.map((item, itemIndex) => (
-                        <label className="identity-field" key={group.id + ':' + itemIndex}>
-                          <span className="identity-label">Skill {itemIndex + 1}</span>
-                          <input
-                            className="identity-input"
-                            value={item.name}
-                            onChange={(event) =>
-                              onUpdateSkillItemName(groupIndex, itemIndex, event.target.value)
-                            }
-                          />
-                        </label>
+                        <ReadOnlyField
+                          key={group.id + ':' + itemIndex}
+                          label={`Skill ${itemIndex + 1}`}
+                          value={formatText(item.name)}
+                        />
                       ))}
                     </div>
                   </article>
@@ -1078,14 +661,11 @@ export function ScanReviewPane({
       <section className="identity-scan-section">
         <div>
           <h3>Projects</h3>
-          <p>
-            Projects stay editable in the scanned draft so downstream Build output can use them
-            directly.
-          </p>
+          <p>Review parsed projects. Apply the draft, then refine project details on the Map.</p>
         </div>
         {identity.projects.length > 0 ? (
           <div className="identity-scan-stack">
-            {identity.projects.map((project, projectIndex) => {
+            {identity.projects.map((project) => {
               const isExpanded = expandedProjectIds.includes(project.id)
 
               return (
@@ -1115,36 +695,13 @@ export function ScanReviewPane({
                     hidden={!isExpanded}
                   >
                     <div className="identity-scan-form-grid">
-                      <label className="identity-field">
-                        <span className="identity-label">Name</span>
-                        <input
-                          className="identity-input"
-                          value={project.name}
-                          onChange={(event) =>
-                            onUpdateProjectEntry(projectIndex, 'name', event.target.value)
-                          }
-                        />
-                      </label>
-                      <label className="identity-field">
-                        <span className="identity-label">URL</span>
-                        <input
-                          className="identity-input"
-                          value={project.url ?? ''}
-                          onChange={(event) =>
-                            onUpdateProjectEntry(projectIndex, 'url', event.target.value)
-                          }
-                        />
-                      </label>
-                      <label className="identity-field identity-field-wide">
-                        <span className="identity-label">Description</span>
-                        <textarea
-                          className="identity-textarea"
-                          value={project.description}
-                          onChange={(event) =>
-                            onUpdateProjectEntry(projectIndex, 'description', event.target.value)
-                          }
-                        />
-                      </label>
+                      <ReadOnlyField label="Name" value={formatText(project.name)} />
+                      <ReadOnlyField label="URL" value={formatText(project.url)} />
+                      <ReadOnlyField
+                        label="Description"
+                        value={formatText(project.description)}
+                        wide
+                      />
                     </div>
                   </article>
                 </section>
@@ -1159,53 +716,17 @@ export function ScanReviewPane({
       <section className="identity-scan-section">
         <div>
           <h3>Education</h3>
-          <p>Education entries stay lightweight in v1 and can be refined later.</p>
+          <p>Review parsed education entries. Apply the draft, then refine details on the Map.</p>
         </div>
         {identity.education.length > 0 ? (
           <div className="identity-scan-stack">
             {identity.education.map((entry, educationIndex) => (
               <article className="identity-scan-card" key={`${entry.school}-${educationIndex}`}>
                 <div className="identity-scan-form-grid">
-                  <label className="identity-field">
-                    <span className="identity-label">School</span>
-                    <input
-                      className="identity-input"
-                      value={entry.school}
-                      onChange={(event) =>
-                        onUpdateEducationEntry(educationIndex, 'school', event.target.value)
-                      }
-                    />
-                  </label>
-                  <label className="identity-field">
-                    <span className="identity-label">Degree</span>
-                    <input
-                      className="identity-input"
-                      value={entry.degree}
-                      onChange={(event) =>
-                        onUpdateEducationEntry(educationIndex, 'degree', event.target.value)
-                      }
-                    />
-                  </label>
-                  <label className="identity-field">
-                    <span className="identity-label">Location</span>
-                    <input
-                      className="identity-input"
-                      value={entry.location}
-                      onChange={(event) =>
-                        onUpdateEducationEntry(educationIndex, 'location', event.target.value)
-                      }
-                    />
-                  </label>
-                  <label className="identity-field">
-                    <span className="identity-label">Year</span>
-                    <input
-                      className="identity-input"
-                      value={entry.year ?? ''}
-                      onChange={(event) =>
-                        onUpdateEducationEntry(educationIndex, 'year', event.target.value)
-                      }
-                    />
-                  </label>
+                  <ReadOnlyField label="School" value={formatText(entry.school)} />
+                  <ReadOnlyField label="Degree" value={formatText(entry.degree)} />
+                  <ReadOnlyField label="Location" value={formatText(entry.location)} />
+                  <ReadOnlyField label="Year" value={formatText(entry.year)} />
                 </div>
               </article>
             ))}
