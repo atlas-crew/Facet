@@ -156,8 +156,9 @@ describe('IdentityEnrichmentPage', () => {
     })
     fireEvent.submit(screen.getByLabelText('New skill').closest('form')!)
 
-    expect(useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items).toHaveLength(0)
-    expect(useIdentityStore.getState().currentIdentity?.skills.groups[1]?.items[0]).toMatchObject({
+    const groups = useIdentityStore.getState().currentIdentity?.skills.groups ?? []
+    expect(groups.find((group) => group.id === 'platform')).toBeUndefined()
+    expect(groups.find((group) => group.id === 'backend')?.items[0]).toMatchObject({
       name: 'Node.js',
     })
   })
@@ -223,7 +224,7 @@ describe('IdentityEnrichmentPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Remove Docker' }))
 
     expect(screen.getByRole('status').textContent).toContain('Removed Docker.')
-    expect(useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items).toHaveLength(0)
+    expect(useIdentityStore.getState().currentIdentity?.skills.groups).toEqual([])
     confirmSpy.mockRestore()
   })
 

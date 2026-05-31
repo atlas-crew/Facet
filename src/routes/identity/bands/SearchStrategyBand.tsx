@@ -138,6 +138,29 @@ const awarenessTone = (severity: 'high' | 'medium' | 'low' | undefined): string 
   }
 }
 
+function StrategyGenerationStatus({
+  message,
+  tone,
+}: {
+  message: StrategyGenerationMessage | null
+  tone: StrategyGenerationMessage['tone']
+}) {
+  const hasMessage = message?.tone === tone
+  const ariaLive = tone === 'info' ? 'polite' : 'assertive'
+  const role = tone === 'info' ? 'status' : 'alert'
+
+  return (
+    <div
+      className={`strategy-generation-message ${tone} ${hasMessage ? '' : 'empty'}`}
+      role={role}
+      aria-live={ariaLive}
+      aria-atomic="true"
+    >
+      {hasMessage ? message.text : ''}
+    </div>
+  )
+}
+
 export function SearchStrategyBand() {
   const identity = useIdentityStore((s) => s.currentIdentity)
   const selection = useIdentityStore((s) => s.mapSelection)
@@ -489,25 +512,8 @@ export function SearchStrategyBand() {
         </button>
       </div>
       <div className="strategy-generation-stack">
-        <div
-          className={`strategy-generation-message info ${
-            strategyMessage?.tone === 'info' ? '' : 'empty'
-          }`}
-          role="status"
-          aria-live="polite"
-          aria-atomic="true"
-        >
-          {strategyMessage?.tone === 'info' ? strategyMessage.text : ''}
-        </div>
-        <div
-          className={`strategy-generation-message error ${
-            strategyMessage?.tone === 'error' ? '' : 'empty'
-          }`}
-          role="alert"
-          aria-atomic="true"
-        >
-          {strategyMessage?.tone === 'error' ? strategyMessage.text : ''}
-        </div>
+        <StrategyGenerationStatus message={strategyMessage} tone="info" />
+        <StrategyGenerationStatus message={strategyMessage} tone="error" />
       </div>
 
       <div className="search-section">
@@ -563,25 +569,8 @@ export function SearchStrategyBand() {
           </button>
         </div>
         <div className="strategy-generation-stack">
-          <div
-            className={`strategy-generation-message info ${
-              vectorMessage?.tone === 'info' ? '' : 'empty'
-            }`}
-            role="status"
-            aria-live="polite"
-            aria-atomic="true"
-          >
-            {vectorMessage?.tone === 'info' ? vectorMessage.text : ''}
-          </div>
-          <div
-            className={`strategy-generation-message error ${
-              vectorMessage?.tone === 'error' ? '' : 'empty'
-            }`}
-            role="alert"
-            aria-atomic="true"
-          >
-            {vectorMessage?.tone === 'error' ? vectorMessage.text : ''}
-          </div>
+          <StrategyGenerationStatus message={vectorMessage} tone="info" />
+          <StrategyGenerationStatus message={vectorMessage} tone="error" />
         </div>
       </div>
 
@@ -639,25 +628,8 @@ export function SearchStrategyBand() {
           </button>
         </div>
         <div className="strategy-generation-stack">
-          <div
-            className={`strategy-generation-message info ${
-              questionMessage?.tone === 'info' ? '' : 'empty'
-            }`}
-            role="status"
-            aria-live="polite"
-            aria-atomic="true"
-          >
-            {questionMessage?.tone === 'info' ? questionMessage.text : ''}
-          </div>
-          <div
-            className={`strategy-generation-message error ${
-              questionMessage?.tone === 'error' ? '' : 'empty'
-            }`}
-            role="alert"
-            aria-atomic="true"
-          >
-            {questionMessage?.tone === 'error' ? questionMessage.text : ''}
-          </div>
+          <StrategyGenerationStatus message={questionMessage} tone="info" />
+          <StrategyGenerationStatus message={questionMessage} tone="error" />
         </div>
       </div>
     </IdentityBand>

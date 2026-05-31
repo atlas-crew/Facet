@@ -100,6 +100,7 @@ function InspectorBody({
     case 'skill-item':
       return (
         <SkillItemInspector
+          key={`skill-item:${selection.groupId}:${selection.itemId}`}
           identity={identity}
           groupId={selection.groupId}
           itemName={selection.itemId}

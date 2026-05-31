@@ -194,7 +194,7 @@ describe('BulletInspector — deepen canary', () => {
       await Promise.resolve()
     })
 
-    expect(screen.getByRole('alert').textContent).toBe('Network unreachable')
+    expect(screen.getByText('Network unreachable').closest('[role="alert"]')).not.toBeNull()
     expect(screen.getByRole('button', { name: 'Retry deepen' })).not.toBeNull()
     const entry = useIdentityStore.getState().currentBulletDeepen[
       getCurrentBulletDeepenKey('contoso', 'platform-migration')

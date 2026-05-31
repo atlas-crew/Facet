@@ -41,6 +41,9 @@ const seedIdentityWithMatchRule = () => {
   return identity
 }
 
+const queryStaleNotice = () =>
+  screen.queryByText(/Dropped you at the Identity Map landing instead\./)
+
 // jsdom doesn't implement scrollIntoView; the focus effect calls it on a
 // band element. Stub once at module load so all suites see it.
 if (typeof Element !== 'undefined' && !Element.prototype.scrollIntoView) {
@@ -88,7 +91,7 @@ describe('IdentityMapPage deep-link forward bridge', () => {
         id: 'rule-prio-1',
       })
     })
-    expect(screen.queryByRole('status')).toBeNull()
+    expect(queryStaleNotice()).toBeNull()
   })
 
   it('shows variant-specific stale notice and clears the URL param when entity is missing', async () => {
@@ -98,7 +101,7 @@ describe('IdentityMapPage deep-link forward bridge', () => {
     render(<IdentityMapPage />)
 
     await waitFor(() => {
-      const notice = screen.queryByRole('status')
+      const notice = queryStaleNotice()
       expect(notice).not.toBeNull()
       expect(notice?.textContent ?? '').toContain(
         "That match rule isn't there anymore. Dropped you at the Identity Map landing instead.",
@@ -117,7 +120,7 @@ describe('IdentityMapPage deep-link forward bridge', () => {
     render(<IdentityMapPage />)
 
     await waitFor(() => {
-      const notice = screen.queryByRole('status')
+      const notice = queryStaleNotice()
       expect(notice).not.toBeNull()
       expect(notice?.textContent ?? '').toContain(
         "That link target isn't there anymore. Dropped you at the Identity Map landing instead.",
@@ -151,7 +154,7 @@ describe('IdentityMapPage deep-link forward bridge', () => {
 
     await Promise.resolve()
     expect(useIdentityStore.getState().mapSelection).toBeNull()
-    expect(screen.queryByRole('status')).toBeNull()
+    expect(queryStaleNotice()).toBeNull()
     expect(mockNavigate).not.toHaveBeenCalled()
   })
 
@@ -181,11 +184,11 @@ describe('IdentityMapPage deep-link forward bridge', () => {
     render(<IdentityMapPage />)
 
     await waitFor(() => {
-      expect(screen.queryByRole('status')).not.toBeNull()
+      expect(queryStaleNotice()).not.toBeNull()
     })
     screen.getByText('Dismiss').click()
     await waitFor(() => {
-      expect(screen.queryByRole('status')).toBeNull()
+      expect(queryStaleNotice()).toBeNull()
     })
   })
 })
@@ -345,7 +348,7 @@ describe('IdentityMapPage focus extension (?focus=<band>)', () => {
     render(<IdentityMapPage />)
 
     await waitFor(() => {
-      const notice = screen.queryByRole('status')
+      const notice = queryStaleNotice()
       expect(notice).not.toBeNull()
       expect(notice?.textContent ?? '').toContain(
         "That link target isn't there anymore. Dropped you at the Identity Map landing instead.",
@@ -439,7 +442,7 @@ describe('IdentityMapPage sel/focus stale-notice interaction (TASK-218)', () => 
     render(<IdentityMapPage />)
 
     await waitFor(() => {
-      const notice = screen.queryByRole('status')
+      const notice = queryStaleNotice()
       expect(notice).not.toBeNull()
       expect(notice?.textContent ?? '').toContain("That match rule isn't there anymore")
     })
@@ -461,7 +464,7 @@ describe('IdentityMapPage sel/focus stale-notice interaction (TASK-218)', () => 
     render(<IdentityMapPage />)
 
     await waitFor(() => {
-      const notice = screen.queryByRole('status')
+      const notice = queryStaleNotice()
       expect(notice).not.toBeNull()
       expect(notice?.textContent ?? '').toContain("That link target isn't there anymore")
     })

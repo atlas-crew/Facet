@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useId, useRef, useState } from 'react'
+import { type FormEvent, useId, useRef, useState } from 'react'
 import type {
   ProfessionalIdentityV3,
   ProfessionalSkillDepth,
@@ -59,11 +59,6 @@ export function SkillItemInspector({
   const confirmCopyId = useId()
   const confirmRowId = useId()
   const removeButtonRef = useRef<HTMLButtonElement>(null)
-
-  useEffect(() => {
-    // Navigating to a different skill should reset the destructive-confirm state.
-    setRemovePending(false)
-  }, [groupId, itemName])
 
   if (!group || !item) return <NotFound label="skill" />
 

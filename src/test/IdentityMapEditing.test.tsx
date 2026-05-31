@@ -1541,6 +1541,36 @@ describe('Identity Map — skill inline editing', () => {
     )
   })
 
+  it('drops unsaved inline skill drafts when selecting another skill', () => {
+    seed((id) => {
+      id.skills.groups[0]!.items.push({
+        name: 'Docker',
+        depth: 'basic',
+        tags: ['containers'],
+      })
+    })
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Kubernetes' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit skill' }))
+    fireEvent.change(screen.getByLabelText('Depth'), { target: { value: 'expert' } })
+    fireEvent.change(screen.getByLabelText('Tags (comma-separated)'), {
+      target: { value: 'discarded, tags' },
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Docker' }))
+    expect(screen.queryByRole('button', { name: 'Save skill' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit skill' }))
+    expect(screen.getByLabelText('Depth')).toHaveProperty('value', 'basic')
+    expect(screen.getByLabelText('Tags (comma-separated)')).toHaveProperty('value', 'containers')
+    expect(useIdentityStore.getState().currentIdentity!.skills.groups[0]!.items[0]).toMatchObject({
+      name: 'Kubernetes',
+      depth: 'strong',
+      tags: ['platform', 'kubernetes'],
+    })
+  })
+
   it('removes skills from the map inspector and returns to the group', () => {
     seed()
     render(<IdentityMapPage />)
@@ -1550,10 +1580,10 @@ describe('Identity Map — skill inline editing', () => {
     expect(screen.getByText('Remove Kubernetes and its enrichment data?')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Confirm remove' }))
 
-    expect(useIdentityStore.getState().currentIdentity!.skills.groups[0]!.items).toEqual([])
-    expect(useIdentityStore.getState().mapSelection).toEqual({ type: 'skill-group', id: 'platform' })
+    expect(useIdentityStore.getState().currentIdentity!.skills.groups).toEqual([])
+    expect(useIdentityStore.getState().mapSelection).toBeNull()
     expect(screen.queryByRole('button', { name: 'Kubernetes' })).toBeNull()
-    expect(screen.getByText('0 items')).toBeTruthy()
+    expect(screen.getByText(/Click any element on the map to inspect it/)).toBeTruthy()
   })
 
   it('cancels pending skill removal without mutating identity', () => {

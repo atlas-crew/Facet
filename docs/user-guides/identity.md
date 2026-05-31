@@ -229,11 +229,13 @@ model.
 Accepted vectors become Identity search strategy data. Research can later use
 that strategy when generating a Search Thesis.
 
-The Identity Map also has a **Search Strategy** band. Use **Generate vectors**
-to derive positioning angles from the current model, or **Generate questions**
-to surface open awareness questions before research. You can add vectors and
-questions manually when you want a specific search angle the generator would not
-infer on its own.
+The Identity Map also has a **Search Strategy** band. Use **Generate strategy**
+as the primary action: it derives positioning angles, search preferences, open
+awareness questions, strategic positioning, and competitive moat from the current
+model in one pass. Use **Generate vectors** or **Generate questions** when you
+only want to refresh that specific slice. You can add vectors and questions
+manually when you want a specific search angle the generator would not infer on
+its own.
 
 ---
 
