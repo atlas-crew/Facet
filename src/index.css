@@ -17,6 +17,10 @@
   --space-6: 24px;
   --space-8: 32px;
 
+  --text-2xs: 11px;
+  --text-sm: 14px;
+  --status-dot-size: 8px;
+
   /* Height of the AppShell .app-topbar — overridden at runtime by AppShell's
      ResizeObserver to match the actual rendered height. The value below is a
      close-enough fallback for the initial paint (and for tests that render
@@ -3345,13 +3349,58 @@ select.component-input {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  padding: var(--space-2) var(--space-6);
-  font-size: 11px;
+  padding: var(--space-3) var(--space-6);
+  font-size: var(--text-2xs);
   font-family: var(--font-mono);
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   border-top: 1px solid var(--border-subtle);
   background: var(--bg-surface);
   flex-shrink: 0;
+}
+
+.app-footer-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.app-footer-workspace {
+  max-width: 260px;
+  overflow: hidden;
+  color: var(--text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-footer-status-label {
+  color: var(--text-secondary);
+}
+
+.app-footer-sync {
+  --sync-tone-color: var(--text-tertiary);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-secondary);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.sync-tone-ready {
+  --sync-tone-color: var(--success);
+}
+
+.sync-tone-saving {
+  --sync-tone-color: var(--accent-primary);
+}
+
+.sync-tone-offline {
+  --sync-tone-color: var(--warning);
+}
+
+.sync-tone-error {
+  --sync-tone-color: var(--critical);
 }
 
 .app-footer-links {
@@ -3394,6 +3443,11 @@ select.component-input {
     text-align: center;
   }
 
+  .app-footer-status {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
   .app-footer-links {
     flex-wrap: wrap;
     justify-content: center;
@@ -3424,7 +3478,7 @@ select.component-input {
 }
 
 .app-sidebar:hover {
-  width: 168px;
+  width: 196px;
 }
 
 .sidebar-nav {
@@ -3718,7 +3772,7 @@ select.component-input {
 }
 
 .app-topbar-link,
-.app-topbar-sync {
+.app-topbar-sync-alert {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
@@ -3727,9 +3781,7 @@ select.component-input {
   border-radius: 999px;
   background: var(--bg-surface);
   color: var(--text-primary);
-  font: inherit;
   font-size: 13px;
-  text-decoration: none;
   transition:
     border-color var(--duration-fast) var(--easing),
     background var(--duration-fast) var(--easing),
@@ -3737,7 +3789,34 @@ select.component-input {
 }
 
 .app-topbar-link {
+  font: inherit;
+  text-decoration: none;
   cursor: pointer;
+}
+
+.app-topbar-sync-alert {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.app-footer-sync-dot,
+.app-topbar-sync-alert-dot {
+  width: var(--status-dot-size);
+  height: var(--status-dot-size);
+  border-radius: 999px;
+  color: var(--sync-tone-color);
+  background: var(--sync-tone-color);
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.app-topbar-sync-alert.sync-tone-offline {
+  border-color: color-mix(in srgb, var(--warning) 60%, var(--border-default));
+  background: color-mix(in srgb, var(--warning) 7%, var(--bg-surface));
+}
+
+.app-topbar-sync-alert.sync-tone-error {
+  border-color: color-mix(in srgb, var(--critical) 60%, var(--border-default));
+  background: color-mix(in srgb, var(--critical) 7%, var(--bg-surface));
 }
 
 .app-topbar-link:hover {
@@ -3785,54 +3864,9 @@ select.component-input {
   background: var(--bg-surface-hover);
 }
 
-.app-topbar-link span,
-.app-topbar-sync span {
+.app-topbar-link span {
   font-size: 13px;
   font-weight: 600;
-}
-
-.app-topbar-workspace {
-  font-size: 12px;
-  color: var(--text-tertiary);
-  font-weight: 500;
-}
-
-.app-topbar-workspace-label {
-  color: var(--text-tertiary);
-  opacity: 0.7;
-}
-
-.app-topbar-sync-label {
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.app-topbar-sync {
-  color: var(--text-secondary);
-}
-
-.app-topbar-sync-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: var(--text-tertiary);
-  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 12%, transparent);
-}
-
-.app-topbar-sync-ready .app-topbar-sync-dot {
-  background: var(--success);
-}
-
-.app-topbar-sync-saving .app-topbar-sync-dot {
-  background: var(--accent-primary);
-}
-
-.app-topbar-sync-offline .app-topbar-sync-dot {
-  background: var(--warning);
-}
-
-.app-topbar-sync-error .app-topbar-sync-dot {
-  background: var(--critical);
 }
 
 .app-topbar-theme-toggle {
@@ -4029,11 +4063,14 @@ select.component-input {
   }
 
   .app-topbar-link span,
-  .app-topbar-sync-label,
   .app-topbar-eyebrow,
-  .app-topbar-theme-toggle span,
-  .app-topbar-workspace {
+  .app-topbar-theme-toggle span {
     display: none;
+  }
+
+  /* Keep attention-state sync text visible even when routine topbar labels collapse. */
+  .app-topbar-sync-alert-label {
+    display: inline;
   }
 
   .hosted-workspace-item-header {

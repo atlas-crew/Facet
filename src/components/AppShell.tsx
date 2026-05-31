@@ -675,6 +675,7 @@ export function AppShell() {
         : persistenceState.status.phase === 'saving'
           ? 'saving'
           : 'ready'
+  const syncNeedsAttention = syncTone === 'error' || syncTone === 'offline'
 
   const renderMainContent = () => {
     if (hostedApp.deploymentMode !== 'hosted') {
@@ -973,24 +974,16 @@ export function AppShell() {
             </div>
           </div>
           <div className="app-topbar-actions">
-            {displayedWorkspace ? (
-              <span
-                className="app-topbar-workspace"
-                title={displayedWorkspace.workspaceId ?? undefined}
+            {syncNeedsAttention ? (
+              /* Screen-reader announcement stays in the persistent footer live region. */
+              <div
+                className={`app-topbar-sync-alert sync-tone-${syncTone}`}
+                aria-hidden="true"
               >
-                <span className="app-topbar-workspace-label">Workspace:</span>{' '}
-                {displayedWorkspace.name}
-              </span>
+                <span className="app-topbar-sync-alert-dot" />
+                <span className="app-topbar-sync-alert-label">{syncLabel}</span>
+              </div>
             ) : null}
-            <div
-              className={`app-topbar-sync app-topbar-sync-${syncTone}`}
-              role="status"
-              aria-live="polite"
-              title={persistenceState.status.lastSavedAt ?? undefined}
-            >
-              <span className="app-topbar-sync-dot" aria-hidden="true" />
-              <span className="app-topbar-sync-label">{syncLabel}</span>
-            </div>
             <Link
               to={HELP_ROUTE}
               className={`app-topbar-icon-link ${isHelpRoute ? 'active' : ''}`}
@@ -1031,6 +1024,26 @@ export function AppShell() {
         <div className="app-main">{renderMainContent()}</div>
 
         <footer className="app-footer">
+          <div className="app-footer-status">
+            {displayedWorkspace ? (
+              <span
+                className="app-footer-workspace"
+                title={displayedWorkspace.workspaceId ?? undefined}
+              >
+                <span className="app-footer-status-label">Workspace:</span>{' '}
+                {displayedWorkspace.name}
+              </span>
+            ) : null}
+            <span
+              className={`app-footer-sync sync-tone-${syncTone}`}
+              role="status"
+              aria-live="polite"
+              title={persistenceState.status.lastSavedAt ?? undefined}
+            >
+              <span className="app-footer-sync-dot" aria-hidden="true" />
+              <span className={syncNeedsAttention ? 'sr-only' : undefined}>{syncLabel}</span>
+            </span>
+          </div>
           <span>&copy; {CURRENT_YEAR} Nicholas Crew Ferguson</span>
           <nav className="app-footer-links" aria-label="Footer links">
             <a href="https://github.com/atlas-crew/Facet" target="_blank" rel="noopener noreferrer">

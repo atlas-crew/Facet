@@ -327,8 +327,7 @@ describe('AppShell hosted workspace bootstrap', () => {
       endpoint: 'https://facet.example/api/persistence',
       bearerToken: 'token-123',
     })
-    expect(document.querySelector('.app-topbar-workspace')?.textContent).toContain('Workspace:')
-    expect(document.querySelector('.app-topbar-workspace')?.textContent).toContain(
+    expect(document.querySelector('.app-footer-workspace')?.textContent).toContain(
       'Hosted Workspace',
     )
   })
@@ -542,7 +541,7 @@ describe('AppShell hosted workspace bootstrap', () => {
 
     expect(screen.getByRole('link', { name: /help and docs/i }).getAttribute('href')).toBe('/help')
     expect(screen.getByRole('link', { name: /account/i }).getAttribute('href')).toBe('/account')
-    expect(document.querySelector('.app-topbar-sync')?.textContent).toContain('Ready')
+    expect(document.querySelector('.app-footer-sync')?.textContent).toContain('Ready')
   })
 
   it('renders AppShell in local mode without hosted bootstrap', () => {
@@ -567,8 +566,8 @@ describe('AppShell hosted workspace bootstrap', () => {
     expect(screen.getByTestId('app-shell-outlet')).toBeTruthy()
     expect(runtimeMocks.captureLocalWorkspaceSnapshotForMigration).not.toHaveBeenCalled()
     expect(screen.queryByRole('button', { name: /hosted workspaces/i })).toBeNull()
-    expect(screen.getByRole('button', { name: /^workspaces$/i })).toBeTruthy()
-    expect(document.querySelector('.app-topbar-workspace')?.textContent).toContain(
+    expect(screen.getByRole('button', { name: /^workspaces/i })).toBeTruthy()
+    expect(document.querySelector('.app-footer-workspace')?.textContent).toContain(
       'Facet Local Workspace',
     )
     expect(screen.queryByRole('button', { name: /retry hosted bootstrap/i })).toBeNull()
@@ -594,7 +593,7 @@ describe('AppShell hosted workspace bootstrap', () => {
 
     render(<AppShell />)
 
-    expect(document.querySelector('.app-topbar-workspace')).toBeNull()
+    expect(document.querySelector('.app-footer-workspace')).toBeNull()
   })
 
   it('omits the demo workspace action outside development mode', () => {
@@ -617,7 +616,7 @@ describe('AppShell hosted workspace bootstrap', () => {
 
     render(<AppShell />)
 
-    fireEvent.click(screen.getByRole('button', { name: /^workspaces$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^workspaces/i }))
 
     expect(screen.queryByRole('button', { name: /load demo workspace/i })).toBeNull()
   })
@@ -642,7 +641,7 @@ describe('AppShell hosted workspace bootstrap', () => {
 
     render(<AppShell />)
 
-    fireEvent.click(screen.getByRole('button', { name: /^workspaces$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^workspaces/i }))
 
     expect(screen.getByRole('heading', { name: /workspace controls/i })).toBeTruthy()
     expect(screen.getByText(/local browser workspace/i)).toBeTruthy()
@@ -1129,12 +1128,12 @@ describe('AppShell hosted workspace bootstrap', () => {
   })
 
   it.each([
-    ['idle', 'Starting'],
-    ['ready', 'Ready'],
-    ['saving', 'Saving'],
-    ['error', 'Sync error'],
-    ['offline', 'Offline'],
-  ] as const)('renders %s sync state in the topbar', (phase, expectedLabel) => {
+    ['idle', 'Starting', 'ready'],
+    ['ready', 'Ready', 'ready'],
+    ['saving', 'Saving', 'saving'],
+    ['error', 'Sync error', 'error'],
+    ['offline', 'Offline', 'offline'],
+  ] as const)('renders %s sync state in the topbar', (phase, expectedLabel, expectedTone) => {
     setHostedStore({})
     usePersistenceRuntimeStore.setState({
       hydrated: phase !== 'idle',
@@ -1151,7 +1150,23 @@ describe('AppShell hosted workspace bootstrap', () => {
 
     render(<AppShell />)
 
-    expect(document.querySelector('.app-topbar-sync')?.textContent).toContain(expectedLabel)
+    const footerSync = document.querySelector('.app-footer-sync')
+    expect(footerSync?.textContent).toContain(expectedLabel)
+    expect(footerSync?.classList.contains(`sync-tone-${expectedTone}`)).toBe(true)
+    if (phase === 'error' || phase === 'offline') {
+      const topbarAlert = document.querySelector('.app-topbar-sync-alert')
+      expect(topbarAlert?.textContent).toContain(expectedLabel)
+      expect(topbarAlert?.classList.contains(`sync-tone-${expectedTone}`)).toBe(true)
+      expect(topbarAlert?.getAttribute('aria-hidden')).toBe('true')
+      expect(topbarAlert?.getAttribute('role')).toBeNull()
+      expect(topbarAlert?.getAttribute('aria-live')).toBeNull()
+      expect(footerSync?.querySelector('.sr-only')?.textContent).toBe(expectedLabel)
+    } else {
+      expect(document.querySelector('.app-topbar-sync-alert')).toBeNull()
+      expect(footerSync?.querySelector('.sr-only')).toBeNull()
+    }
+    expect(footerSync?.getAttribute('role')).toBe('status')
+    expect(footerSync?.getAttribute('aria-live')).toBe('polite')
   })
 
   it.each([
@@ -1204,7 +1219,7 @@ describe('AppShell hosted workspace bootstrap', () => {
     })
 
     expect(screen.queryByTestId('app-shell-outlet')).toBeNull()
-    expect(document.querySelector('.app-topbar-workspace')?.textContent ?? '').not.toContain(
+    expect(document.querySelector('.app-footer-workspace')?.textContent ?? '').not.toContain(
       'Hosted Workspace',
     )
     expect(screen.getByRole('alert').textContent).toContain('Remote load failed')
@@ -1346,12 +1361,12 @@ describe('AppShell hosted workspace bootstrap', () => {
     render(<AppShell />)
 
     await waitFor(() => {
-      expect(document.querySelector('.app-topbar-workspace')?.textContent).toContain(
+      expect(document.querySelector('.app-footer-workspace')?.textContent).toContain(
         'Hosted Workspace',
       )
     })
 
-    fireEvent.click(screen.getByRole('button', { name: /^workspaces$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^workspaces/i }))
     const dialog = screen.getByRole('dialog', { name: /hosted workspaces/i })
     const alternateCard = within(dialog)
       .getByText('Interview Workspace')
@@ -1368,7 +1383,7 @@ describe('AppShell hosted workspace bootstrap', () => {
       backend: { kind: 'remote' },
     })
     await waitFor(() => {
-      expect(document.querySelector('.app-topbar-workspace')?.textContent).toContain(
+      expect(document.querySelector('.app-footer-workspace')?.textContent).toContain(
         'Interview Workspace',
       )
     })
@@ -1401,18 +1416,18 @@ describe('AppShell hosted workspace bootstrap', () => {
     render(<AppShell />)
 
     await waitFor(() => {
-      expect(document.querySelector('.app-topbar-workspace')?.textContent).toContain(
+      expect(document.querySelector('.app-footer-workspace')?.textContent).toContain(
         'Hosted Workspace',
       )
     })
 
-    fireEvent.click(screen.getByRole('button', { name: /^workspaces$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^workspaces/i }))
     fireEvent.click(screen.getByRole('button', { name: /close dialog/i }))
 
     expect(screen.queryByRole('dialog', { name: /hosted workspaces/i })).toBeNull()
     expect(selectWorkspace).not.toHaveBeenCalled()
     expect(runtimeMocks.replacePersistenceRuntime).toHaveBeenCalledTimes(1)
-    expect(document.querySelector('.app-topbar-workspace')?.textContent).toContain(
+    expect(document.querySelector('.app-footer-workspace')?.textContent).toContain(
       'Hosted Workspace',
     )
   })
@@ -1934,7 +1949,7 @@ describe('AppShell hosted workspace bootstrap', () => {
     resolveFirstStart()
 
     await waitFor(() => {
-      expect(document.querySelector('.app-topbar-workspace')?.textContent).toContain(
+      expect(document.querySelector('.app-footer-workspace')?.textContent).toContain(
         'Recovery Workspace',
       )
     })
