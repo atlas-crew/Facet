@@ -488,6 +488,86 @@ describe('resumeScanner parser', () => {
     ])
   })
 
+  it('keeps comma-separated skill detail inside parentheses together', () => {
+    const items: ResumeTextItem[] = [
+      ...buildLine('Skills', 700),
+      ...buildLine('Tooling: React, Node (Express, Fastify | Nest; Hapi • Koa), AWS', 684),
+    ]
+
+    const sections = splitLinesIntoSections(groupTextItemsIntoLines(items))
+    const skillGroups = extractSkillGroups(sections)
+
+    expect(skillGroups).toEqual([
+      {
+        label: 'Tooling',
+        items: ['React', 'Node (Express, Fastify | Nest; Hapi • Koa)', 'AWS'],
+      },
+    ])
+  })
+
+  it('dedupes repeated scan skills into the first parsed group', () => {
+    const items: ResumeTextItem[] = [
+      ...buildLine('Skills', 700),
+      ...buildLine('Languages: TypeScript, Python', 684),
+      ...buildLine('Tooling: React, Node (Express, Fastify), Python, AWS', 668),
+    ]
+
+    const parsed = parseResumeTextItems(items)
+
+    expect(parsed.identity.skills.groups).toEqual([
+      {
+        id: 'languages',
+        label: 'Languages',
+        items: [
+          { name: 'TypeScript', tags: [] },
+          { name: 'Python', tags: [] },
+        ],
+      },
+      {
+        id: 'tooling',
+        label: 'Tooling',
+        items: [
+          { name: 'React', tags: [] },
+          { name: 'Node (Express, Fastify)', tags: [] },
+          { name: 'AWS', tags: [] },
+        ],
+      },
+    ])
+  })
+
+  it('dedupes repeated scan skills inside the same parsed group', () => {
+    const items: ResumeTextItem[] = [
+      ...buildLine('Skills', 700),
+      ...buildLine('Languages: TypeScript, Python, python, Go', 684),
+    ]
+
+    const parsed = parseResumeTextItems(items)
+
+    expect(parsed.identity.skills.groups[0]?.items.map((item) => item.name)).toEqual([
+      'TypeScript',
+      'Python',
+      'Go',
+    ])
+  })
+
+  it('removes parsed skill groups that only contain duplicate skills', () => {
+    const items: ResumeTextItem[] = [
+      ...buildLine('Skills', 700),
+      ...buildLine('Languages: Python', 684),
+      ...buildLine('Tooling: python', 668),
+    ]
+
+    const parsed = parseResumeTextItems(items)
+
+    expect(parsed.identity.skills.groups).toEqual([
+      {
+        id: 'languages',
+        label: 'Languages',
+        items: [{ name: 'Python', tags: [] }],
+      },
+    ])
+  })
+
   it('falls back to summary text for thesis when the header omits a title', () => {
     const items: ResumeTextItem[] = [
       ...buildLine('Alex Example', 760),

@@ -1,4 +1,5 @@
 import type { ProfessionalIdentityV3 } from '../../identity/schema'
+import { dedupeSkillGroupsByItemName } from '../../identity/skillDedupe'
 import type { ResumeScanResult, ResumeScanWarning } from '../../types/identity'
 import type {
   ParsedResumeContact,
@@ -724,11 +725,43 @@ export const extractRoles = (sections: ResumeSection[]): ParsedResumeRole[] => {
   return extractRolesFromLines(fallbackLines)
 }
 
-const splitSkillItems = (value: string): string[] =>
-  value
-    .split(/\s*(?:,|;|\||•)\s*/)
-    .map((entry) => normalizeWhitespace(entry))
-    .filter(Boolean)
+const splitSkillItems = (value: string): string[] => {
+  const items: string[] = []
+  let current = ''
+  let parenDepth = 0
+
+  for (const char of value) {
+    if (char === '(') {
+      parenDepth += 1
+      current += char
+      continue
+    }
+
+    if (char === ')') {
+      parenDepth = Math.max(0, parenDepth - 1)
+      current += char
+      continue
+    }
+
+    if (parenDepth === 0 && (char === ',' || char === ';' || char === '|' || char === '•')) {
+      const item = normalizeWhitespace(current)
+      if (item) {
+        items.push(item)
+      }
+      current = ''
+      continue
+    }
+
+    current += char
+  }
+
+  const trailing = normalizeWhitespace(current)
+  if (trailing) {
+    items.push(trailing)
+  }
+
+  return items
+}
 
 export const extractSkillGroups = (sections: ResumeSection[]): ParsedResumeSkillGroup[] => {
   const lines = sections.find((section) => section.key === 'skills')?.lines ?? []
@@ -968,14 +1001,16 @@ const toIdentity = ({
     ...(contact.title ? { title: contact.title } : {}),
   }
 
-  identity.skills.groups = skills.map((group, index) => ({
-    id: slugify(group.label) || `skills-${index + 1}`,
-    label: group.label,
-    items: group.items.map((item) => ({
-      name: item,
-      tags: [],
+  identity.skills.groups = dedupeSkillGroupsByItemName(
+    skills.map((group, index) => ({
+      id: slugify(group.label) || `skills-${index + 1}`,
+      label: group.label,
+      items: group.items.map((item) => ({
+        name: item,
+        tags: [],
+      })),
     })),
-  }))
+  )
 
   identity.roles = roles.map((role, roleIndex) => ({
     id: slugify(`${role.company}-${role.title}`) || `role-${roleIndex + 1}`,

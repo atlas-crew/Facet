@@ -1,4 +1,5 @@
 import type {
+  ProfessionalSkillGroup,
   ProfessionalSkillDepthSource,
   ProfessionalSkillEnrichedBy,
   ProfessionalSkillItem,
@@ -7,6 +8,11 @@ import type {
 export interface SkillNameDedupeEvent {
   canonicalName: string
   duplicateName: string
+}
+
+export interface SkillGroupDedupeEvent extends SkillNameDedupeEvent {
+  canonicalGroupLabel: string
+  duplicateGroupLabel: string
 }
 
 const skillNameDedupeKey = (skillName: string): string => skillName.trim().toLocaleLowerCase()
@@ -193,4 +199,63 @@ export const dedupeSkillItemsByName = (
   }
 
   return changed ? next : items
+}
+
+export const dedupeSkillGroupsByItemName = (
+  groups: ProfessionalSkillGroup[],
+  onDuplicate?: (event: SkillGroupDedupeEvent) => void,
+): ProfessionalSkillGroup[] => {
+  let changed = false
+  const nextGroups: ProfessionalSkillGroup[] = groups.map((group) => ({
+    ...group,
+    items: dedupeSkillItemsByName(group.items, (event) => {
+      changed = true
+      onDuplicate?.({
+        ...event,
+        canonicalGroupLabel: group.label,
+        duplicateGroupLabel: group.label,
+      })
+    }),
+  }))
+  const indexByName = new Map<string, { groupIndex: number; itemIndex: number }>()
+
+  for (const [groupIndex, group] of nextGroups.entries()) {
+    const nextItems: ProfessionalSkillItem[] = []
+    for (const item of group.items) {
+      const key = skillNameDedupeKey(item.name)
+      if (!key) {
+        nextItems.push(item)
+        continue
+      }
+
+      const existing = indexByName.get(key)
+      if (!existing) {
+        indexByName.set(key, { groupIndex, itemIndex: nextItems.length })
+        nextItems.push(item)
+        continue
+      }
+
+      const canonicalGroup = nextGroups[existing.groupIndex]!
+      const canonical = canonicalGroup.items[existing.itemIndex]!
+      canonicalGroup.items = canonicalGroup.items.map((entry, itemIndex) =>
+        itemIndex === existing.itemIndex ? mergeCaseVariantSkill(canonical, item) : entry,
+      )
+      changed = true
+      onDuplicate?.({
+        canonicalName: canonical.name,
+        duplicateName: item.name,
+        canonicalGroupLabel: canonicalGroup.label,
+        duplicateGroupLabel: group.label,
+      })
+    }
+    group.items = nextItems
+  }
+
+  const filteredGroups = nextGroups.filter((group) => group.items.length > 0)
+
+  if (!changed && filteredGroups.length === groups.length) {
+    return groups
+  }
+
+  return filteredGroups
 }

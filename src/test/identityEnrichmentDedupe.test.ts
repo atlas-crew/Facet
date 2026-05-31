@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
+  type ProfessionalSkillGroup,
   importProfessionalIdentity,
   normalizeRuntimeProfessionalIdentity,
 } from '../identity/schema'
-import { dedupeSkillItemsByName } from '../identity/skillDedupe'
+import { dedupeSkillGroupsByItemName, dedupeSkillItemsByName } from '../identity/skillDedupe'
 import {
   applySkillDepthEdit,
   skillNamesMatch,
@@ -129,7 +130,7 @@ describe('identity enrichment skill dedupe', () => {
     const result = importProfessionalIdentity(createIdentityWithCaseVariantSkills())
 
     expect(result.warnings).toContain(
-      'skills.groups[0].items: duplicate skill "kubernetes" merged into "Kubernetes".',
+      'skills.groups: duplicate skill "kubernetes" in "Platform" merged into "Kubernetes" in "Platform".',
     )
     expect(result.data.skills.groups[0]?.items).toEqual([
       {
@@ -164,6 +165,108 @@ describe('identity enrichment skill dedupe', () => {
         enriched_by: 'llm-accepted',
       },
     ])
+  })
+
+  it('dedupes cross-group duplicate skills during import and reports the repair', () => {
+    const identity = cloneIdentityFixture()
+    identity.skills.groups = [
+      {
+        id: 'languages',
+        label: 'Languages',
+        items: [{ name: 'Python', tags: ['language'], depth: 'working' }],
+      },
+      {
+        id: 'tooling',
+        label: 'Tooling',
+        items: [
+          {
+            name: 'python',
+            tags: ['automation'],
+            depth: 'strong',
+            depthSource: 'corrected',
+            context: 'Used for automation and platform tooling.',
+          },
+          { name: 'AWS', tags: ['cloud'] },
+        ],
+      },
+    ]
+
+    const result = importProfessionalIdentity(identity)
+
+    expect(result.warnings).toContain(
+      'skills.groups: duplicate skill "python" in "Tooling" merged into "Python" in "Languages".',
+    )
+    expect(result.data.skills.groups).toEqual([
+      {
+        id: 'languages',
+        label: 'Languages',
+        items: [
+          {
+            name: 'Python',
+            tags: ['language', 'automation'],
+            depth: 'strong',
+            depthSource: 'corrected',
+            context: 'Used for automation and platform tooling.',
+          },
+        ],
+      },
+      {
+        id: 'tooling',
+        label: 'Tooling',
+        items: [{ name: 'AWS', tags: ['cloud'] }],
+      },
+    ])
+  })
+
+  it('removes imported groups that only contain duplicate skills', () => {
+    const identity = cloneIdentityFixture()
+    identity.skills.groups = [
+      {
+        id: 'languages',
+        label: 'Languages',
+        items: [{ name: 'Python', tags: ['language'] }],
+      },
+      {
+        id: 'tooling',
+        label: 'Tooling',
+        items: [{ name: 'python', tags: ['automation'] }],
+      },
+    ]
+
+    const result = importProfessionalIdentity(identity)
+
+    expect(result.warnings).toContain(
+      'skills.groups: duplicate skill "python" in "Tooling" merged into "Python" in "Languages".',
+    )
+    expect(result.data.skills.groups).toEqual([
+      {
+        id: 'languages',
+        label: 'Languages',
+        items: [{ name: 'Python', tags: ['language', 'automation'] }],
+      },
+    ])
+  })
+
+  it('removes empty skill groups consistently during group dedupe', () => {
+    const groups: ProfessionalSkillGroup[] = [
+      { id: 'empty', label: 'Empty', items: [] },
+      { id: 'platform', label: 'Platform', items: [{ name: 'Kubernetes', tags: [] }] },
+    ]
+
+    expect(dedupeSkillGroupsByItemName(groups)).toEqual([
+      { id: 'platform', label: 'Platform', items: [{ name: 'Kubernetes', tags: [] }] },
+    ])
+  })
+
+  it('preserves blank skill names across groups without reporting duplicate repairs', () => {
+    const onDuplicate = vi.fn()
+    const groups: ProfessionalSkillGroup[] = [
+      { id: 'a', label: 'A', items: [{ name: '', tags: ['a'] }] },
+      { id: 'b', label: 'B', items: [{ name: '   ', tags: ['b'] }] },
+    ]
+
+    expect(dedupeSkillGroupsByItemName(groups, onDuplicate)).toBe(groups)
+    expect(onDuplicate).not.toHaveBeenCalled()
   })
 
   it('prefers corrected duplicate depth while preserving the first skill casing', () => {
@@ -457,7 +560,7 @@ describe('identity enrichment skill dedupe', () => {
     ])
   })
 
-  it('keeps case-variant skills in separate groups because enrichment targets are group-scoped', () => {
+  it('dedupes case-variant skills across groups during runtime load normalization', () => {
     const identity = cloneIdentityFixture()
     identity.skills.groups = [
       {
@@ -474,10 +577,12 @@ describe('identity enrichment skill dedupe', () => {
 
     const normalized = normalizeRuntimeProfessionalIdentity(identity)
 
-    expect(normalized.skills.groups).toHaveLength(2)
-    expect(normalized.skills.groups[0]?.items).toEqual([{ name: 'Kubernetes', tags: ['platform'] }])
-    expect(normalized.skills.groups[1]?.items).toEqual([
-      { name: 'kubernetes', tags: ['operations'] },
+    expect(normalized.skills.groups).toEqual([
+      {
+        id: 'platform',
+        label: 'Platform',
+        items: [{ name: 'Kubernetes', tags: ['platform', 'operations'] }],
+      },
     ])
   })
 })

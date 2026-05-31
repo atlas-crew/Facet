@@ -1,6 +1,6 @@
 import { EMPLOYMENT_TYPE_BANK, FUNDING_STAGE_BANK, INDUSTRY_BANK } from '../types/search'
 import type { SearchEmploymentType, SearchFundingStage, SearchIndustry } from '../types/search'
-import { dedupeSkillItemsByName } from './skillDedupe'
+import { dedupeSkillGroupsByItemName } from './skillDedupe'
 
 export type ProfessionalSchemaRevision = '3.1'
 
@@ -453,10 +453,10 @@ export const normalizeRuntimeProfessionalIdentity = (
     ...withCleanInterview,
     skills: {
       ...withCleanInterview.skills,
-      groups: groups.map((group) => ({
-        ...group,
-        items: dedupeSkillItemsByName(
-          group.items.map((item) => {
+      groups: dedupeSkillGroupsByItemName(
+        groups.map((group) => ({
+          ...group,
+          items: group.items.map((item) => {
             const { search_signal: legacyPositioning, ...rest } = item as ProfessionalSkillItem & {
               search_signal?: string
             }
@@ -475,8 +475,8 @@ export const normalizeRuntimeProfessionalIdentity = (
                 : {}),
             }
           }),
-        ),
-      })),
+        })),
+      ),
     },
   }
 }
@@ -1211,50 +1211,51 @@ export const importProfessionalIdentity = (
         : {}),
     },
     skills: {
-      groups: assertArray(skills.groups, 'skills.groups').map((entry, index) => {
-        const group = assertRecord(entry, `skills.groups[${index}]`)
-        const id = assertString(group.id, `skills.groups[${index}].id`)
-        assertUniqueId(skillGroupIds, id, 'skills.groups')
+      groups: dedupeSkillGroupsByItemName(
+        assertArray(skills.groups, 'skills.groups').map((entry, index) => {
+          const group = assertRecord(entry, `skills.groups[${index}]`)
+          const id = assertString(group.id, `skills.groups[${index}].id`)
+          assertUniqueId(skillGroupIds, id, 'skills.groups')
 
-        return {
-          id,
-          label: assertString(group.label, `skills.groups[${index}].label`),
-          ...(group.positioning !== undefined
-            ? {
-                positioning: assertOptionalString(
-                  group.positioning,
-                  `skills.groups[${index}].positioning`,
-                ),
-              }
-            : {}),
-          ...(group.calibration !== undefined
-            ? {
-                calibration: assertOptionalString(
-                  group.calibration,
-                  `skills.groups[${index}].calibration`,
-                ),
-              }
-            : {}),
-          ...(group.is_differentiator !== undefined
-            ? {
-                is_differentiator: assertOptionalBoolean(
-                  group.is_differentiator,
-                  `skills.groups[${index}].is_differentiator`,
-                ),
-              }
-            : {}),
-          items: dedupeSkillItemsByName(
-            assertArray(group.items, `skills.groups[${index}].items`).map((itemEntry, itemIndex) =>
-              parseSkillItem(itemEntry, `skills.groups[${index}].items[${itemIndex}]`, warnings),
+          return {
+            id,
+            label: assertString(group.label, `skills.groups[${index}].label`),
+            ...(group.positioning !== undefined
+              ? {
+                  positioning: assertOptionalString(
+                    group.positioning,
+                    `skills.groups[${index}].positioning`,
+                  ),
+                }
+              : {}),
+            ...(group.calibration !== undefined
+              ? {
+                  calibration: assertOptionalString(
+                    group.calibration,
+                    `skills.groups[${index}].calibration`,
+                  ),
+                }
+              : {}),
+            ...(group.is_differentiator !== undefined
+              ? {
+                  is_differentiator: assertOptionalBoolean(
+                    group.is_differentiator,
+                    `skills.groups[${index}].is_differentiator`,
+                  ),
+                }
+              : {}),
+            items: assertArray(group.items, `skills.groups[${index}].items`).map(
+              (itemEntry, itemIndex) =>
+                parseSkillItem(itemEntry, `skills.groups[${index}].items[${itemIndex}]`, warnings),
             ),
-            ({ canonicalName, duplicateName }) => {
-              warnings.push(
-                `skills.groups[${index}].items: duplicate skill "${duplicateName}" merged into "${canonicalName}".`,
-              )
-            },
-          ),
-        }
-      }),
+          }
+        }),
+        ({ canonicalName, duplicateName, canonicalGroupLabel, duplicateGroupLabel }) => {
+          warnings.push(
+            `skills.groups: duplicate skill "${duplicateName}" in "${duplicateGroupLabel}" merged into "${canonicalName}" in "${canonicalGroupLabel}".`,
+          )
+        },
+      ),
     },
     profiles: assertArray(root.profiles, 'profiles').map((entry, index) => {
       const profile = assertRecord(entry, `profiles[${index}]`)
