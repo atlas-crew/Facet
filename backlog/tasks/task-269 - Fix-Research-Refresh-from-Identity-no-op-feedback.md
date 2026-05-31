@@ -1,9 +1,11 @@
 ---
 id: TASK-269
 title: Fix Research Refresh from Identity no-op feedback
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-05-31 20:48'
+updated_date: '2026-05-31 21:08'
 labels:
   - bug
   - research
