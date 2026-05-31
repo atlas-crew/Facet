@@ -154,6 +154,26 @@ const sentenceCount = (value: string): number =>
 
 const normalizeSkillKey = (value: string): string => value.trim().toLowerCase().replace(/\s+/g, ' ')
 
+export const buildSkillIdentityFields = (skillName: string): string[] => {
+  const normalized = skillName.trim()
+  if (!normalized) return []
+  return [
+    'skills.' + normalized + '.depth',
+    'skills.' + normalized + '.context',
+    'skills.' + normalized + '.positioning',
+  ]
+}
+
+export const collectThesisIdentityFieldDependencies = (
+  thesis: Pick<Partial<SearchThesis>, 'skillDepthMap'>,
+): string[] | undefined => {
+  const fields = new Set<string>()
+  thesis.skillDepthMap?.forEach((entry) => {
+    buildSkillIdentityFields(entry.skill).forEach((field) => fields.add(field))
+  })
+  return fields.size > 0 ? Array.from(fields) : undefined
+}
+
 const identitySkillEntries = (
   identity: ProfessionalIdentityV3,
 ): Array<{

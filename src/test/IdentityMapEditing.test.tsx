@@ -4,7 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { IdentityMapPage } from '../routes/identity/IdentityMapPage'
 import { useIdentityStore } from '../store/identityStore'
+import { useSearchStore } from '../store/searchStore'
 import { resolveStorage } from '../store/storage'
+import type { SearchThesis } from '../types/search'
 import { cloneIdentityFixture } from './fixtures/identityFixture'
 
 const navigateMock = vi.fn(async () => undefined)
@@ -12,6 +14,7 @@ const identityParameterMocks = vi.hoisted(() => ({
   generateSearchVectorsFromIdentityMock: vi.fn(),
   generateAwarenessFromIdentityMock: vi.fn(),
   generateStrategicPositioningFromIdentityMock: vi.fn(),
+  generateSearchThesisFromIdentityMock: vi.fn(),
 }))
 const facetEnvMock = vi.hoisted(() => ({
   facetClientEnv: {
@@ -39,7 +42,10 @@ vi.mock('@tanstack/react-router', () => ({
   useSearch: () => ({}),
 }))
 
-vi.mock('../utils/facetEnv', () => facetEnvMock)
+vi.mock('../utils/facetEnv', () => ({
+  facetClientEnv: facetEnvMock.facetClientEnv,
+  getFacetClientEnv: () => facetEnvMock.facetClientEnv,
+}))
 
 vi.mock('../utils/identityParametersGeneration', () => ({
   generateSearchVectorsFromIdentity: identityParameterMocks.generateSearchVectorsFromIdentityMock,
@@ -47,6 +53,49 @@ vi.mock('../utils/identityParametersGeneration', () => ({
   generateStrategicPositioningFromIdentity:
     identityParameterMocks.generateStrategicPositioningFromIdentityMock,
 }))
+
+vi.mock('../utils/thesisGenerator', async () => {
+  const actual = await vi.importActual<typeof import('../utils/thesisGenerator')>(
+    '../utils/thesisGenerator',
+  )
+  return {
+    ...actual,
+    generateSearchThesisFromIdentity: (
+      ...args: Parameters<typeof actual.generateSearchThesisFromIdentity>
+    ) => identityParameterMocks.generateSearchThesisFromIdentityMock(...args),
+  }
+})
+
+const buildTestThesis = (overrides: Partial<SearchThesis> = {}): SearchThesis => ({
+  id: 'thesis-from-map',
+  createdAt: '2026-05-31T12:00:00.000Z',
+  updatedAt: '2026-05-31T12:00:00.000Z',
+  competitiveMoat: 'Platform delivery judgment grounded in identity evidence.',
+  unfairAdvantages: [],
+  searchLanes: [
+    {
+      id: 'lane-platform',
+      title: 'Platform modernization',
+      rationale: 'Find roles where platform modernization is the center of gravity.',
+      targetSignals: ['platform modernization'],
+    },
+  ],
+  lookFor: [],
+  avoid: [],
+  keywordCombinations: [],
+  skillDepthMap: [
+    {
+      skill: 'Kubernetes',
+      depth: 'strong',
+      context: 'Used for customer-hosted deployments.',
+      searchSignal: 'Platform modernization roles.',
+    },
+  ],
+  source: 'generated',
+  identityVersion: 0,
+  feedbackIncorporated: [],
+  ...overrides,
+})
 
 const seed = (modifier?: (id: ReturnType<typeof cloneIdentityFixture>) => void) => {
   const identity = cloneIdentityFixture()
@@ -65,6 +114,11 @@ const seed = (modifier?: (id: ReturnType<typeof cloneIdentityFixture>) => void) 
     lastError: null,
     mapSelection: null,
   })
+  useSearchStore.setState({
+    theses: [],
+    activeThesisId: null,
+    feedbackEvents: [],
+  })
 }
 
 describe('Identity Map — match-rule add/remove', () => {
@@ -74,6 +128,7 @@ describe('Identity Map — match-rule add/remove', () => {
     identityParameterMocks.generateSearchVectorsFromIdentityMock.mockReset()
     identityParameterMocks.generateAwarenessFromIdentityMock.mockReset()
     identityParameterMocks.generateStrategicPositioningFromIdentityMock.mockReset()
+    identityParameterMocks.generateSearchThesisFromIdentityMock.mockReset()
   })
   afterEach(() => cleanup())
 
@@ -217,6 +272,211 @@ describe('Identity Map — match-rule add/remove', () => {
     expect(screen.getByText('No identity yet')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Start from a resume' })).toBeTruthy()
     expect(screen.queryByText('Edit the durable identity here.')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Generate research thesis' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Regenerate research thesis' })).toBeNull()
+  })
+
+  it('regenerates the active research thesis from the identity map', async () => {
+    seed((id) => {
+      id.model_revision = 17
+      id.skills.groups[0]!.items = [
+        {
+          name: 'Kubernetes',
+          tags: ['platform'],
+          depth: 'strong',
+          context: 'Used for customer-hosted deployments.',
+          positioning: 'Platform modernization roles.',
+        },
+      ]
+    })
+    useSearchStore.getState().addThesis(buildTestThesis({ id: 'thesis-existing' }))
+    const feedbackEvent = useSearchStore.getState().addFeedbackEvent({
+      runId: 'run-1',
+      resultId: 'result-1',
+      rating: 'up',
+      reason: 'Good fit.',
+      dimensions: {},
+      appliedToIdentity: true,
+      appliedAtVersion: 16,
+    })
+    const reflectedEvent = useSearchStore.getState().addFeedbackEvent({
+      runId: 'run-2',
+      resultId: 'result-2',
+      rating: 'down',
+      reason: 'Already reflected.',
+      dimensions: {},
+      appliedToIdentity: true,
+      appliedAtVersion: 15,
+    })
+    useSearchStore.getState().markFeedbackReflectedInThesis(
+      [reflectedEvent.id],
+      'thesis-existing',
+    )
+    const generatedThesis = buildTestThesis({
+      feedbackIncorporated: [feedbackEvent.id],
+    })
+    identityParameterMocks.generateSearchThesisFromIdentityMock.mockResolvedValueOnce({
+      thesis: generatedThesis,
+      contractViolations: [],
+    })
+
+    render(<IdentityMapPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'Regenerate research thesis' }))
+
+    await waitFor(() => {
+      expect(identityParameterMocks.generateSearchThesisFromIdentityMock).toHaveBeenCalledTimes(1)
+    })
+    expect(identityParameterMocks.generateSearchThesisFromIdentityMock.mock.calls[0]?.[1]).toBe(
+      'https://ai.example/proxy',
+    )
+    expect(identityParameterMocks.generateSearchThesisFromIdentityMock.mock.calls[0]?.[2]).toEqual([
+      expect.objectContaining({ id: feedbackEvent.id }),
+    ])
+    expect(
+      identityParameterMocks.generateSearchThesisFromIdentityMock.mock.calls[0]?.[2],
+    ).not.toEqual(expect.arrayContaining([expect.objectContaining({ id: reflectedEvent.id })]))
+    expect(useSearchStore.getState().activeThesisId).toBe('thesis-from-map')
+    expect(
+      useSearchStore.getState().theses.find((thesis) => thesis.id === 'thesis-from-map'),
+    ).toEqual(
+      expect.objectContaining({
+        id: 'thesis-from-map',
+        identityVersion: 17,
+        identityFields: [
+          'skills.Kubernetes.depth',
+          'skills.Kubernetes.context',
+          'skills.Kubernetes.positioning',
+        ],
+      }),
+    )
+    expect(useSearchStore.getState().feedbackEvents[0]?.reflectedInThesisId).toBe('thesis-from-map')
+    const successNotice = screen
+      .getAllByRole('status')
+      .find((status) =>
+        status.textContent?.includes(
+          'Research thesis regenerated from the current Identity Map and set as the active thesis.',
+        ),
+      )
+    expect(successNotice).toBeTruthy()
+    expect(successNotice?.getAttribute('aria-live')).toBe('polite')
+    expect(
+      screen.getByText(
+        'Research thesis regenerated from the current Identity Map and set as the active thesis.',
+      ),
+    ).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Open Research' }))
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/research' })
+  })
+
+  it('shows a busy state while regenerating the research thesis from the map', async () => {
+    seed()
+    const deferred = createDeferred<{
+      thesis: SearchThesis
+      contractViolations: string[]
+    }>()
+    identityParameterMocks.generateSearchThesisFromIdentityMock.mockReturnValueOnce(
+      deferred.promise,
+    )
+
+    render(<IdentityMapPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'Generate research thesis' }))
+
+    const busyButton = await screen.findByRole('button', { name: 'Generating thesis' })
+    expect((busyButton as HTMLButtonElement).disabled).toBe(false)
+    expect(busyButton.getAttribute('aria-disabled')).toBe('true')
+    expect(busyButton.getAttribute('aria-busy')).toBe('true')
+    fireEvent.click(busyButton)
+    expect(identityParameterMocks.generateSearchThesisFromIdentityMock).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      deferred.resolve({
+        thesis: buildTestThesis({ feedbackIncorporated: undefined }),
+        contractViolations: [],
+      })
+      await deferred.promise
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Regenerate research thesis' })).toBeTruthy()
+    })
+  })
+
+  it('preserves thesis identity fields returned by generation', async () => {
+    seed()
+    identityParameterMocks.generateSearchThesisFromIdentityMock.mockResolvedValueOnce({
+      thesis: buildTestThesis({
+        identityFields: ['identity.custom-field'],
+      }),
+      contractViolations: [],
+    })
+
+    render(<IdentityMapPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'Generate research thesis' }))
+
+    await waitFor(() => {
+      expect(useSearchStore.getState().activeThesisId).toBe('thesis-from-map')
+    })
+    expect(useSearchStore.getState().theses[0]?.identityFields).toEqual([
+      'identity.custom-field',
+    ])
+  })
+
+  it('does not call thesis generation when AI research is not configured', async () => {
+    seed()
+    facetEnvMock.facetClientEnv.anthropicProxyUrl = ''
+
+    render(<IdentityMapPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'Generate research thesis' }))
+
+    expect(identityParameterMocks.generateSearchThesisFromIdentityMock).not.toHaveBeenCalled()
+    expect(
+      screen
+        .getAllByRole('alert')
+        .some((alert) =>
+          alert.textContent?.includes('AI research is not configured for this workspace.'),
+        ),
+    ).toBe(true)
+  })
+
+  it('shows an identity-map error when thesis regeneration fails', async () => {
+    seed()
+    identityParameterMocks.generateSearchThesisFromIdentityMock.mockRejectedValueOnce(
+      new Error('Opus is unavailable.'),
+    )
+
+    render(<IdentityMapPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'Generate research thesis' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Opus is unavailable.')).toBeTruthy()
+    })
+    expect(
+      screen
+        .getAllByRole('alert')
+        .some((alert) => alert.textContent?.includes('Opus is unavailable.')),
+    ).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
+    expect(screen.queryByText('Opus is unavailable.')).toBeNull()
+    expect(useSearchStore.getState().theses).toEqual([])
+  })
+
+  it('shows a fallback identity-map error when thesis regeneration throws a non-error value', async () => {
+    seed()
+    identityParameterMocks.generateSearchThesisFromIdentityMock.mockRejectedValueOnce(
+      'Network timeout',
+    )
+
+    render(<IdentityMapPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'Generate research thesis' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Research thesis generation failed.')).toBeTruthy()
+    })
+    expect(
+      screen
+        .getAllByRole('alert')
+        .some((alert) => alert.textContent?.includes('Research thesis generation failed.')),
+    ).toBe(true)
   })
 
   it('adds a prioritize rule, opens the inspector in edit mode, persists save', () => {

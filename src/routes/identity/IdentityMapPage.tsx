@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import { Upload } from 'lucide-react'
+import { RefreshCcw, Upload } from 'lucide-react'
 import { isMapSelectionValid, useIdentityStore } from '../../store/identityStore'
+import { useSearchStore } from '../../store/searchStore'
+import { getFacetClientEnv } from '../../utils/facetEnv'
+import { sanitizeEndpointUrl } from '../../utils/idUtils'
 import {
   buildStaleSelectionNotice,
   getBandDataLayerForFocus,
@@ -11,6 +14,10 @@ import {
   validateReturnUrl,
   getReturnOriginName,
 } from '../../utils/mapSelectionUrl'
+import {
+  collectThesisIdentityFieldDependencies,
+  generateSearchThesisFromIdentity,
+} from '../../utils/thesisGenerator'
 import { IdentityInspector } from './IdentityInspector'
 import { ThesisBand } from './bands/ThesisBand'
 import { SelfModelBand } from './bands/SelfModelBand'
@@ -34,6 +41,13 @@ export function IdentityMapPage() {
   const identity = useIdentityStore((state) => state.currentIdentity)
   const mapSelection = useIdentityStore((state) => state.mapSelection)
   const setMapSelection = useIdentityStore((state) => state.setMapSelection)
+  const activeThesisId = useSearchStore((state) => state.activeThesisId)
+  const addThesis = useSearchStore((state) => state.addThesis)
+  const setActiveThesis = useSearchStore((state) => state.setActiveThesis)
+  const getUnreflectedFeedback = useSearchStore((state) => state.getUnreflectedFeedback)
+  const markFeedbackReflectedInThesis = useSearchStore(
+    (state) => state.markFeedbackReflectedInThesis,
+  )
   const navigate = useNavigate()
   const search = useSearch({ strict: false }) as {
     sel?: string
@@ -47,8 +61,14 @@ export function IdentityMapPage() {
   const validatedReturn = validateReturnUrl(requestedReturn)
 
   const [staleNotice, setStaleNotice] = useState<string | null>(null)
+  const [thesisGenerationState, setThesisGenerationState] = useState<{
+    status: 'success' | 'error'
+    message: string
+  } | null>(null)
+  const [isGeneratingThesis, setIsGeneratingThesis] = useState(false)
   const honoredSelRef = useRef<string | null>(null)
   const honoredFocusRef = useRef<string | null>(null)
+  const thesisGenerationInFlightRef = useRef(false)
   // One-shot signal from forward → reverse: when forward dispatches
   // setMapSelection, reverse on the same effect tick still sees pre-dispatch
   // state and would otherwise treat it as divergence. The flag tells reverse
@@ -71,7 +91,7 @@ export function IdentityMapPage() {
       // bug fixed in TASK-218). Notices are cleared explicitly by the user via
       // the Dismiss button instead.
     } else {
-      setStaleNotice(buildStaleSelectionNotice(parsed)) // eslint-disable-line react-hooks/set-state-in-effect -- URL → notice sync; honored-once via honoredSelRef so no cascade
+      setStaleNotice(buildStaleSelectionNotice(parsed))
       // Drop the now-stale `sel` param so refresh doesn't re-fire the bad link.
       // Per TASK-217 Decision 5, intra-Identity URL writes use replace: true.
       void navigate({
@@ -135,7 +155,7 @@ export function IdentityMapPage() {
       // notice set by the sel effect on the same render (TASK-218). Notices are
       // cleared explicitly by the user via the Dismiss button instead.
     } else {
-      setStaleNotice(buildStaleSelectionNotice(null)) // eslint-disable-line react-hooks/set-state-in-effect -- URL → notice sync; honored-once via honoredFocusRef so no cascade
+      setStaleNotice(buildStaleSelectionNotice(null))
       void navigate({
         to: '/identity',
         search: (prev) => ({ ...prev, focus: undefined }),
@@ -160,6 +180,65 @@ export function IdentityMapPage() {
   const goToImport = () => {
     void navigate({ to: '/identity/import' })
   }
+
+  const goToResearch = () => {
+    void navigate({ to: '/research' })
+  }
+
+  const handleGenerateResearchThesis = async () => {
+    if (!identity) return
+    if (isGeneratingThesis) return
+    if (thesisGenerationInFlightRef.current) return
+
+    const aiEndpoint = sanitizeEndpointUrl(getFacetClientEnv().anthropicProxyUrl)
+    if (!aiEndpoint) {
+      setThesisGenerationState({
+        status: 'error',
+        message: 'AI research is not configured for this workspace.',
+      })
+      return
+    }
+
+    try {
+      thesisGenerationInFlightRef.current = true
+      setIsGeneratingThesis(true)
+      setThesisGenerationState(null)
+      const generated = await generateSearchThesisFromIdentity(
+        identity,
+        aiEndpoint,
+        getUnreflectedFeedback(activeThesisId ?? undefined),
+      )
+      const saved = addThesis({
+        ...generated.thesis,
+        identityVersion: identity.model_revision,
+        identityFields:
+          generated.thesis.identityFields ??
+          collectThesisIdentityFieldDependencies(generated.thesis),
+      })
+      const feedbackIncorporated = saved.feedbackIncorporated ?? []
+      if (feedbackIncorporated.length > 0) {
+        markFeedbackReflectedInThesis(feedbackIncorporated, saved.id)
+      }
+      setActiveThesis(saved.id)
+      setThesisGenerationState({
+        status: 'success',
+        message:
+          'Research thesis regenerated from the current Identity Map and set as the active thesis.',
+      })
+    } catch (error) {
+      setThesisGenerationState({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Research thesis generation failed.',
+      })
+    } finally {
+      thesisGenerationInFlightRef.current = false
+      setIsGeneratingThesis(false)
+    }
+  }
+
+  const thesisActionLabel = activeThesisId
+    ? 'Regenerate research thesis'
+    : 'Generate research thesis'
 
   return (
     <div className="identity-map">
@@ -196,6 +275,22 @@ export function IdentityMapPage() {
               <span className="label-tracked identity-map-stat warn">
                 <span>{openQuestions}</span> open questions
               </span>
+            ) : null}
+            {identity ? (
+              <button
+                type="button"
+                className="identity-map-topbar-action secondary label-tracked"
+                onClick={() => void handleGenerateResearchThesis()}
+                aria-disabled={isGeneratingThesis}
+                aria-busy={isGeneratingThesis}
+              >
+                <RefreshCcw
+                  size={12}
+                  aria-hidden="true"
+                  className={isGeneratingThesis ? 'identity-map-spin' : undefined}
+                />{' '}
+                {isGeneratingThesis ? 'Generating thesis' : thesisActionLabel}
+              </button>
             ) : null}
             <button
               type="button"
@@ -254,6 +349,35 @@ export function IdentityMapPage() {
             >
               Dismiss
             </button>
+          </div>
+        ) : null}
+
+        {thesisGenerationState ? (
+          <div
+            className={`identity-map-notice thesis-generation ${thesisGenerationState.status}`}
+            role={thesisGenerationState.status === 'error' ? 'alert' : 'status'}
+            aria-live={thesisGenerationState.status === 'error' ? 'assertive' : 'polite'}
+            aria-atomic="true"
+          >
+            <span className="chapter-copy">{thesisGenerationState.message}</span>
+            <div className="identity-map-notice-actions">
+              {thesisGenerationState.status === 'success' ? (
+                <button
+                  type="button"
+                  className="identity-map-notice-dismiss label-tracked"
+                  onClick={goToResearch}
+                >
+                  Open Research
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="identity-map-notice-dismiss label-tracked"
+                onClick={() => setThesisGenerationState(null)}
+              >
+                Dismiss
+              </button>
+            </div>
           </div>
         ) : null}
 

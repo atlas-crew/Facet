@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SearchFeedbackEvent } from '../types/search'
 import {
+  buildSkillIdentityFields,
   buildThesisGenerationPrompt,
+  collectThesisIdentityFieldDependencies,
   generateSearchThesisFromIdentity,
   normalizeGeneratedSearchThesis,
   validateSearchThesis,
@@ -33,6 +35,37 @@ const narrative = [
 describe('thesisGenerator', () => {
   beforeEach(() => {
     mockCallLlmProxy.mockReset()
+  })
+
+  it('collects thesis identity fields defensively when skill depth is absent', () => {
+    expect(collectThesisIdentityFieldDependencies({})).toBeUndefined()
+    expect(collectThesisIdentityFieldDependencies({ skillDepthMap: [] })).toBeUndefined()
+    expect(
+      collectThesisIdentityFieldDependencies({
+        skillDepthMap: [
+          { skill: 'Kubernetes', depth: 'strong', context: 'Test', searchSignal: 'Test' },
+          { skill: ' TypeScript ', depth: 'strong', context: 'Test', searchSignal: 'Test' },
+          { skill: 'Kubernetes', depth: 'strong', context: 'Test', searchSignal: 'Test' },
+        ],
+      }),
+    ).toEqual([
+      'skills.Kubernetes.depth',
+      'skills.Kubernetes.context',
+      'skills.Kubernetes.positioning',
+      'skills.TypeScript.depth',
+      'skills.TypeScript.context',
+      'skills.TypeScript.positioning',
+    ])
+  })
+
+  it('builds skill identity field paths for thesis dependencies', () => {
+    expect(buildSkillIdentityFields('Kubernetes')).toEqual([
+      'skills.Kubernetes.depth',
+      'skills.Kubernetes.context',
+      'skills.Kubernetes.positioning',
+    ])
+    expect(buildSkillIdentityFields('')).toEqual([])
+    expect(buildSkillIdentityFields('   ')).toEqual([])
   })
 
   it('builds a full identity prompt with pending feedback events', () => {

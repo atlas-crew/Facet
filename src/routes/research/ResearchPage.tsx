@@ -64,7 +64,12 @@ import {
   createPrepDeckRefreshHandler,
   type StalenessRefreshDeps,
 } from './stalenessRefreshHandlers'
-import { generateSearchThesisFromIdentity, validateSearchThesis } from '../../utils/thesisGenerator'
+import {
+  buildSkillIdentityFields,
+  collectThesisIdentityFieldDependencies,
+  generateSearchThesisFromIdentity,
+  validateSearchThesis,
+} from '../../utils/thesisGenerator'
 import { fetchAiProxyCapabilities } from '../../utils/llmProxy'
 import { reconcileThesisSignalsFromLabels } from '../../utils/thesisSignals'
 import {
@@ -257,26 +262,6 @@ const getBudgetBadgeCopy = (
           : 'Budget ok',
     detail: formatCostCents(usage.budget.remainingCents) + ' left',
   }
-}
-
-const buildSkillIdentityFields = (skillName: string): string[] => {
-  const normalized = skillName.trim()
-  if (!normalized) return []
-  return [
-    'skills.' + normalized + '.depth',
-    'skills.' + normalized + '.context',
-    'skills.' + normalized + '.positioning',
-  ]
-}
-
-const collectThesisIdentityFieldDependencies = (
-  thesis: Pick<SearchThesis, 'skillDepthMap'>,
-): string[] | undefined => {
-  const fields = new Set<string>()
-  thesis.skillDepthMap.forEach((entry) => {
-    buildSkillIdentityFields(entry.skill).forEach((field) => fields.add(field))
-  })
-  return fields.size > 0 ? Array.from(fields) : undefined
 }
 
 const buildSkillDepthMutation = (
