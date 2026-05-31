@@ -4,6 +4,7 @@ title: Triage Identity model quality and inference UX backlog
 status: To Do
 assignee: []
 created_date: '2026-05-31 20:48'
+updated_date: '2026-05-31 20:49'
 labels:
   - feature
   - identity
@@ -25,9 +26,11 @@ Placement: candidate-only model quality and inference orchestration belong in Id
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Each child issue from the Identity section of TODO.md is represented as a backlog task or intentionally deduplicated with an existing task.
-- [ ] #2 Child tasks preserve the architecture split: candidate-only data in Identity, artifacts as derived projections, scan-only actions kept in import when appropriate.
+- [x] #1 Each child issue from the Identity section of TODO.md is represented as a backlog task or intentionally deduplicated with an existing task.
+- [x] #2 Child tasks preserve the architecture split: candidate-only data in Identity, artifacts as derived projections, scan-only actions kept in import when appropriate.
 <!-- AC:END -->
+
+
 
 ## Implementation Plan
 
