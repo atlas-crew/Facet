@@ -6,7 +6,7 @@ workspaces use for resumes, match analysis, research, letters, and prep.
 
 Identity is Phase 0 of the Facet workflow. It comes first because downstream
 workspaces should mirror the candidate facts you have already verified, not
-re-derive them from each job. Build the richest source of truth here, then let
+re-derive them from each job. Build a durable source of truth here, then let
 Research, Pipeline, Build, Letters, and Prep specialize it for each scenario.
 
 ## What You Will Learn
@@ -80,7 +80,6 @@ that changes with your current state:
 - **Upload Resume** when no source is loaded.
 - **Generate Draft** when source material is ready.
 - **Review Draft** when a draft exists.
-- **Continue Skill Enrichment** when the current identity has pending skills.
 - **Send to Build** when the current identity is ready.
 
 The main workbench cards are:
@@ -90,7 +89,6 @@ The main workbench cards are:
 | **Intake Sources** | Upload PDFs, paste source text, add optional context, generate or regenerate drafts. |
 | **Apply / Review Draft** | Open advanced JSON, validate the draft, merge it, or apply it as the identity. |
 | **Proposed Vectors** | Accept, edit, or reject AI-proposed search vectors from a draft. |
-| **Skill Enrichment** | Jump into the skill-depth wizard when current skills still need enrichment. |
 | **Inspection Panels** | Audit bullet confidence and draft summaries without interrupting the main flow. |
 
 ---
@@ -246,7 +244,7 @@ current identity model.
 
 Open it from:
 
-- the import workbench banner when pending skills exist
+- the **Skills** section of the Identity Map
 - `/identity/enrich`
 - `/identity/enrich/$groupId/$skillName` for a specific skill
 
@@ -320,11 +318,11 @@ hosted app.
 
 ## Summary
 
-Identity starts on the Map, imports through `/identity/import`, and enriches
-skills through `/identity/enrich`. Build the richest source model first, apply it
-as the current identity, enrich skills where useful, then send it to Build and
-let downstream workspaces mirror the canonical identity instead of reinventing
-candidate facts.
+Identity starts on the Map, imports through `/identity/import`, and deepens
+skills from the Map's Skills section through `/identity/enrich`. Generate a
+draft from source material first, apply it as the current identity, refine the
+durable model on the Map, then send it to Build and let downstream workspaces
+mirror the canonical identity instead of reinventing candidate facts.
 
 ## Next Steps
 

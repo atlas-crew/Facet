@@ -212,10 +212,21 @@ export function IdentityMapPage() {
             {identity?.identity?.name ?? 'No identity yet'}
           </h1>
           {identity ? (
-            <p className="label-tracked identity-map-contact">
-              {identity.identity.location} · {identity.identity.remote ? 'Remote' : 'On-site'} ·{' '}
-              {identity.identity.email}
-            </p>
+            <>
+              <p className="label-tracked identity-map-contact">
+                {identity.identity.location} · {identity.identity.remote ? 'Remote' : 'On-site'} ·{' '}
+                {identity.identity.email}
+              </p>
+              <section className="identity-map-guide" aria-labelledby="identity-map-guide-title">
+                <p className="label-tracked identity-map-guide-eyebrow">How to use this map</p>
+                <h2 id="identity-map-guide-title">Edit the durable identity here.</h2>
+                <p className="chapter-copy">
+                  Import turns source material into a draft. Once it is applied, refine the model on
+                  this Map: edit evidence in Roles, tune positioning in Search Strategy, and use each
+                  band for the durable edits that belong to that slice.
+                </p>
+              </section>
+            </>
           ) : (
             <div className="identity-map-empty-cta">
               <p className="chapter-copy">

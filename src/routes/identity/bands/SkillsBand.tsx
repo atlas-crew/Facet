@@ -1,22 +1,34 @@
+import { useMemo } from 'react'
+import { useNavigate } from '@tanstack/react-router'
 import { useIdentityStore } from '../../../store/identityStore'
 import { skillsFillStrength } from '../../../utils/identityFillStrength'
 import {
   displaySkillGroupLabel,
+  getIdentityEnrichmentProgress,
   isGenericSkillGroupLabel,
   skillNamesMatch,
 } from '../../../utils/identityEnrichment'
 import { IdentityBand } from '../IdentityBand'
+import { resolveIdentityEnrichmentNavTarget } from '../identityNavigation'
 
 export function SkillsBand() {
   const identity = useIdentityStore((s) => s.currentIdentity)
   const selection = useIdentityStore((s) => s.mapSelection)
   const setSelection = useIdentityStore((s) => s.setMapSelection)
+  const navigate = useNavigate()
   const fill = skillsFillStrength(identity)
   const groups = identity?.skills?.groups ?? []
+  const enrichmentProgress = useMemo(
+    () => (identity ? getIdentityEnrichmentProgress(identity) : null),
+    [identity],
+  )
 
   const allItems = groups.flatMap((g) => g.items.map((item) => ({ groupId: g.id, item })))
   const isDuplicate = (name: string): boolean =>
     allItems.filter((entry) => skillNamesMatch(entry.item.name, name)).length > 1
+  const handleOpenSkillEnrichment = () => {
+    void navigate(resolveIdentityEnrichmentNavTarget(identity))
+  }
 
   return (
     <IdentityBand layer="skills" name="Skills" subtitle="taxonomy" fill={fill}>
@@ -24,6 +36,42 @@ export function SkillsBand() {
         <p className="chapter-copy band-empty">No skill groups yet.</p>
       ) : (
         <div className="skills-shell">
+          {enrichmentProgress && enrichmentProgress.total > 0 ? (
+            <section
+              className="skills-enrichment-panel"
+              aria-labelledby="skills-enrichment-title"
+            >
+              <div>
+                <h3
+                  id="skills-enrichment-title"
+                  className="label-tracked skills-enrichment-eyebrow"
+                >
+                  Skill depth
+                </h3>
+                <p className="chapter-copy skills-enrichment-copy">
+                  Deepen skills here so downstream work knows what to lean on, shave down, or avoid.
+                </p>
+              </div>
+              <div className="skills-enrichment-meta">
+                <span className="label-tracked">
+                  <strong>{enrichmentProgress.pending}</strong> pending
+                </span>
+                <span className="label-tracked">
+                  <strong>{enrichmentProgress.complete}</strong> complete
+                </span>
+                <span className="label-tracked">
+                  <strong>{enrichmentProgress.skipped}</strong> skipped
+                </span>
+              </div>
+              <button
+                type="button"
+                className="inspector-btn primary skills-enrichment-action"
+                onClick={handleOpenSkillEnrichment}
+              >
+                {enrichmentProgress.pending > 0 ? 'Deepen skills' : 'Review skill depth'}
+              </button>
+            </section>
+          ) : null}
           {groups.map((group) => {
             const isProblematic = isGenericSkillGroupLabel(group.label)
             const displayLabel = displaySkillGroupLabel(group.label)

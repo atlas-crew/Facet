@@ -109,6 +109,116 @@ describe('Identity Map — match-rule add/remove', () => {
     ).toBe(true)
   })
 
+  it('explains the map as the editing surface and routes skill deepening from Skills', () => {
+    seed((id) => {
+      id.skills.groups[0]!.items = [
+        {
+          name: 'Kubernetes',
+          tags: ['platform', 'kubernetes'],
+          depth: 'strong',
+          context: 'Used for customer-hosted deployments.',
+          positioning: 'Platform modernization and Kubernetes operations.',
+        },
+        {
+          name: 'Terraform',
+          tags: ['platform', 'iac'],
+          skipped_at: '2026-04-08T00:00:00.000Z',
+        },
+        {
+          name: 'TypeScript',
+          tags: ['backend', 'typescript'],
+        },
+      ]
+    })
+
+    render(<IdentityMapPage />)
+
+    expect(screen.getByText('Edit the durable identity here.')).toBeTruthy()
+    expect(
+      screen.getByText(/import turns source material into a draft/i),
+    ).toBeTruthy()
+    expect(screen.getByText(/deepen skills here so downstream work knows/i)).toBeTruthy()
+
+    const panel = screen.getByText('Skill depth').closest('.skills-enrichment-panel') as HTMLElement
+    expect(
+      within(panel).getByText((_, element) => element?.textContent === '1 pending'),
+    ).toBeTruthy()
+    expect(
+      within(panel).getByText((_, element) => element?.textContent === '1 complete'),
+    ).toBeTruthy()
+    expect(
+      within(panel).getByText((_, element) => element?.textContent === '1 skipped'),
+    ).toBeTruthy()
+
+    fireEvent.click(within(panel).getByRole('button', { name: 'Deepen skills' }))
+
+    expect(navigateMock).toHaveBeenCalledWith({
+      to: '/identity/enrich/$groupId/$skillName',
+      params: {
+        groupId: 'platform',
+        skillName: 'TypeScript',
+      },
+    })
+  })
+
+  it('routes skill-depth review to the enrichment overview when no skills are pending', () => {
+    seed((id) => {
+      id.skills.groups[0]!.items = [
+        {
+          name: 'Kubernetes',
+          tags: ['platform', 'kubernetes'],
+          depth: 'strong',
+          context: 'Used for customer-hosted deployments.',
+          positioning: 'Platform modernization and Kubernetes operations.',
+        },
+        {
+          name: 'Terraform',
+          tags: ['platform', 'iac'],
+          skipped_at: '2026-04-08T00:00:00.000Z',
+        },
+      ]
+    })
+
+    render(<IdentityMapPage />)
+
+    const panel = screen.getByText('Skill depth').closest('.skills-enrichment-panel') as HTMLElement
+    expect(within(panel).getByRole('button', { name: 'Review skill depth' })).toBeTruthy()
+    expect(within(panel).queryByRole('button', { name: 'Deepen skills' })).toBeNull()
+
+    fireEvent.click(within(panel).getByRole('button', { name: 'Review skill depth' }))
+
+    expect(navigateMock).toHaveBeenCalledWith({
+      to: '/identity/enrich',
+    })
+  })
+
+  it('does not show skill-depth controls when groups have no skills to enrich', () => {
+    seed((id) => {
+      id.skills.groups[0]!.items = []
+    })
+
+    render(<IdentityMapPage />)
+
+    expect(screen.getByRole('button', { name: 'Platform' })).toBeTruthy()
+    expect(screen.getByText('0 items')).toBeTruthy()
+    expect(screen.queryByText('Skill depth')).toBeNull()
+  })
+
+  it('keeps the map instructions off the empty identity state', () => {
+    resolveStorage().removeItem('facet-identity-workspace')
+    useIdentityStore.setState({
+      currentIdentity: null,
+      draft: null,
+      mapSelection: null,
+    })
+
+    render(<IdentityMapPage />)
+
+    expect(screen.getByText('No identity yet')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Start from a resume' })).toBeTruthy()
+    expect(screen.queryByText('Edit the durable identity here.')).toBeNull()
+  })
+
   it('adds a prioritize rule, opens the inspector in edit mode, persists save', () => {
     seed()
     render(<IdentityMapPage />)

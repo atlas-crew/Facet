@@ -44,10 +44,6 @@ import { parseJsonWithRepair } from '../../utils/jsonParsing'
 import { getSupplementalContextTokenLimitError } from '../../utils/supplementalContextSecurity'
 import { useFocusTrap } from '../../utils/useFocusTrap'
 import {
-  findNextPendingIdentitySkill,
-  getIdentityEnrichmentProgress,
-} from '../../utils/identityEnrichment'
-import {
   buildAudienceReviewSummary,
   buildUnclassifiedAudienceSummary,
   formatAudienceLabel,
@@ -78,7 +74,6 @@ type IdentityPrimaryAction =
   | 'upload'
   | 'generate'
   | 'reviewDraft'
-  | 'continueEnrichment'
   | 'pushToBuild'
 
 const assertNever = (value: never): never => {
@@ -282,15 +277,6 @@ export function IdentityPage() {
       skillGroups: identity.skills.groups.length,
     }
   }, [currentIdentity, draft])
-
-  const enrichmentProgress = useMemo(
-    () => (currentIdentity ? getIdentityEnrichmentProgress(currentIdentity) : null),
-    [currentIdentity],
-  )
-  const nextEnrichmentSkill = useMemo(
-    () => (currentIdentity ? findNextPendingIdentitySkill(currentIdentity) : null),
-    [currentIdentity],
-  )
 
   const scanCompletion = useMemo(() => {
     if (!scanResult) {
@@ -715,22 +701,6 @@ export function IdentityPage() {
     }
   }
 
-  const handleContinueSkillEnrichment = () => {
-    void navigate(
-      nextEnrichmentSkill
-        ? {
-            to: '/identity/enrich/$groupId/$skillName',
-            params: {
-              groupId: nextEnrichmentSkill.groupId,
-              skillName: nextEnrichmentSkill.skillName,
-            },
-          }
-        : {
-            to: '/identity/enrich',
-          },
-    )
-  }
-
   const handleDrop = async (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault()
     event.stopPropagation()
@@ -1121,19 +1091,11 @@ export function IdentityPage() {
     }
 
     if (currentIdentity) {
-      const pending = enrichmentProgress?.pending ?? 0
-      if (pending > 0) {
-        return {
-          action: 'continueEnrichment',
-          label: 'Continue Skill Enrichment',
-          status: `${pending} skill${pending === 1 ? '' : 's'} still need enrichment before the model is fully shaped.`,
-        }
-      }
-
       return {
         action: 'pushToBuild',
         label: 'Send to Build',
-        status: 'Current identity is ready to use in Build or as the basis for search strategy.',
+        status:
+          'Current identity is applied. Continue editing on the Identity Map, or send it to Build.',
       }
     }
 
@@ -1153,7 +1115,6 @@ export function IdentityPage() {
   }, [
     currentIdentity,
     draft,
-    enrichmentProgress?.pending,
     hasSourceMaterial,
     isGenerating,
     isScanning,
@@ -1202,9 +1163,6 @@ export function IdentityPage() {
   }, [currentIdentity, draft, isGenerating])
   const handlePrimaryAction = () => {
     switch (primaryAction) {
-      case 'continueEnrichment':
-        handleContinueSkillEnrichment()
-        break
       case 'generate':
         void requestGenerate('fresh')
         break
@@ -1329,12 +1287,11 @@ export function IdentityPage() {
         >
           <div className="identity-onboarding-guide-copy">
             <p className="identity-eyebrow">First pass</p>
-            <h2 id="identity-import-guide-title">Build the richest source of truth first.</h2>
+            <h2 id="identity-import-guide-title">Turn source material into a draft.</h2>
             <p>
-              Upload a resume, review the scan, then use <strong>Deepen all bullets</strong>.
-              Deepening expands compressed resume bullets into problem, action, outcome, metrics,
-              tools, and evidence. That gives Facet more to work with when it later trims everything
-              down to the strongest version for a specific role.
+              Upload resumes and supporting notes, let Facet extract the useful structure, then
+              generate a draft identity. After you apply it, the Identity Map becomes the place to
+              deepen skills, edit evidence, and shape positioning.
             </p>
           </div>
           <ol className="identity-onboarding-steps">
@@ -1343,12 +1300,12 @@ export function IdentityPage() {
               <span>Start with a resume, then add notes or AI exports if they fill gaps.</span>
             </li>
             <li>
-              <strong>Deepen the scan</strong>
-              <span>Use the bulk action after upload so every bullet has richer evidence.</span>
+              <strong>Generate the draft</strong>
+              <span>Use the extraction run to turn source material into a reviewable model.</span>
             </li>
             <li>
-              <strong>Generate and apply</strong>
-              <span>Review the draft before it becomes your durable identity model.</span>
+              <strong>Apply, then refine on the Map</strong>
+              <span>Keep durable editing out of intake so the source model stays easy to inspect.</span>
             </li>
           </ol>
         </section>
@@ -1381,43 +1338,6 @@ export function IdentityPage() {
             onReject={handleRejectProposedVector}
             onEdit={handleEditProposedVector}
           />
-
-          {currentIdentity && enrichmentProgress && enrichmentProgress.total > 0 ? (
-            <section className="identity-card identity-enrichment-banner">
-              <div className="identity-card-header">
-                <div>
-                  <h2>Skill Enrichment</h2>
-                  <p>
-                    Pending {enrichmentProgress.pending} · Complete {enrichmentProgress.complete} ·
-                    Skipped {enrichmentProgress.skipped}
-                  </p>
-                  <p className="identity-muted">
-                    Open the skill depth wizard to review depth, context, and search signals one
-                    skill at a time.
-                  </p>
-                </div>
-
-                <div className="identity-card-actions">
-                  <button
-                    className="identity-btn identity-btn-primary"
-                    type="button"
-                    onClick={handleContinueSkillEnrichment}
-                  >
-                    Open Skill Depth Wizard
-                  </button>
-                  {enrichmentProgress.pending === 0 ? (
-                    <button
-                      className="identity-btn"
-                      type="button"
-                      onClick={() => void navigate({ to: '/identity/enrich' })}
-                    >
-                      Review Enriched Skills
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-            </section>
-          ) : null}
 
           {audienceReviewItems.length > 0 ? (
             <section className="identity-card identity-audience-review">

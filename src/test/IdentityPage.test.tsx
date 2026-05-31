@@ -2457,7 +2457,7 @@ describe('IdentityPage', () => {
     expect(revokeObjectUrlMock).toHaveBeenCalledWith('blob:identity-export')
   })
 
-  it('shows the enrichment banner counts and CTA when an identity model exists', () => {
+  it('keeps skill enrichment work on the map when an identity model exists', () => {
     const currentIdentity = cloneIdentityFixture()
     currentIdentity.skills.groups[0]!.items = [
       {
@@ -2483,32 +2483,21 @@ describe('IdentityPage', () => {
 
     render(<IdentityPage />)
 
+    expect(screen.queryByText('Skill Enrichment')).toBeNull()
     expect(
-      screen.getAllByRole('button', { name: 'Open Skill Depth Wizard' }).length,
-    ).toBeGreaterThan(0)
-    expect(screen.getByText('Skill Enrichment')).toBeTruthy()
-    expect(screen.getByText(/Pending 1/i)).toBeTruthy()
-    expect(screen.getByText(/Complete 1/i)).toBeTruthy()
-    expect(screen.getByText(/Skipped 1/i)).toBeTruthy()
+      screen.queryByRole('button', { name: 'Open Skill Depth Wizard' }),
+    ).toBeNull()
     expect(
-      screen.getByText(/Open the skill depth wizard to review depth, context, and search signals/i),
-    ).toBeTruthy()
-
-    fireEvent.click(
       within(screen.getByRole('banner')).getByRole('button', {
-        name: 'Continue Skill Enrichment',
+        name: 'Send to Build',
       }),
-    )
-
-    expect(navigateMock).toHaveBeenCalledWith({
-      to: '/identity/enrich/$groupId/$skillName',
-      params: expect.objectContaining({
-        skillName: 'TypeScript',
-      }),
-    })
+    ).toBeTruthy()
+    expect(
+      screen.getByText(/continue editing on the identity map, or send it to build/i),
+    ).toBeTruthy()
   })
 
-  it('keeps the skill depth wizard entry visible when a draft exists alongside the current identity', () => {
+  it('keeps the import page focused on draft generation when a draft exists alongside the current identity', () => {
     const currentIdentity = cloneIdentityFixture()
     currentIdentity.skills.groups[0].items = [
       {
@@ -2531,9 +2520,13 @@ describe('IdentityPage', () => {
 
     render(<IdentityPage />)
 
-    expect(screen.getByText('Build the richest source of truth first.')).toBeTruthy()
-    expect(screen.getByText('Skill Enrichment')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Open Skill Depth Wizard' })).toBeTruthy()
+    expect(screen.getByText('Turn source material into a draft.')).toBeTruthy()
+    expect(screen.getByText('Generate the draft')).toBeTruthy()
+    expect(screen.getByText('Apply, then refine on the Map')).toBeTruthy()
+    expect(screen.queryByText('Skill Enrichment')).toBeNull()
+    expect(
+      screen.queryByRole('button', { name: 'Open Skill Depth Wizard' }),
+    ).toBeNull()
   })
 
   it('uses a wider workbench layout and keeps the model builder compact before a draft exists', () => {
@@ -2557,9 +2550,12 @@ describe('IdentityPage', () => {
         /start here by turning your resume and source notes into a rich identity model/i,
       ),
     ).toBeTruthy()
-    expect(screen.getByText('Build the richest source of truth first.')).toBeTruthy()
-    expect(screen.getByText('Deepen the scan')).toBeTruthy()
-    expect(screen.getByText(/use the bulk action after upload/i)).toBeTruthy()
+    expect(screen.getByText('Turn source material into a draft.')).toBeTruthy()
+    expect(screen.getByText('Generate the draft')).toBeTruthy()
+    expect(screen.getByText('Apply, then refine on the Map')).toBeTruthy()
+    expect(
+      screen.getByText(/upload resumes and supporting notes, let facet extract/i),
+    ).toBeTruthy()
     expect(container.querySelector('.identity-grid.identity-grid-workbench')).toBeTruthy()
     expect(container.querySelector('.identity-inspection-region')).toBeTruthy()
     const openButton = screen.getByRole('button', {
@@ -2586,8 +2582,8 @@ describe('IdentityPage', () => {
 
     render(<IdentityPage />)
 
-    expect(screen.queryByText('Build the richest source of truth first.')).toBeNull()
-    expect(screen.queryByText('Deepen the scan')).toBeNull()
+    expect(screen.queryByText('Turn source material into a draft.')).toBeNull()
+    expect(screen.queryByText('Generate the draft')).toBeNull()
   })
 
   it('shows first-pass import guidance for established identities with active source material', () => {
@@ -2598,8 +2594,8 @@ describe('IdentityPage', () => {
 
     render(<IdentityPage />)
 
-    expect(screen.getByText('Build the richest source of truth first.')).toBeTruthy()
-    expect(screen.getByText('Deepen the scan')).toBeTruthy()
+    expect(screen.getByText('Turn source material into a draft.')).toBeTruthy()
+    expect(screen.getByText('Generate the draft')).toBeTruthy()
   })
 
   it('opens the json editor from the compact builder state', () => {
