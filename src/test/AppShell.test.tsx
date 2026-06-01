@@ -392,18 +392,18 @@ describe('AppShell hosted workspace bootstrap', () => {
 
     render(<AppShell />)
 
-    const lightButton = screen.getByRole('button', { name: 'Theme: light' })
+    const lightButton = screen.getByRole('button', { name: 'Theme: Light' })
     fireEvent.click(lightButton)
     expect(useUiStore.getState().appearance).toBe('dark')
-    expect(screen.getByRole('button', { name: 'Theme: dark' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Theme: Dark' })).toBeTruthy()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Theme: dark' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Theme: Dark' }))
     expect(useUiStore.getState().appearance).toBe('system')
-    expect(screen.getByRole('button', { name: 'Theme: system' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Theme: System' })).toBeTruthy()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Theme: system' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Theme: System' }))
     expect(useUiStore.getState().appearance).toBe('light')
-    expect(screen.getByRole('button', { name: 'Theme: light' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Theme: Light' })).toBeTruthy()
   })
 
   it('follows system color-scheme changes when appearance is system', () => {
@@ -524,7 +524,7 @@ describe('AppShell hosted workspace bootstrap', () => {
     expect(screen.getByRole('link', { name: /facet home/i }).getAttribute('href')).toBe('/')
   })
 
-  it('renders docs, account, and sync controls in the topbar', () => {
+  it('renders docs, account, theme, and sync controls in the shell chrome', () => {
     setHostedStore({})
     setPersistenceHydration(true, 'ws-1')
     runtimeMocks.replacePersistenceRuntime.mockResolvedValue({
@@ -541,6 +541,7 @@ describe('AppShell hosted workspace bootstrap', () => {
 
     expect(screen.getByRole('link', { name: /help and docs/i }).getAttribute('href')).toBe('/help')
     expect(screen.getByRole('link', { name: /account/i }).getAttribute('href')).toBe('/account')
+    expect(screen.getByRole('button', { name: 'Theme: Light' })).toBeTruthy()
     expect(document.querySelector('.app-footer-sync')?.textContent).toContain('Ready')
   })
 
@@ -692,7 +693,8 @@ describe('AppShell hosted workspace bootstrap', () => {
 
     render(<AppShell />)
 
-    expect(screen.getByText(/Pro · \d+d \+ pass/)).toBeTruthy()
+    expect(screen.queryByText(/Pro · \d+d \+ pass/)).toBeNull()
+    expect(screen.getByRole('link', { name: /Account: Pro · \d+d \+ pass/ })).toBeTruthy()
   })
 
   it('does not warn for expiring active access when a queued pass exists', () => {
@@ -728,8 +730,8 @@ describe('AppShell hosted workspace bootstrap', () => {
 
       render(<AppShell />)
 
-      expect(screen.getByText('Pro · 2d + pass')).toBeTruthy()
-      const accountLink = screen.getByRole('link', { name: 'Account' })
+      expect(screen.queryByText('Pro · 2d + pass')).toBeNull()
+      const accountLink = screen.getByRole('link', { name: 'Account: Pro · 2d + pass' })
       expect(accountLink.className).not.toContain('app-topbar-link-danger')
       expect(accountLink.className).not.toContain('app-topbar-link-warning')
     } finally {
@@ -767,8 +769,8 @@ describe('AppShell hosted workspace bootstrap', () => {
 
     render(<AppShell />)
 
-    expect(screen.getByText('Pro ready')).toBeTruthy()
-    const accountLink = screen.getByRole('link', { name: 'Account' })
+    expect(screen.queryByText('Pro ready')).toBeNull()
+    const accountLink = screen.getByRole('link', { name: 'Account: Pro ready' })
     expect(accountLink).toBeTruthy()
     expect(accountLink.className).not.toContain('app-topbar-link-danger')
   })
@@ -803,8 +805,8 @@ describe('AppShell hosted workspace bootstrap', () => {
 
     const { rerender } = render(<AppShell />)
 
-    expect(screen.getByText('Expired')).toBeTruthy()
-    expect(screen.getByRole('link', { name: 'Account' }).className).toContain(
+    expect(screen.queryByText('Expired')).toBeNull()
+    expect(screen.getByRole('link', { name: 'Account: Expired' }).className).toContain(
       'app-topbar-link-danger',
     )
 
@@ -831,8 +833,8 @@ describe('AppShell hosted workspace bootstrap', () => {
     })
     rerender(<AppShell />)
 
-    expect(screen.getByText('Billing issue')).toBeTruthy()
-    expect(screen.getByRole('link', { name: 'Account' }).className).toContain(
+    expect(screen.queryByText('Billing issue')).toBeNull()
+    expect(screen.getByRole('link', { name: 'Account: Billing issue' }).className).toContain(
       'app-topbar-link-danger',
     )
   })

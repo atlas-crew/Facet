@@ -349,6 +349,9 @@ export function AppShell() {
     if (accountDaysLeft !== null && accountDaysLeft <= 14) return 'app-topbar-link-warning'
     return ''
   }, [hostedApp.deploymentMode, entitlement, accountDaysLeft, hasPendingPass])
+  const accountControlLabel = accountLabel === 'Account' ? 'Account' : `Account: ${accountLabel}`
+  const appearanceLabel =
+    appearance === 'system' ? 'System' : appearance === 'light' ? 'Light' : 'Dark'
 
   const [workspaceDialogOpen, setWorkspaceDialogOpen] = useState(false)
   const [hostedRuntimePhase, setHostedRuntimePhase] = useState<
@@ -994,19 +997,18 @@ export function AppShell() {
             </Link>
             <Link
               to="/account"
-              className={`app-topbar-link ${accountTone} ${isRouteActive(currentPath, '/account') ? 'active' : ''}`}
-              aria-label="Account"
-              title="Account and AI access"
+              className={`app-topbar-icon-link ${accountTone} ${isRouteActive(currentPath, '/account') ? 'active' : ''}`}
+              aria-label={accountControlLabel}
+              title={accountControlLabel}
             >
               <CircleUserRound size={16} strokeWidth={1.75} />
-              <span>{accountLabel}</span>
             </Link>
             <button
               className="app-topbar-theme-toggle"
               type="button"
               onClick={cycleAppearance}
-              aria-label={`Theme: ${appearance}`}
-              title={`Theme: ${appearance}`}
+              aria-label={`Theme: ${appearanceLabel}`}
+              title={`Theme: ${appearanceLabel}`}
             >
               {appearance === 'dark' ? (
                 <Moon size={18} strokeWidth={1.5} />
@@ -1015,9 +1017,6 @@ export function AppShell() {
               ) : (
                 <Monitor size={18} strokeWidth={1.5} />
               )}
-              <span>
-                {appearance === 'system' ? 'System' : appearance === 'light' ? 'Light' : 'Dark'}
-              </span>
             </button>
           </div>
         </header>
