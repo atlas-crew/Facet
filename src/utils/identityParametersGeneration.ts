@@ -21,6 +21,11 @@ export interface ProfessionalStrategicInference {
   open_questions: ProfessionalOpenQuestion[]
 }
 
+export interface ProfessionalStrategicInferenceOptions {
+  mode?: 'fill' | 'regenerate'
+  signal?: AbortSignal
+}
+
 const normalizeStringArray = (value: unknown): string[] =>
   Array.isArray(value)
     ? value
@@ -170,7 +175,13 @@ const normalizeGeneratedStrategy = (payload: unknown): ProfessionalStrategicInfe
 export async function generateStrategicPositioningFromIdentity(
   identity: ProfessionalIdentityV3,
   endpoint: string,
+  options: ProfessionalStrategicInferenceOptions = {},
 ): Promise<ProfessionalStrategicInference> {
+  const moatInstruction =
+    options.mode === 'regenerate'
+      ? 'If competitive_moat already exists, you may return a sharper replacement when evidence supports it. Do not preserve weak existing copy just because it exists.'
+      : 'If competitive_moat already exists, do not return a replacement. Use the existing moat as strategy context and sharpen unfair_advantages, search_vectors, and open_questions around it.'
+
   const systemPrompt = `You are a senior career strategist for staff-plus engineering candidates. Return JSON only.
 Reason across the full identity model before producing fields. The goal is one coherent market strategy, not independent field filling.
 
@@ -182,7 +193,7 @@ Strategic reasoning requirements:
 - Prefer precise, searchable lanes that map to target roles and company signals.
 - Include evidence strings for every proposed vector and open question.
 - Do not repeat existing search vectors, unfair advantages, or awareness items unless the supplied identity supports a stronger, more actionable framing.
-- If competitive_moat already exists, do not return a replacement. Use the existing moat as strategy context and sharpen unfair_advantages, search_vectors, and open_questions around it.
+- ${moatInstruction}
 
 Response schema:
 {
@@ -221,6 +232,7 @@ Response schema:
     feature: 'research.profile-inference',
     model: GENERATION_MODEL,
     timeoutMs: RESEARCH_PROFILE_INFERENCE_TIMEOUT_MS,
+    signal: options.signal,
   })
 
   try {

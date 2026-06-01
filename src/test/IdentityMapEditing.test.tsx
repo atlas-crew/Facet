@@ -112,6 +112,220 @@ describe('Identity Map — match-rule add/remove', () => {
     ).toBe(true)
   })
 
+  it('refreshes strategic positioning into a reviewed draft before applying sections', async () => {
+    seed((id) => {
+      id.self_model.competitive_moat = 'Existing authored moat.'
+      id.self_model.unfair_advantages = ['Existing advantage']
+      id.search_vectors = []
+      id.awareness = { open_questions: [] }
+    })
+    identityParameterMocks.generateStrategicPositioningFromIdentityMock.mockResolvedValueOnce({
+      competitive_moat:
+        'Sharper platform moat grounded in deployment architecture and product judgment.',
+      unfair_advantages: ['Platform infrastructure depth plus product judgment'],
+      search_vectors: [
+        {
+          id: 'generated-platform',
+          title: 'Platform Strategy',
+          priority: 'high',
+          thesis: 'Lead platform roles where deployment architecture shapes market access.',
+          target_roles: ['Staff Platform Engineer'],
+          keywords: { primary: ['platform strategy'], secondary: ['deployment architecture'] },
+          evidence: ['Contoso platform migration'],
+          needs_review: true,
+        },
+      ],
+      open_questions: [
+        {
+          id: 'generated-question',
+          topic: 'Customer deployment proof',
+          description: 'Clarify the strongest customer deployment proof.',
+          action: 'Add one adoption example.',
+          severity: 'medium',
+          evidence: ['Contoso platform migration'],
+          needs_review: true,
+        },
+      ],
+    })
+
+    render(<IdentityMapPage />)
+    fireEvent.click(screen.getByRole('button', { name: /^refresh positioning$/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Review the generated positioning before applying it.')).toBeTruthy()
+    })
+    expect(identityParameterMocks.generateStrategicPositioningFromIdentityMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        identity: expect.objectContaining({ name: 'Alex Example' }),
+      }),
+      'https://ai.example/proxy',
+      expect.objectContaining({ mode: 'regenerate' }),
+    )
+    expect(screen.getByLabelText('Generated positioning draft')).toBeTruthy()
+    expect(useIdentityStore.getState().currentIdentity?.self_model.competitive_moat).toBe(
+      'Existing authored moat.',
+    )
+    expect(useIdentityStore.getState().currentIdentity?.search_vectors).toEqual([])
+    expect(useIdentityStore.getState().currentIdentity?.awareness?.open_questions).toEqual([])
+
+    fireEvent.click(screen.getByRole('button', { name: /^replace moat$/i }))
+    expect(useIdentityStore.getState().currentIdentity?.self_model.competitive_moat).toBe(
+      'Sharper platform moat grounded in deployment architecture and product judgment.',
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /^add advantages$/i }))
+    expect(useIdentityStore.getState().currentIdentity?.self_model.unfair_advantages).toEqual([
+      'Existing advantage',
+      'Platform infrastructure depth plus product judgment',
+    ])
+
+    fireEvent.click(screen.getByRole('button', { name: /^add vectors$/i }))
+    const vectors = useIdentityStore.getState().currentIdentity?.search_vectors ?? []
+    expect(vectors).toHaveLength(1)
+    expect(vectors[0]).toMatchObject({
+      title: 'Platform Strategy',
+      needs_review: true,
+    })
+    expect(vectors[0]?.id).not.toBe('generated-platform')
+
+    fireEvent.click(screen.getByRole('button', { name: /^add questions$/i }))
+    const questions = useIdentityStore.getState().currentIdentity?.awareness?.open_questions ?? []
+    expect(questions).toHaveLength(1)
+    expect(questions[0]).toMatchObject({
+      topic: 'Customer deployment proof',
+      needs_review: true,
+    })
+    expect(questions[0]?.id).not.toBe('generated-question')
+  })
+
+  it('shows a configuration error when refreshing positioning has no AI proxy', async () => {
+    seed()
+    facetEnvMock.facetClientEnv.anthropicProxyUrl = ''
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    render(<IdentityMapPage />)
+    fireEvent.click(screen.getByRole('button', { name: /^refresh positioning$/i }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Connect the AI proxy before refreshing positioning.'),
+      ).toBeTruthy()
+    })
+    expect(consoleErrorSpy).not.toHaveBeenCalled()
+    consoleErrorSpy.mockRestore()
+    expect(identityParameterMocks.generateStrategicPositioningFromIdentityMock).not.toHaveBeenCalled()
+  })
+
+  it('shows an error and preserves identity when refreshing positioning fails', async () => {
+    seed((id) => {
+      id.self_model.competitive_moat = 'Existing authored moat.'
+      id.self_model.unfair_advantages = ['Existing advantage']
+      id.search_vectors = []
+      id.awareness = { open_questions: [] }
+    })
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    identityParameterMocks.generateStrategicPositioningFromIdentityMock.mockRejectedValueOnce(
+      new Error('proxy timeout'),
+    )
+
+    render(<IdentityMapPage />)
+    fireEvent.click(screen.getByRole('button', { name: /^refresh positioning$/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Unable to refresh positioning.')).toBeTruthy()
+    })
+    expect(consoleErrorSpy).toHaveBeenCalled()
+    consoleErrorSpy.mockRestore()
+    const identity = useIdentityStore.getState().currentIdentity!
+    expect(identity.self_model.competitive_moat).toBe('Existing authored moat.')
+    expect(identity.self_model.unfair_advantages).toEqual(['Existing advantage'])
+    expect(identity.search_vectors).toEqual([])
+    expect(identity.awareness?.open_questions).toEqual([])
+    expect(screen.queryByLabelText('Generated positioning draft')).toBeNull()
+  })
+
+  it('discards a positioning draft if identity changes during refresh', async () => {
+    seed((id) => {
+      id.search_vectors = []
+      id.awareness = { open_questions: [] }
+    })
+    const deferred =
+      createDeferred<
+        Awaited<ReturnType<typeof identityParameterMocks.generateStrategicPositioningFromIdentityMock>>
+      >()
+    identityParameterMocks.generateStrategicPositioningFromIdentityMock.mockReturnValueOnce(
+      deferred.promise,
+    )
+
+    render(<IdentityMapPage />)
+    fireEvent.click(screen.getByRole('button', { name: /^refresh positioning$/i }))
+
+    const nextIdentity = useIdentityStore.getState().currentIdentity!
+    useIdentityStore.setState({
+      currentIdentity: {
+        ...nextIdentity,
+        model_revision: nextIdentity.model_revision + 1,
+      },
+    })
+
+    await act(async () => {
+      deferred.resolve({
+        competitive_moat: 'Generated moat.',
+        unfair_advantages: ['Generated advantage'],
+        search_vectors: [],
+        open_questions: [],
+      })
+      await deferred.promise
+    })
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Identity changed during generation; discarded the positioning draft.'),
+      ).toBeTruthy()
+    })
+    expect(screen.queryByLabelText('Generated positioning draft')).toBeNull()
+    expect(useIdentityStore.getState().currentIdentity?.self_model.competitive_moat).not.toBe(
+      'Generated moat.',
+    )
+  })
+
+  it('refuses to apply a positioning draft after identity changes', async () => {
+    seed((id) => {
+      id.self_model.competitive_moat = 'Existing authored moat.'
+      id.search_vectors = []
+      id.awareness = { open_questions: [] }
+    })
+    identityParameterMocks.generateStrategicPositioningFromIdentityMock.mockResolvedValueOnce({
+      competitive_moat: 'Generated replacement moat.',
+      unfair_advantages: [],
+      search_vectors: [],
+      open_questions: [],
+    })
+
+    render(<IdentityMapPage />)
+    fireEvent.click(screen.getByRole('button', { name: /^refresh positioning$/i }))
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Generated positioning draft')).toBeTruthy()
+    })
+    const currentIdentity = useIdentityStore.getState().currentIdentity!
+    currentIdentity.model_revision += 1
+    useIdentityStore.setState({ currentIdentity })
+    fireEvent.click(screen.getByRole('button', { name: /^replace moat$/i }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          'Identity changed since this draft was generated; discarded the positioning draft.',
+        ),
+      ).toBeTruthy()
+    })
+    expect(useIdentityStore.getState().currentIdentity?.self_model.competitive_moat).toBe(
+      'Existing authored moat.',
+    )
+    expect(screen.queryByLabelText('Generated positioning draft')).toBeNull()
+  })
+
   it('explains the map as the editing surface and routes skill deepening from Skills', () => {
     seed((id) => {
       id.skills.groups[0]!.items = [

@@ -1,12 +1,38 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Sparkles } from 'lucide-react'
 import type { ProfessionalIdentityArcEntry } from '../../../identity/schema'
 import { useIdentityStore } from '../../../store/identityStore'
+import { facetClientEnv } from '../../../utils/facetEnv'
 import { selfModelFillStrength } from '../../../utils/identityFillStrength'
+import {
+  generateStrategicPositioningFromIdentity,
+  type ProfessionalStrategicInference,
+} from '../../../utils/identityParametersGeneration'
+import { sanitizeEndpointUrl } from '../../../utils/urlUtils'
 import { IdentityBand } from '../IdentityBand'
+import {
+  computePositioningDraftApplication,
+  formatPositioningApplyMessage,
+  getPositioningGenerationKey,
+  getResidualPositioningDraft,
+  hasPositioningDraftSections,
+  type PositioningDraftApplySections,
+} from '../positioningDraft'
 
 interface ArcStop extends ProfessionalIdentityArcEntry {
   id: string
 }
+
+type PositioningGenerationMessage = {
+  id: number
+  tone: 'info' | 'error'
+  text: string
+  autoDismiss: boolean
+}
+
+class PositioningGenerationConfigError extends Error {}
+
+const POSITIONING_MESSAGE_DISMISS_MS = 8000
 
 /**
  * Build arc stops from persisted `self_model.arc[]` only. We deliberately do
@@ -25,7 +51,17 @@ export function SelfModelBand() {
   const setSelection = useIdentityStore((s) => s.setMapSelection)
   const updateCompetitiveMoat = useIdentityStore((s) => s.updateCurrentCompetitiveMoat)
   const updateUnfairAdvantages = useIdentityStore((s) => s.updateCurrentUnfairAdvantages)
+  const updateVectors = useIdentityStore((s) => s.updateCurrentSearchVectors)
+  const updateQuestions = useIdentityStore((s) => s.updateCurrentAwarenessQuestions)
   const fill = selfModelFillStrength(identity)
+  const identityGenerationKey = useMemo(
+    () => (identity ? getPositioningGenerationKey(identity) : null),
+    [identity],
+  )
+  const positioningGenerationRef = useRef(false)
+  const positioningMessageIdRef = useRef(0)
+  const positioningAbortRef = useRef<AbortController | null>(null)
+  const mountedRef = useRef(true)
 
   const self = identity?.self_model
   const arc = useMemo(() => buildArcStops(self?.arc ?? []), [self?.arc])
@@ -38,9 +74,64 @@ export function SelfModelBand() {
   // canonical identity values change (e.g., after import or reset).
   const [moatDraft, setMoatDraft] = useState(moat)
   const [newAdvantage, setNewAdvantage] = useState('')
+  const [positioningDraft, setPositioningDraft] =
+    useState<ProfessionalStrategicInference | null>(null)
+  const [positioningDraftKey, setPositioningDraftKey] = useState<string | null>(null)
+  const [generatingPositioning, setGeneratingPositioning] = useState(false)
+  const [positioningMessage, setPositioningMessage] =
+    useState<PositioningGenerationMessage | null>(null)
   useEffect(() => {
     setMoatDraft(moat)
   }, [moat])
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      positioningAbortRef.current?.abort()
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!positioningMessage?.autoDismiss) return undefined
+
+    const messageId = positioningMessage.id
+    const timeoutId = window.setTimeout(() => {
+      setPositioningMessage((current) => (current?.id === messageId ? null : current))
+    }, POSITIONING_MESSAGE_DISMISS_MS)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [positioningMessage])
+
+  useEffect(() => {
+    if (!positioningDraftKey) return
+    if (identityGenerationKey === positioningDraftKey) return
+
+    setPositioningDraft(null)
+    setPositioningDraftKey(null)
+    setPositioningMessage(null)
+  }, [identityGenerationKey, positioningDraftKey])
+
+  const showPositioningMessage = (message: Omit<PositioningGenerationMessage, 'id'>) => {
+    positioningMessageIdRef.current += 1
+    setPositioningMessage({ ...message, id: positioningMessageIdRef.current })
+  }
+
+  const ensurePositioningEndpoint = () => {
+    const aiEndpoint = sanitizeEndpointUrl(facetClientEnv.anthropicProxyUrl)
+    if (!aiEndpoint) {
+      throw new PositioningGenerationConfigError(
+        'Connect the AI proxy before refreshing positioning.',
+      )
+    }
+    return aiEndpoint
+  }
+
+  const dismissPositioningDraft = () => {
+    setPositioningDraft(null)
+    setPositioningDraftKey(null)
+    setPositioningMessage(null)
+  }
 
   const commitMoat = () => {
     if (moatDraft !== moat) updateCompetitiveMoat(moatDraft)
@@ -53,6 +144,147 @@ export function SelfModelBand() {
   }
   const handleRemoveAdvantage = (index: number) => {
     updateUnfairAdvantages(advantages.filter((_, i) => i !== index))
+  }
+
+  const handleRefreshPositioning = async () => {
+    if (!identity || positioningGenerationRef.current) return
+
+    try {
+      if (moatDraft !== moat) {
+        updateCompetitiveMoat(moatDraft)
+      }
+      const currentIdentity = useIdentityStore.getState().currentIdentity
+      if (!currentIdentity) return
+
+      positioningGenerationRef.current = true
+      positioningAbortRef.current?.abort()
+      const abortController = new AbortController()
+      positioningAbortRef.current = abortController
+      const endpoint = ensurePositioningEndpoint()
+      const generationKey = getPositioningGenerationKey(currentIdentity)
+      setGeneratingPositioning(true)
+      setPositioningDraft(null)
+      setPositioningDraftKey(null)
+      showPositioningMessage({
+        tone: 'info',
+        text: 'Generating a reviewed positioning draft...',
+        autoDismiss: false,
+      })
+
+      const generated = await generateStrategicPositioningFromIdentity(currentIdentity, endpoint, {
+        mode: 'regenerate',
+        signal: abortController.signal,
+      })
+      if (abortController.signal.aborted || !mountedRef.current) return
+      const latestIdentity = useIdentityStore.getState().currentIdentity
+      if (!latestIdentity || getPositioningGenerationKey(latestIdentity) !== generationKey) {
+        showPositioningMessage({
+          tone: 'info',
+          text: 'Identity changed during generation; discarded the positioning draft.',
+          autoDismiss: true,
+        })
+        return
+      }
+
+      setPositioningDraft(generated)
+      setPositioningDraftKey(generationKey)
+      const hasDraftSections = hasPositioningDraftSections(generated)
+      showPositioningMessage({
+        tone: 'info',
+        text: hasDraftSections
+          ? 'Review the generated positioning before applying it.'
+          : 'The generated draft did not return new positioning sections.',
+        autoDismiss: !hasDraftSections,
+      })
+    } catch (error) {
+      const isAbortError =
+        (error instanceof DOMException && error.name === 'AbortError') ||
+        (error instanceof Error && error.name === 'AbortError')
+      if (isAbortError) {
+        return
+      }
+      const message = error instanceof Error ? error.message : ''
+      const isConfigError = error instanceof PositioningGenerationConfigError
+      if (!isConfigError) {
+        console.error(error)
+      }
+      showPositioningMessage({
+        tone: 'error',
+        text: isConfigError ? message : 'Unable to refresh positioning.',
+        autoDismiss: false,
+      })
+    } finally {
+      if (mountedRef.current) {
+        positioningAbortRef.current = null
+        positioningGenerationRef.current = false
+        setGeneratingPositioning(false)
+      }
+    }
+  }
+
+  const applyDraftSections = (sections: PositioningDraftApplySections) => {
+    if (!positioningDraft) return
+    // The draft is the rendered review snapshot; identity is read live so apply
+    // operations respect edits made while the draft was open.
+    const latestIdentity = useIdentityStore.getState().currentIdentity
+    if (!latestIdentity) return
+    if (
+      positioningDraftKey &&
+      getPositioningGenerationKey(latestIdentity) !== positioningDraftKey
+    ) {
+      setPositioningDraft(null)
+      setPositioningDraftKey(null)
+      showPositioningMessage({
+        tone: 'info',
+        text: 'Identity changed since this draft was generated; discarded the positioning draft.',
+        autoDismiss: true,
+      })
+      return
+    }
+    const application = computePositioningDraftApplication({
+      draft: positioningDraft,
+      identity: latestIdentity,
+      sections,
+    })
+
+    if (application.shouldReplaceMoat) {
+      updateCompetitiveMoat(application.draftMoat)
+    }
+    if (application.nextAdvantages.length > 0) {
+      updateUnfairAdvantages([
+        ...application.existingAdvantages,
+        ...application.nextAdvantages,
+      ])
+    }
+    if (application.nextVectors.length > 0) {
+      updateVectors([...application.existingVectors, ...application.nextVectors])
+    }
+    if (application.nextQuestions.length > 0) {
+      updateQuestions([...application.existingQuestions, ...application.nextQuestions])
+    }
+
+    showPositioningMessage({
+      tone: 'info',
+      text: formatPositioningApplyMessage({
+        replacedMoat: application.shouldReplaceMoat,
+        advantageCount: application.nextAdvantages.length,
+        vectorCount: application.nextVectors.length,
+        questionCount: application.nextQuestions.length,
+      }),
+      autoDismiss: true,
+    })
+
+    const nextDraft = getResidualPositioningDraft(positioningDraft, {
+      moat: sections.moat,
+      advantages: sections.advantages,
+      vectors: sections.vectors,
+      questions: sections.questions,
+    })
+    setPositioningDraft(nextDraft)
+    const updatedIdentity = useIdentityStore.getState().currentIdentity
+    setPositioningDraftKey(
+      nextDraft && updatedIdentity ? getPositioningGenerationKey(updatedIdentity) : null,
+    )
   }
 
   return (
@@ -140,7 +372,123 @@ export function SelfModelBand() {
         </div>
 
         <div className="self-positioning">
-          <div className="arc-label label-tracked">Strategic Positioning</div>
+          <div className="self-positioning-header">
+            <div className="arc-label label-tracked">Strategic Positioning</div>
+            <button
+              type="button"
+              className="inspector-btn self-positioning-refresh"
+              onClick={handleRefreshPositioning}
+              disabled={!identity || generatingPositioning}
+              aria-busy={generatingPositioning}
+            >
+              <Sparkles size={14} aria-hidden="true" />
+              {generatingPositioning ? 'Refreshing...' : 'Refresh positioning'}
+            </button>
+          </div>
+          <div className="strategy-generation-stack self-positioning-status">
+            {/* Keep both live regions mounted so polite and assertive updates are stable. */}
+            <PositioningGenerationStatus message={positioningMessage} tone="info" />
+            <PositioningGenerationStatus message={positioningMessage} tone="error" />
+          </div>
+          {positioningDraft && hasPositioningDraftSections(positioningDraft) ? (
+            <div
+              className="self-strategy-draft"
+              role="region"
+              aria-label="Generated positioning draft"
+            >
+              <div className="self-strategy-draft-header">
+                <div>
+                  <div className="self-positioning-label label-tracked">
+                    Review Generated Positioning
+                  </div>
+                  <p className="chapter-copy">
+                    Apply only the sections that feel stronger than the current identity.
+                  </p>
+                </div>
+                <div className="self-strategy-draft-actions">
+                  <button
+                    type="button"
+                    className="inspector-btn primary"
+                    onClick={() =>
+                      applyDraftSections({
+                        moat: true,
+                        advantages: true,
+                        vectors: true,
+                        questions: true,
+                      })
+                    }
+                  >
+                    Apply all draft
+                  </button>
+                  <button
+                    type="button"
+                    className="inspector-btn"
+                    onClick={dismissPositioningDraft}
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+
+              {positioningDraft.competitive_moat?.trim() ? (
+                <DraftSection
+                  label="Proposed competitive moat"
+                  action="Replace moat"
+                  onApply={() => applyDraftSections({ moat: true })}
+                >
+                  <p>{positioningDraft.competitive_moat.trim()}</p>
+                </DraftSection>
+              ) : null}
+
+              {positioningDraft.unfair_advantages.length > 0 ? (
+                <DraftSection
+                  label={`Unfair advantages (${positioningDraft.unfair_advantages.length})`}
+                  action="Add advantages"
+                  onApply={() => applyDraftSections({ advantages: true })}
+                >
+                  <ul>
+                    {positioningDraft.unfair_advantages.map((advantage, index) => (
+                      <li key={`${index}-${advantage}`}>{advantage}</li>
+                    ))}
+                  </ul>
+                </DraftSection>
+              ) : null}
+
+              {positioningDraft.search_vectors.length > 0 ? (
+                <DraftSection
+                  label={`Search vectors (${positioningDraft.search_vectors.length})`}
+                  action="Add vectors"
+                  onApply={() => applyDraftSections({ vectors: true })}
+                >
+                  <ul>
+                    {positioningDraft.search_vectors.map((vector, index) => (
+                      <li key={`${index}-${vector.title}`}>
+                        <strong>{vector.title}</strong>
+                        <span>{vector.thesis}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </DraftSection>
+              ) : null}
+
+              {positioningDraft.open_questions.length > 0 ? (
+                <DraftSection
+                  label={`Open questions (${positioningDraft.open_questions.length})`}
+                  action="Add questions"
+                  onApply={() => applyDraftSections({ questions: true })}
+                >
+                  <ul>
+                    {positioningDraft.open_questions.map((question, index) => (
+                      <li key={`${index}-${question.topic}`}>
+                        <strong>{question.topic}</strong>
+                        <span>{question.action}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </DraftSection>
+              ) : null}
+            </div>
+          ) : null}
           <div className="self-positioning-block">
             <div className="self-positioning-label label-tracked">Competitive Moat</div>
             <textarea
@@ -209,6 +557,53 @@ export function SelfModelBand() {
         </div>
       </div>
     </IdentityBand>
+  )
+}
+
+function PositioningGenerationStatus({
+  message,
+  tone,
+}: {
+  message: PositioningGenerationMessage | null
+  tone: PositioningGenerationMessage['tone']
+}) {
+  const hasMessage = message?.tone === tone
+  const ariaLive = tone === 'info' ? 'polite' : 'assertive'
+  const role = tone === 'info' ? 'status' : 'alert'
+
+  return (
+    <div
+      className={`strategy-generation-message ${tone} ${hasMessage ? '' : 'empty'}`}
+      role={role}
+      aria-live={ariaLive}
+      aria-atomic="true"
+    >
+      {hasMessage ? message.text : ''}
+    </div>
+  )
+}
+
+function DraftSection({
+  label,
+  action,
+  onApply,
+  children,
+}: {
+  label: string
+  action: string
+  onApply: () => void
+  children: ReactNode
+}) {
+  return (
+    <section className="self-strategy-draft-section" aria-label={label}>
+      <div className="self-strategy-draft-section-header">
+        <div className="self-positioning-label label-tracked">{label}</div>
+        <button type="button" className="inspector-btn" onClick={onApply}>
+          {action}
+        </button>
+      </div>
+      <div className="self-strategy-draft-content">{children}</div>
+    </section>
   )
 }
 
