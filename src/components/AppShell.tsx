@@ -626,6 +626,14 @@ export function AppShell() {
     await getPersistenceRuntime().flush()
   }
 
+  const handleClearWorkspace = async () => {
+    const selectedHostedWorkspaceId =
+      hostedApp.deploymentMode === 'hosted'
+        ? (hostedApp.selectedWorkspaceId ?? undefined)
+        : undefined
+    await getPersistenceRuntime().clearWorkspace(selectedHostedWorkspaceId)
+  }
+
   const handleLoadDemoWorkspace = import.meta.env.DEV
     ? async () => {
         const { loadGoldenDemoWorkspace } = await import('../dev/goldenDemoWorkspace')
@@ -1041,32 +1049,36 @@ export function AppShell() {
         </footer>
       </div>
 
-      {hostedApp.deploymentMode === 'hosted' ? (
-        <HostedWorkspaceDialog
-          open={workspaceDialogOpen}
-          email={hostedApp.context?.actor.email ?? null}
-          entitlement={hostedApp.context?.entitlement ?? null}
-          workspaces={hostedApp.workspaces}
-          selectedWorkspaceId={hostedApp.selectedWorkspaceId}
-          localMigrationAvailable={hostedApp.localMigrationSnapshot !== null}
-          mutationState={hostedApp.mutationState}
-          lastError={hostedApp.lastError}
-          onClose={() => setWorkspaceDialogOpen(false)}
-          onRefresh={() => useHostedAppStore.getState().refresh()}
-          onSelectWorkspace={handleSelectHostedWorkspace}
-          onCreateWorkspace={handleCreateHostedWorkspace}
-          onRenameWorkspace={handleRenameHostedWorkspace}
-          onDeleteWorkspace={handleDeleteHostedWorkspace}
-        />
-      ) : (
-        <LocalWorkspaceDialog
-          open={workspaceDialogOpen}
-          status={persistenceState.status}
-          onClose={() => setWorkspaceDialogOpen(false)}
-          onSaveNow={handleSaveLocalWorkspaceNow}
-          onLoadDemoWorkspace={handleLoadDemoWorkspace}
-        />
-      )}
+      {workspaceDialogOpen ? (
+        hostedApp.deploymentMode === 'hosted' ? (
+          <HostedWorkspaceDialog
+            open
+            email={hostedApp.context?.actor.email ?? null}
+            entitlement={hostedApp.context?.entitlement ?? null}
+            workspaces={hostedApp.workspaces}
+            selectedWorkspaceId={hostedApp.selectedWorkspaceId}
+            localMigrationAvailable={hostedApp.localMigrationSnapshot !== null}
+            mutationState={hostedApp.mutationState}
+            lastError={hostedApp.lastError}
+            onClose={() => setWorkspaceDialogOpen(false)}
+            onRefresh={() => useHostedAppStore.getState().refresh()}
+            onSelectWorkspace={handleSelectHostedWorkspace}
+            onCreateWorkspace={handleCreateHostedWorkspace}
+            onRenameWorkspace={handleRenameHostedWorkspace}
+            onDeleteWorkspace={handleDeleteHostedWorkspace}
+            onClearCurrentWorkspace={handleClearWorkspace}
+          />
+        ) : (
+          <LocalWorkspaceDialog
+            open
+            status={persistenceState.status}
+            onClose={() => setWorkspaceDialogOpen(false)}
+            onSaveNow={handleSaveLocalWorkspaceNow}
+            onClearWorkspace={handleClearWorkspace}
+            onLoadDemoWorkspace={handleLoadDemoWorkspace}
+          />
+        )
+      ) : null}
       {crossTabIdentityToast ? (
         <div
           className="toast info"

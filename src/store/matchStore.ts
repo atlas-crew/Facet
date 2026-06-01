@@ -18,6 +18,20 @@ interface MatchState {
   clearReport: () => void
 }
 
+type MatchWorkspaceState = Pick<
+  MatchState,
+  'jobDescription' | 'currentJDAnalysis' | 'currentAnalysis' | 'currentReport' | 'warnings' | 'history'
+>
+
+export const createInitialMatchWorkspaceState = (): MatchWorkspaceState => ({
+  jobDescription: '',
+  currentJDAnalysis: null,
+  currentAnalysis: null,
+  currentReport: null,
+  warnings: [],
+  history: [],
+})
+
 const appendHistory = (
   history: MatchHistoryEntry[],
   entry: MatchHistoryEntry,
@@ -69,12 +83,7 @@ export const migrateMatchWorkspaceState = (
 export const useMatchStore = create<MatchState>()(
   persist(
     (set) => ({
-      jobDescription: '',
-      currentJDAnalysis: null,
-      currentAnalysis: null,
-      currentReport: null,
-      warnings: [],
-      history: [],
+      ...createInitialMatchWorkspaceState(),
       setJobDescription: (value) => set({ jobDescription: value }),
       setResults: (analysis, report, jdAnalysis = null) =>
         set((state) => ({

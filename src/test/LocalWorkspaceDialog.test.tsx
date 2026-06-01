@@ -135,6 +135,7 @@ describe('LocalWorkspaceDialog', () => {
         })}
         onClose={() => {}}
         onSaveNow={() => savePromise}
+        onClearWorkspace={() => {}}
         onLoadDemoWorkspace={onLoadDemoWorkspace}
       />,
     )
@@ -147,6 +148,9 @@ describe('LocalWorkspaceDialog', () => {
     expect(
       screen.getByRole('button', { name: /load demo workspace/i }).getAttribute('aria-disabled'),
     ).toBe('true')
+    expect(screen.getByRole('button', { name: /clear workspace/i }).hasAttribute('disabled')).toBe(
+      true,
+    )
     fireEvent.click(screen.getByRole('button', { name: /load demo workspace/i }))
     expect(onLoadDemoWorkspace).not.toHaveBeenCalled()
 
@@ -158,6 +162,50 @@ describe('LocalWorkspaceDialog', () => {
     expect(screen.getByRole('button', { name: /save now/i }).getAttribute('aria-disabled')).toBe(
       'false',
     )
+  })
+
+  it('confirms and clears local workspace data', async () => {
+    const onClearWorkspace = vi.fn().mockResolvedValue(undefined)
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+
+    render(
+      <LocalWorkspaceDialog
+        open
+        status={buildStatus()}
+        onClose={() => {}}
+        onSaveNow={() => {}}
+        onClearWorkspace={onClearWorkspace}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /clear workspace/i }))
+
+    await waitFor(() => {
+      expect(onClearWorkspace).toHaveBeenCalledTimes(1)
+    })
+    expect(screen.getByText(/workspace data cleared/i)).toBeTruthy()
+  })
+
+  it('does not clear local workspace data when confirmation is cancelled', async () => {
+    const onClearWorkspace = vi.fn()
+    vi.spyOn(window, 'confirm').mockReturnValue(false)
+
+    render(
+      <LocalWorkspaceDialog
+        open
+        status={buildStatus()}
+        onClose={() => {}}
+        onSaveNow={() => {}}
+        onClearWorkspace={onClearWorkspace}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /clear workspace/i }))
+
+    expect(screen.getByRole('button', { name: /clear workspace/i }).hasAttribute('disabled')).toBe(
+      false,
+    )
+    expect(onClearWorkspace).not.toHaveBeenCalled()
   })
 
   it('calls onClose and hides demo loading when no demo handler is provided', () => {

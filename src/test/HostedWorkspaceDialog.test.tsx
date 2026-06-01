@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { HostedWorkspaceDialog } from '../components/HostedWorkspaceDialog'
 
 describe('HostedWorkspaceDialog', () => {
@@ -10,11 +10,14 @@ describe('HostedWorkspaceDialog', () => {
     vi.restoreAllMocks()
   })
 
-  it('renders workspace management actions and routes create/import callbacks', () => {
+  it('renders workspace management actions and routes create/import callbacks', async () => {
     const onCreateWorkspace = vi.fn()
     const onSelectWorkspace = vi.fn()
     const onRenameWorkspace = vi.fn()
     const onDeleteWorkspace = vi.fn()
+    const onClearCurrentWorkspace = vi.fn()
+    const onRefresh = vi.fn()
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
 
     render(
       <HostedWorkspaceDialog
@@ -44,11 +47,12 @@ describe('HostedWorkspaceDialog', () => {
         mutationState={null}
         lastError={null}
         onClose={() => {}}
-        onRefresh={() => {}}
+        onRefresh={onRefresh}
         onSelectWorkspace={onSelectWorkspace}
         onCreateWorkspace={onCreateWorkspace}
         onRenameWorkspace={onRenameWorkspace}
         onDeleteWorkspace={onDeleteWorkspace}
+        onClearCurrentWorkspace={onClearCurrentWorkspace}
       />,
     )
 
@@ -72,6 +76,12 @@ describe('HostedWorkspaceDialog', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete Side Workspace' }))
     expect(onDeleteWorkspace).toHaveBeenCalledWith('ws-2')
+
+    fireEvent.click(screen.getByRole('button', { name: /clear current workspace/i }))
+    expect(onClearCurrentWorkspace).toHaveBeenCalledTimes(1)
+    await waitFor(() => {
+      expect(onRefresh).toHaveBeenCalledTimes(1)
+    })
   })
 
   it('shows the empty hosted onboarding state when no workspaces exist', () => {
@@ -91,11 +101,191 @@ describe('HostedWorkspaceDialog', () => {
         onCreateWorkspace={() => {}}
         onRenameWorkspace={() => {}}
         onDeleteWorkspace={() => {}}
+        onClearCurrentWorkspace={() => {}}
       />,
     )
 
     expect(screen.getByText(/no hosted workspaces yet/i)).toBeTruthy()
     expect(screen.getByRole('alert').textContent).toContain('Hosted account needs setup.')
+  })
+
+  it('does not clear the hosted workspace when confirmation is cancelled', () => {
+    const onClearCurrentWorkspace = vi.fn()
+    vi.spyOn(window, 'confirm').mockReturnValue(false)
+
+    render(
+      <HostedWorkspaceDialog
+        open
+        email="member@example.com"
+        entitlement={null}
+        workspaces={[
+          {
+            workspaceId: 'ws-1',
+            name: 'Primary Workspace',
+            revision: 2,
+            updatedAt: '2026-03-14T12:00:00.000Z',
+            role: 'owner',
+            isDefault: true,
+          },
+        ]}
+        selectedWorkspaceId="ws-1"
+        localMigrationAvailable={false}
+        mutationState={null}
+        lastError={null}
+        onClose={() => {}}
+        onRefresh={() => {}}
+        onSelectWorkspace={() => {}}
+        onCreateWorkspace={() => {}}
+        onRenameWorkspace={() => {}}
+        onDeleteWorkspace={() => {}}
+        onClearCurrentWorkspace={onClearCurrentWorkspace}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /clear current workspace/i }))
+
+    expect(onClearCurrentWorkspace).not.toHaveBeenCalled()
+  })
+
+  it('shows a hosted workspace clear error when the clear action fails', async () => {
+    const onClearCurrentWorkspace = vi.fn().mockRejectedValue(new Error('Remote clear failed.'))
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+
+    render(
+      <HostedWorkspaceDialog
+        open
+        email="member@example.com"
+        entitlement={null}
+        workspaces={[
+          {
+            workspaceId: 'ws-1',
+            name: 'Primary Workspace',
+            revision: 2,
+            updatedAt: '2026-03-14T12:00:00.000Z',
+            role: 'owner',
+            isDefault: true,
+          },
+        ]}
+        selectedWorkspaceId="ws-1"
+        localMigrationAvailable={false}
+        mutationState={null}
+        lastError={null}
+        onClose={() => {}}
+        onRefresh={() => {}}
+        onSelectWorkspace={() => {}}
+        onCreateWorkspace={() => {}}
+        onRenameWorkspace={() => {}}
+        onDeleteWorkspace={() => {}}
+        onClearCurrentWorkspace={onClearCurrentWorkspace}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /clear current workspace/i }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert').textContent).toContain('Remote clear failed.')
+    })
+  })
+
+  it('disables hosted workspace actions while clear is in flight', async () => {
+    let resolveClear: () => void = () => {}
+    const onClearCurrentWorkspace = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveClear = resolve
+        }),
+    )
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+
+    render(
+      <HostedWorkspaceDialog
+        open
+        email="member@example.com"
+        entitlement={null}
+        workspaces={[
+          {
+            workspaceId: 'ws-1',
+            name: 'Primary Workspace',
+            revision: 2,
+            updatedAt: '2026-03-14T12:00:00.000Z',
+            role: 'owner',
+            isDefault: true,
+          },
+        ]}
+        selectedWorkspaceId="ws-1"
+        localMigrationAvailable={false}
+        mutationState={null}
+        lastError={null}
+        onClose={() => {}}
+        onRefresh={() => {}}
+        onSelectWorkspace={() => {}}
+        onCreateWorkspace={() => {}}
+        onRenameWorkspace={() => {}}
+        onDeleteWorkspace={() => {}}
+        onClearCurrentWorkspace={onClearCurrentWorkspace}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /clear current workspace/i }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /clearing/i }).hasAttribute('disabled')).toBe(true)
+    })
+    expect(screen.getByRole('button', { name: /refresh/i }).hasAttribute('disabled')).toBe(true)
+    expect(
+      screen.getByRole('button', { name: /create empty workspace/i }).hasAttribute('disabled'),
+    ).toBe(true)
+    expect(screen.getByRole('button', { name: 'Open' }).hasAttribute('disabled')).toBe(true)
+
+    resolveClear()
+    await waitFor(() => {
+      expect(screen.getByText(/current workspace data cleared/i)).toBeTruthy()
+    })
+  })
+
+  it('resets hosted clear feedback when another workspace action starts', async () => {
+    const onClearCurrentWorkspace = vi.fn().mockResolvedValue(undefined)
+    const onRefresh = vi.fn()
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+
+    render(
+      <HostedWorkspaceDialog
+        open
+        email="member@example.com"
+        entitlement={null}
+        workspaces={[
+          {
+            workspaceId: 'ws-1',
+            name: 'Primary Workspace',
+            revision: 2,
+            updatedAt: '2026-03-14T12:00:00.000Z',
+            role: 'owner',
+            isDefault: true,
+          },
+        ]}
+        selectedWorkspaceId="ws-1"
+        localMigrationAvailable={false}
+        mutationState={null}
+        lastError={null}
+        onClose={() => {}}
+        onRefresh={onRefresh}
+        onSelectWorkspace={() => {}}
+        onCreateWorkspace={() => {}}
+        onRenameWorkspace={() => {}}
+        onDeleteWorkspace={() => {}}
+        onClearCurrentWorkspace={onClearCurrentWorkspace}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /clear current workspace/i }))
+    await waitFor(() => {
+      expect(screen.getByText(/current workspace data cleared/i)).toBeTruthy()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /refresh/i }))
+
+    expect(screen.queryByText(/current workspace data cleared/i)).toBeNull()
+    expect(onRefresh).toHaveBeenCalled()
   })
 
   it('supports refresh and close controls while hiding import when no local migration is available', () => {
@@ -127,6 +317,7 @@ describe('HostedWorkspaceDialog', () => {
         onCreateWorkspace={() => {}}
         onRenameWorkspace={() => {}}
         onDeleteWorkspace={() => {}}
+        onClearCurrentWorkspace={() => {}}
       />,
     )
 
@@ -165,6 +356,7 @@ describe('HostedWorkspaceDialog', () => {
         onCreateWorkspace={() => {}}
         onRenameWorkspace={() => {}}
         onDeleteWorkspace={() => {}}
+        onClearCurrentWorkspace={() => {}}
       />,
     )
 
@@ -180,6 +372,9 @@ describe('HostedWorkspaceDialog', () => {
     ).toBe(true)
     expect(
       screen.getByRole('button', { name: 'Delete Primary Workspace' }).hasAttribute('disabled'),
+    ).toBe(true)
+    expect(
+      screen.getByRole('button', { name: /clear current workspace/i }).hasAttribute('disabled'),
     ).toBe(true)
   })
 })

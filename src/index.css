@@ -3915,7 +3915,8 @@ select.component-input {
   justify-content: flex-end;
 }
 
-.hosted-workspace-create {
+.hosted-workspace-create,
+.workspace-dialog-section {
   display: grid;
   gap: var(--space-3);
   padding: var(--space-4);
@@ -3928,6 +3929,26 @@ select.component-input {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
+}
+
+.workspace-danger-zone {
+  border-color: color-mix(in srgb, var(--status-critical) 24%, var(--border-subtle));
+}
+
+.workspace-danger-zone h4,
+.workspace-danger-zone p {
+  margin: 0;
+}
+
+.workspace-danger-zone h4 {
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+}
+
+.workspace-danger-zone p {
+  color: var(--text-secondary);
+  font-size: var(--text-2xs);
+  line-height: 1.5;
 }
 
 .hosted-workspace-dialog-error {

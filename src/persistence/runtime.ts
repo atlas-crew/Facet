@@ -4,13 +4,18 @@ import { useDebriefStore } from '../store/debriefStore'
 import { IDENTITY_STORE_STORAGE_KEY, useIdentityStore } from '../store/identityStore'
 import { useJDAnalysisStore } from '../store/jdAnalysisStore'
 import { useLinkedInStore } from '../store/linkedinStore'
+import { createInitialMatchWorkspaceState, useMatchStore } from '../store/matchStore'
 import { usePipelineStore } from '../store/pipelineStore'
 import { usePrepStore } from '../store/prepStore'
 import { useRecruiterStore } from '../store/recruiterStore'
 import { useResumeStore } from '../store/resumeStore'
 import { useSearchStore } from '../store/searchStore'
 import { useUiStore } from '../store/uiStore'
-import { DEFAULT_LOCAL_WORKSPACE_ID, DEFAULT_LOCAL_WORKSPACE_NAME } from './contracts'
+import {
+  DEFAULT_LOCAL_WORKSPACE_ID,
+  DEFAULT_LOCAL_WORKSPACE_NAME,
+  FACET_ARTIFACT_TYPES,
+} from './contracts'
 import {
   createPersistenceCoordinator,
   type PersistenceBackend,
@@ -32,6 +37,8 @@ import {
   type LocalPreferencesBackend,
 } from './localPreferences'
 import {
+  createClearedLocalPreferencesSnapshotFromStores,
+  createEmptyWorkspaceSnapshot,
   createLocalPreferencesSnapshotFromStores,
   createWorkspaceSnapshotFromStores,
 } from './snapshot'
@@ -93,7 +100,12 @@ export interface PersistenceRuntime {
     snapshot: FacetWorkspaceSnapshot,
     options?: PersistenceImportOptions,
   ) => Promise<FacetWorkspaceSnapshot>
+  clearWorkspace: (expectedWorkspaceId?: string) => Promise<FacetWorkspaceSnapshot>
   dispose: () => void
+}
+
+const clearMatchWorkspaceState = () => {
+  useMatchStore.setState(createInitialMatchWorkspaceState())
 }
 
 const createDefaultLocalPreferencesBackend = (): LocalPreferencesBackend => {
@@ -472,6 +484,67 @@ export const createPersistenceRuntime = (
         await localPreferencesBackend.saveLocalPreferencesSnapshot(
           createLocalPreferencesSnapshotFromStores(workspaceId),
         )
+        if (disposed) {
+          return savedSnapshot
+        }
+        notifyWorkspaceSync()
+        syncRuntimeState({
+          hydrated: true,
+          usingLegacyMigration: false,
+          status: coordinator.getStatus(),
+        })
+        return savedSnapshot
+      } finally {
+        suppressSaves = false
+      }
+    },
+
+    clearWorkspace: async (expectedWorkspaceId?: string) => {
+      if (expectedWorkspaceId && expectedWorkspaceId !== workspaceId) {
+        throw new Error('Workspace sync is still switching. Reopen this workspace before clearing it.')
+      }
+      clearSaveTimer()
+      await (starting ?? (started ? Promise.resolve() : runtime.start()))
+
+      suppressSaves = true
+      try {
+        if (activePersistenceWrite) {
+          await activePersistenceWrite.catch(() => undefined)
+        }
+        const currentSnapshot = await coordinator.loadWorkspace(workspaceId)
+        const snapshot = createEmptyWorkspaceSnapshot({
+          workspaceId,
+          workspaceName,
+        })
+        if (currentSnapshot) {
+          snapshot.workspace.revision = currentSnapshot.workspace.revision + 1
+          for (const artifactType of FACET_ARTIFACT_TYPES) {
+            const emptyArtifact = snapshot.artifacts[artifactType]
+            const currentArtifact = currentSnapshot.artifacts[artifactType]
+            if (!emptyArtifact) {
+              throw new Error(`Workspace snapshot is missing artifacts.${artifactType}.`)
+            }
+            emptyArtifact.revision = (currentArtifact?.revision ?? 0) + 1
+          }
+        }
+        if (disposed) {
+          return snapshot
+        }
+
+        const localPreferencesSnapshot = createClearedLocalPreferencesSnapshotFromStores(workspaceId)
+        await localPreferencesBackend.saveLocalPreferencesSnapshot(localPreferencesSnapshot)
+        if (disposed) {
+          return snapshot
+        }
+
+        const savedSnapshot = await coordinator.importWorkspaceSnapshot(snapshot, {
+          mode: 'replace',
+        })
+        if (disposed) {
+          return savedSnapshot
+        }
+        applyWorkspaceSnapshotToStores(savedSnapshot)
+        clearMatchWorkspaceState()
         if (disposed) {
           return savedSnapshot
         }

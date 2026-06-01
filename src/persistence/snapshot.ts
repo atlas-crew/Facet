@@ -5,7 +5,7 @@ import { useLinkedInStore } from '../store/linkedinStore'
 import { usePipelineStore } from '../store/pipelineStore'
 import { usePrepStore } from '../store/prepStore'
 import { useRecruiterStore } from '../store/recruiterStore'
-import { useResumeStore } from '../store/resumeStore'
+import { normalizeResumeWorkspaceData, useResumeStore } from '../store/resumeStore'
 import { useSearchStore } from '../store/searchStore'
 import { useUiStore } from '../store/uiStore'
 import type { SearchProfile } from '../types/search'
@@ -346,6 +346,57 @@ export const createWorkspaceSnapshotFromStores = (
   }
 }
 
+export const createEmptyWorkspaceSnapshot = (
+  request: PersistenceSnapshotRequest = {},
+): FacetWorkspaceSnapshot => {
+  const exportedAt = request.exportedAt ?? new Date().toISOString()
+  const workspaceId = request.workspaceId ?? DEFAULT_LOCAL_WORKSPACE_ID
+  const workspaceName = request.workspaceName ?? DEFAULT_LOCAL_WORKSPACE_NAME
+  const emptyResumeWorkspace = normalizeResumeWorkspaceData(undefined)
+
+  return {
+    snapshotVersion: FACET_WORKSPACE_SNAPSHOT_VERSION,
+    tenantId: request.tenantId ?? null,
+    userId: request.userId ?? null,
+    workspace: {
+      id: workspaceId,
+      name: workspaceName,
+      revision: 0,
+      updatedAt: exportedAt,
+    },
+    artifacts: {
+      resume: buildArtifactSnapshot('resume', workspaceId, emptyResumeWorkspace, exportedAt),
+      pipeline: buildArtifactSnapshot('pipeline', workspaceId, { entries: [] }, exportedAt),
+      jdAnalysis: buildArtifactSnapshot('jdAnalysis', workspaceId, { analyses: [] }, exportedAt),
+      prep: buildArtifactSnapshot('prep', workspaceId, { decks: [] }, exportedAt),
+      coverLetters: buildArtifactSnapshot(
+        'coverLetters',
+        workspaceId,
+        { letters: [], snapshots: [] },
+        exportedAt,
+      ),
+      linkedin: buildArtifactSnapshot('linkedin', workspaceId, { drafts: [] }, exportedAt),
+      recruiter: buildArtifactSnapshot('recruiter', workspaceId, { cards: [] }, exportedAt),
+      debrief: buildArtifactSnapshot('debrief', workspaceId, { sessions: [] }, exportedAt),
+      research: buildArtifactSnapshot(
+        'research',
+        workspaceId,
+        {
+          profile: null,
+          requests: [],
+          runs: [],
+          theses: [],
+          activeThesisId: null,
+          feedbackEvents: [],
+          activeResearchJob: null,
+        },
+        exportedAt,
+      ),
+    },
+    exportedAt,
+  }
+}
+
 export const createLocalPreferencesSnapshotFromStores = (
   workspaceId = DEFAULT_LOCAL_WORKSPACE_ID,
   exportedAt = new Date().toISOString(),
@@ -392,5 +443,35 @@ export const createLocalPreferencesSnapshotFromStores = (
       selectedSessionId: debriefState.selectedSessionId,
     },
     exportedAt,
+  }
+}
+
+export const createClearedLocalPreferencesSnapshotFromStores = (
+  workspaceId = DEFAULT_LOCAL_WORKSPACE_ID,
+  exportedAt = new Date().toISOString(),
+): FacetLocalPreferencesSnapshot => {
+  const snapshot = createLocalPreferencesSnapshotFromStores(workspaceId, exportedAt)
+
+  // Preserve display/layout preferences and sort/mode choices, but drop IDs that
+  // point at workspace artifacts removed by createEmptyWorkspaceSnapshot().
+  // Pipeline preferences are sort-only today; no pipeline entry id is persisted.
+  return {
+    ...snapshot,
+    prep: {
+      ...snapshot.prep,
+      activeDeckId: null,
+    },
+    linkedin: {
+      ...snapshot.linkedin,
+      selectedDraftId: null,
+    },
+    recruiter: {
+      ...snapshot.recruiter,
+      selectedCardId: null,
+    },
+    debrief: {
+      ...snapshot.debrief,
+      selectedSessionId: null,
+    },
   }
 }

@@ -7,6 +7,7 @@ import { useDebriefStore } from '../store/debriefStore'
 import { defaultResumeData } from '../store/defaultData'
 import { IDENTITY_STORE_STORAGE_KEY, useIdentityStore } from '../store/identityStore'
 import { useLinkedInStore } from '../store/linkedinStore'
+import { useMatchStore } from '../store/matchStore'
 import { usePipelineStore } from '../store/pipelineStore'
 import { usePrepStore } from '../store/prepStore'
 import { useRecruiterStore } from '../store/recruiterStore'
@@ -167,6 +168,14 @@ describe('persistence runtime', () => {
       activeThesisId: null,
       feedbackEvents: [],
       activeResearchJob: null,
+    })
+    useMatchStore.setState({
+      jobDescription: '',
+      currentJDAnalysis: null,
+      currentAnalysis: null,
+      currentReport: null,
+      warnings: [],
+      history: [],
     })
     useUiStore.setState({
       selectedVector: 'all',
@@ -1108,6 +1117,134 @@ describe('persistence runtime', () => {
     expect(useResumeStore.getState().data.meta.name).toBe('Imported Person')
     expect(savedSnapshot.workspace.id).toBe('facet-local-workspace')
     expect(savedSnapshot.artifacts.resume.artifactId).toBe('facet-local-workspace:resume')
+
+    runtime.dispose()
+  })
+
+  it('clears durable workspace stores and match state while preserving identity', async () => {
+    const workspaceBackend = createInMemoryPersistenceBackend()
+    const preferencesBackend = createInMemoryLocalPreferencesBackend()
+    const runtime = createPersistenceRuntime({
+      workspaceId: 'ws-1',
+      workspaceName: 'Workspace One',
+      backend: workspaceBackend,
+      localPreferencesBackend: preferencesBackend,
+    })
+    const seededSnapshot = buildWorkspaceSnapshot({
+      workspace: {
+        id: 'ws-1',
+        name: 'Workspace One',
+        revision: 4,
+        updatedAt: '2026-03-14T12:00:00.000Z',
+      },
+    })
+    await workspaceBackend.saveWorkspaceSnapshot(seededSnapshot)
+
+    await runtime.start()
+
+    const identity = cloneIdentityFixture()
+    useIdentityStore.setState({ currentIdentity: identity })
+    useUiStore.setState((state) => ({
+      ...state,
+      appearance: 'dark',
+      panelRatio: 0.62,
+    }))
+    usePipelineStore.setState((state) => ({
+      ...state,
+      sortField: 'company',
+      sortDir: 'desc',
+      entries: buildWorkspaceSnapshot().artifacts.pipeline.payload.entries,
+    }))
+    useSearchStore.setState({
+      profile: { id: 'old-profile' } as never,
+      requests: [],
+      runs: [],
+      theses: [],
+      activeThesisId: null,
+      feedbackEvents: [],
+      activeResearchJob: null,
+    })
+    usePrepStore.setState((state) => ({
+      ...state,
+      activeDeckId: 'deck-1',
+      activeMode: 'homework',
+    }))
+    useLinkedInStore.setState((state) => ({
+      ...state,
+      selectedDraftId: 'linkedin-1',
+    }))
+    useRecruiterStore.setState((state) => ({
+      ...state,
+      selectedCardId: 'recruiter-1',
+    }))
+    useDebriefStore.setState((state) => ({
+      ...state,
+      selectedSessionId: 'debrief-1',
+    }))
+    useMatchStore.setState({
+      jobDescription: 'Legacy workspace JD',
+      currentReport: { company: 'Old Co' } as never,
+      warnings: [{ text: 'Old warning' }] as never,
+      history: [{ id: 'old-history' }] as never,
+    })
+
+    const cleared = await runtime.clearWorkspace()
+
+    expect(cleared.workspace.id).toBe('ws-1')
+    expect(cleared.workspace.revision).toBe(5)
+    expect(cleared.artifacts.pipeline.revision).toBe(
+      seededSnapshot.artifacts.pipeline.revision + 1,
+    )
+    expect(useIdentityStore.getState().currentIdentity?.identity.name).toBe(
+      identity.identity.name,
+    )
+    expect(usePipelineStore.getState().entries).toEqual([])
+    expect(useSearchStore.getState().profile).toBeNull()
+    expect(useMatchStore.getState()).toMatchObject({
+      jobDescription: '',
+      currentJDAnalysis: null,
+      currentAnalysis: null,
+      currentReport: null,
+      warnings: [],
+      history: [],
+    })
+    expect(useResumeStore.getState().resumes).toHaveLength(1)
+
+    const persisted = await workspaceBackend.loadWorkspaceSnapshot('ws-1')
+    expect(persisted?.workspace.revision).toBe(5)
+    expect(persisted?.artifacts.pipeline.payload.entries).toEqual([])
+    expect(persisted?.artifacts.research.payload.profile).toBeNull()
+    const savedPreferences = await preferencesBackend.loadLocalPreferencesSnapshot('ws-1')
+    expect(savedPreferences?.ui.appearance).toBe('dark')
+    expect(savedPreferences?.ui.panelRatio).toBe(0.62)
+    expect(savedPreferences?.pipeline.sortField).toBe('company')
+    expect(savedPreferences?.pipeline.sortDir).toBe('desc')
+    expect(savedPreferences?.prep.activeDeckId).toBeNull()
+    expect(savedPreferences?.prep.activeMode).toBe('homework')
+    expect(savedPreferences?.linkedin.selectedDraftId).toBeNull()
+    expect(savedPreferences?.recruiter.selectedCardId).toBeNull()
+    expect(savedPreferences?.debrief.selectedSessionId).toBeNull()
+
+    runtime.dispose()
+  })
+
+  it('rejects workspace clear when the expected workspace does not match runtime scope', async () => {
+    const workspaceBackend = createInMemoryPersistenceBackend()
+    const runtime = createPersistenceRuntime({
+      workspaceId: 'ws-1',
+      workspaceName: 'Workspace One',
+      backend: workspaceBackend,
+      localPreferencesBackend: createInMemoryLocalPreferencesBackend(),
+    })
+
+    await runtime.start()
+
+    await expect(runtime.clearWorkspace('ws-2')).rejects.toThrow(
+      'Workspace sync is still switching',
+    )
+
+    const persisted = await workspaceBackend.loadWorkspaceSnapshot('ws-1')
+    expect(persisted).toBeNull()
 
     runtime.dispose()
   })

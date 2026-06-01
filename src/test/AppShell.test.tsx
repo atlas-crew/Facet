@@ -24,6 +24,7 @@ const runtimeMocks = vi.hoisted(() => ({
   captureLocalWorkspaceSnapshotForMigration: vi.fn(),
   getPersistenceRuntimeStart: vi.fn(),
   getPersistenceRuntimeFlush: vi.fn(),
+  getPersistenceRuntimeClearWorkspace: vi.fn(),
   replacePersistenceRuntime: vi.fn(),
   loadGoldenDemoWorkspace: vi.fn(),
 }))
@@ -61,6 +62,7 @@ vi.mock('../persistence/runtime', async () => {
     getPersistenceRuntime: () => ({
       start: runtimeMocks.getPersistenceRuntimeStart,
       flush: runtimeMocks.getPersistenceRuntimeFlush,
+      clearWorkspace: runtimeMocks.getPersistenceRuntimeClearWorkspace,
     }),
     replacePersistenceRuntime: runtimeMocks.replacePersistenceRuntime,
   }
@@ -254,6 +256,8 @@ describe('AppShell hosted workspace bootstrap', () => {
     runtimeMocks.captureLocalWorkspaceSnapshotForMigration.mockReset()
     runtimeMocks.getPersistenceRuntimeStart.mockReset()
     runtimeMocks.getPersistenceRuntimeFlush.mockReset()
+    runtimeMocks.getPersistenceRuntimeClearWorkspace.mockReset()
+    runtimeMocks.getPersistenceRuntimeClearWorkspace.mockResolvedValue(buildWorkspaceSnapshot())
     runtimeMocks.loadGoldenDemoWorkspace.mockReset()
     runtimeMocks.loadGoldenDemoWorkspace.mockResolvedValue({
       identityName: 'Maya Patel',
@@ -541,6 +545,41 @@ describe('AppShell hosted workspace bootstrap', () => {
     expect(document.querySelector('.app-footer-sync')?.textContent).toContain('Ready')
   })
 
+  it('passes the selected hosted workspace id when clearing hosted workspace data', async () => {
+    const sideWorkspace = {
+      ...baseWorkspace,
+      workspaceId: 'ws-2',
+      name: 'Side Workspace',
+      revision: 3,
+      isDefault: false,
+    }
+    setHostedStore({
+      workspaces: [baseWorkspace, sideWorkspace],
+      selectedWorkspaceId: 'ws-2',
+    })
+    setPersistenceHydration(true, 'ws-2')
+    runtimeMocks.replacePersistenceRuntime.mockResolvedValue({
+      start: vi.fn(async () => {
+        setPersistenceHydration(true, 'ws-2')
+      }),
+      flush: vi.fn().mockResolvedValue(undefined),
+      clearWorkspace: runtimeMocks.getPersistenceRuntimeClearWorkspace,
+      exportWorkspaceSnapshot: vi.fn().mockResolvedValue(buildWorkspaceSnapshot()),
+      importWorkspaceSnapshot: vi.fn().mockResolvedValue(buildWorkspaceSnapshot()),
+      dispose: vi.fn(),
+    })
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+
+    render(<AppShell />)
+
+    fireEvent.click(screen.getByRole('button', { name: /^workspaces/i }))
+    fireEvent.click(screen.getByRole('button', { name: /clear current workspace/i }))
+
+    await waitFor(() => {
+      expect(runtimeMocks.getPersistenceRuntimeClearWorkspace).toHaveBeenCalledWith('ws-2')
+    })
+  })
+
   it('renders AppShell in local mode without hosted bootstrap', () => {
     useHostedAppStore.setState({
       deploymentMode: 'self-hosted',
@@ -654,6 +693,12 @@ describe('AppShell hosted workspace bootstrap', () => {
       expect(runtimeMocks.loadGoldenDemoWorkspace).toHaveBeenCalledTimes(1)
     })
     expect(screen.getByText(/loaded maya patel's demo workspace/i)).toBeTruthy()
+
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    fireEvent.click(screen.getByRole('button', { name: /clear workspace/i }))
+    await waitFor(() => {
+      expect(runtimeMocks.getPersistenceRuntimeClearWorkspace).toHaveBeenCalledWith(undefined)
+    })
 
     fireEvent.click(screen.getByRole('button', { name: /close dialog/i }))
     expect(screen.queryByRole('dialog', { name: /workspace controls/i })).toBeNull()
