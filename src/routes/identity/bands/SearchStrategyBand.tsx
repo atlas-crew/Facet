@@ -510,7 +510,7 @@ export function SearchStrategyBand({
   return (
     <IdentityBand
       layer="search"
-      name="Search Strategy"
+      name="Search Parameters"
       subtitle="positioning angles · open questions"
       fill={fill}
     >
@@ -527,7 +527,7 @@ export function SearchStrategyBand({
           aria-busy={generating === 'strategy'}
         >
           <Sparkles size={14} aria-hidden="true" />
-          {generating === 'strategy' ? 'Generating strategy…' : 'Generate strategy'}
+          {generating === 'strategy' ? 'Generating strategy...' : 'Generate strategy'}
         </button>
       </div>
       <div className="strategy-generation-stack">

@@ -11,6 +11,7 @@ const navigateMock = vi.fn(async () => undefined)
 const identityParameterMocks = vi.hoisted(() => ({
   generateSearchVectorsFromIdentityMock: vi.fn(),
   generateAwarenessFromIdentityMock: vi.fn(),
+  generateIdentityThesisFromIdentityMock: vi.fn(),
   generateStrategicPositioningFromIdentityMock: vi.fn(),
 }))
 const facetEnvMock = vi.hoisted(() => ({
@@ -47,6 +48,7 @@ vi.mock('../utils/facetEnv', () => ({
 vi.mock('../utils/identityParametersGeneration', () => ({
   generateSearchVectorsFromIdentity: identityParameterMocks.generateSearchVectorsFromIdentityMock,
   generateAwarenessFromIdentity: identityParameterMocks.generateAwarenessFromIdentityMock,
+  generateIdentityThesisFromIdentity: identityParameterMocks.generateIdentityThesisFromIdentityMock,
   generateStrategicPositioningFromIdentity:
     identityParameterMocks.generateStrategicPositioningFromIdentityMock,
 }))
@@ -76,6 +78,7 @@ describe('Identity Map — match-rule add/remove', () => {
     facetEnvMock.facetClientEnv.anthropicProxyUrl = 'https://ai.example/proxy'
     identityParameterMocks.generateSearchVectorsFromIdentityMock.mockReset()
     identityParameterMocks.generateAwarenessFromIdentityMock.mockReset()
+    identityParameterMocks.generateIdentityThesisFromIdentityMock.mockReset()
     identityParameterMocks.generateStrategicPositioningFromIdentityMock.mockReset()
   })
   afterEach(() => cleanup())
@@ -99,6 +102,25 @@ describe('Identity Map — match-rule add/remove', () => {
     ).toBeTruthy()
     expect(screen.queryByRole('button', { name: /\(no summary\)/i })).toBeNull()
   })
+
+  it('renders thesis metadata fields on the thesis card', () => {
+    seed((id) => {
+      id.identity.thesis = 'I turn platform complexity into product leverage.'
+      id.identity.title = 'Platform Systems Lead'
+      id.identity.origin = 'Repeated migration work'
+      id.identity.elaboration = 'Grounded in deployment architecture and product judgment.'
+    })
+
+    const { container } = render(<IdentityMapPage />)
+
+    const thesisMeta = container.querySelector('.thesis-meta')
+    expect(thesisMeta?.textContent).toContain('Platform Systems Lead')
+    expect(thesisMeta?.textContent).toContain('Repeated migration work')
+    expect(thesisMeta?.textContent).toContain(
+      'Grounded in deployment architecture and product judgment.',
+    )
+  })
+
 
   it('renders dark-theme controls for strategic positioning inputs', () => {
     seed()
@@ -400,9 +422,15 @@ describe('Identity Map — match-rule add/remove', () => {
 
     render(<IdentityMapPage />)
 
+    fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
+    const actionDialog = screen.getByRole('dialog', { name: 'Identity action items' })
     expect(
-      screen.getByRole('button', { name: /recommended first: review skill depth/i }).textContent,
+      within(actionDialog).getByRole('button', {
+        name: /run action: review skill depth/i,
+      }).textContent,
     ).toContain('Review skill depth')
+    fireEvent.click(within(actionDialog).getByRole('button', { name: 'Close' }))
+
     const panel = screen.getByText('Skill depth').closest('.skills-enrichment-panel') as HTMLElement
     expect(within(panel).getByRole('button', { name: 'Review skill depth' })).toBeTruthy()
     expect(within(panel).queryByRole('button', { name: 'Deepen skills' })).toBeNull()
@@ -414,7 +442,7 @@ describe('Identity Map — match-rule add/remove', () => {
     })
   })
 
-  it('routes top inference controls to skill depth, positioning, and strategy generation', async () => {
+  it('routes action controls to skill depth, positioning, and strategy generation', async () => {
     seed((id) => {
       id.skills.groups[0]!.items = [
         {
@@ -442,18 +470,33 @@ describe('Identity Map — match-rule add/remove', () => {
         unfair_advantages: ['Platform infrastructure depth plus product judgment'],
         search_vectors: [],
         open_questions: [],
-      })
+    })
 
     render(<IdentityMapPage />)
 
-    expect(screen.getByText('Deepen evidence before generating strategy.')).toBeTruthy()
+    const actionPanel = screen.getByRole('region', { name: 'Deepen skill evidence' })
     expect(
-      screen.getByRole('button', { name: /recommended first: deepen skills \(1\)/i }).textContent,
-    ).toContain('Deepen skills (1)')
+      within(actionPanel).getByText('Bullets → skills → thesis → chapters → positioning → search'),
+    ).toBeTruthy()
+    expect(within(actionPanel).getByText('1 pending')).toBeTruthy()
 
-    fireEvent.click(
-      screen.getByRole('button', { name: /recommended first: deepen skills \(1\)/i }),
-    )
+    fireEvent.click(within(actionPanel).getByRole('button', { name: 'View all actions' }))
+    const actionDialog = screen.getByRole('dialog', { name: 'Identity action items' })
+    expect(within(actionDialog).getByText('1 Bullet evidence')).toBeTruthy()
+    expect(within(actionDialog).getByText('2 Skill depth')).toBeTruthy()
+    expect(within(actionDialog).getByText('3 Thesis')).toBeTruthy()
+    expect(within(actionDialog).getByText('4 Career chapters')).toBeTruthy()
+    expect(within(actionDialog).getByText('5 Positioning')).toBeTruthy()
+    expect(within(actionDialog).getByText('6 Search parameters')).toBeTruthy()
+    expect(within(actionDialog).getByText('7 Review')).toBeTruthy()
+    fireEvent.click(within(actionDialog).getByRole('button', { name: 'Close' }))
+
+    const deepenButton = within(actionPanel).getByRole('button', {
+      name: /run next action: deepen skills \(1\)/i,
+    })
+    expect(deepenButton.textContent).toContain('Deepen skills (1)')
+
+    fireEvent.click(deepenButton)
     expect(navigateMock).toHaveBeenCalledWith({
       to: '/identity/enrich/$groupId/$skillName',
       params: {
@@ -462,9 +505,8 @@ describe('Identity Map — match-rule add/remove', () => {
       },
     })
 
-    fireEvent.click(
-      screen.getByRole('button', { name: /recommended after skill depth: refresh positioning/i }),
-    )
+    fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
+    fireEvent.click(screen.getByRole('button', { name: /run action: refresh positioning/i }))
     await waitFor(() => {
       expect(identityParameterMocks.generateStrategicPositioningFromIdentityMock).toHaveBeenCalledTimes(1)
     })
@@ -477,9 +519,8 @@ describe('Identity Map — match-rule add/remove', () => {
       expect.objectContaining({ mode: 'regenerate' }),
     )
 
-    fireEvent.click(
-      screen.getByRole('button', { name: /recommended after positioning: generate strategy/i }),
-    )
+    fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
+    fireEvent.click(screen.getByRole('button', { name: /run action: generate parameters/i }))
     await waitFor(() => {
       expect(identityParameterMocks.generateStrategicPositioningFromIdentityMock).toHaveBeenCalledTimes(2)
     })
@@ -490,6 +531,543 @@ describe('Identity Map — match-rule add/remove', () => {
       }),
       'https://ai.example/proxy',
     )
+  })
+
+  it('regenerates the identity thesis from the action list into an applyable draft', async () => {
+    seed()
+    identityParameterMocks.generateIdentityThesisFromIdentityMock.mockResolvedValueOnce({
+      thesis: 'I turn platform complexity into product leverage.',
+      title: 'Platform Systems Lead',
+      origin: 'Repeated platform migration work.',
+      elaboration: 'The strongest evidence sits in Kubernetes delivery and product judgment.',
+    })
+
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
+    fireEvent.click(screen.getByRole('button', { name: /run action: regenerate thesis/i }))
+
+    await waitFor(() => {
+      expect(identityParameterMocks.generateIdentityThesisFromIdentityMock).toHaveBeenCalledWith(
+        expect.objectContaining({ identity: expect.objectContaining({ name: 'Alex Example' }) }),
+        'https://ai.example/proxy',
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      )
+    })
+    expect(screen.getByLabelText('Generated thesis draft')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Apply thesis' }))
+
+    expect(useIdentityStore.getState().currentIdentity?.identity).toMatchObject({
+      thesis: 'I turn platform complexity into product leverage.',
+      title: 'Platform Systems Lead',
+      origin: 'Repeated platform migration work.',
+      elaboration: 'The strongest evidence sits in Kubernetes delivery and product judgment.',
+    })
+  })
+
+  it('recovers thesis generation after a missing proxy configuration error', async () => {
+    seed()
+    facetEnvMock.facetClientEnv.anthropicProxyUrl = ''
+
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
+    fireEvent.click(screen.getByRole('button', { name: /run action: regenerate thesis/i }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Connect the AI proxy before regenerating the identity thesis.'),
+      ).toBeTruthy()
+    })
+
+    facetEnvMock.facetClientEnv.anthropicProxyUrl = 'https://ai.example/proxy'
+    identityParameterMocks.generateIdentityThesisFromIdentityMock.mockResolvedValueOnce({
+      thesis: 'I turn platform complexity into product leverage.',
+      title: 'Platform Systems Lead',
+      origin: 'Repeated platform migration work.',
+      elaboration: 'The strongest evidence sits in Kubernetes delivery and product judgment.',
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
+    fireEvent.click(screen.getByRole('button', { name: /run action: regenerate thesis/i }))
+
+    await waitFor(() => {
+      expect(identityParameterMocks.generateIdentityThesisFromIdentityMock).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  it('surfaces generic thesis generation failures and clears the busy state', async () => {
+    seed()
+    identityParameterMocks.generateIdentityThesisFromIdentityMock.mockRejectedValueOnce(
+      new Error('proxy timeout'),
+    )
+
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /^regenerate thesis$/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Unable to regenerate identity thesis.')).toBeTruthy()
+    })
+    expect(
+      screen.getByRole('button', { name: /^regenerate thesis$/i }).getAttribute('aria-busy'),
+    ).toBe('false')
+  })
+
+  it('does not start duplicate thesis generation while a request is running', async () => {
+    seed()
+    const deferred =
+      createDeferred<
+        Awaited<ReturnType<typeof identityParameterMocks.generateIdentityThesisFromIdentityMock>>
+      >()
+    identityParameterMocks.generateIdentityThesisFromIdentityMock.mockReturnValueOnce(
+      deferred.promise,
+    )
+
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
+    fireEvent.click(screen.getByRole('button', { name: /run action: regenerate thesis/i }))
+    await waitFor(() => {
+      expect(identityParameterMocks.generateIdentityThesisFromIdentityMock).toHaveBeenCalledTimes(1)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
+    fireEvent.click(screen.getByRole('button', { name: /run action: regenerate thesis/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Thesis generation is already running.')).toBeTruthy()
+    })
+    expect(identityParameterMocks.generateIdentityThesisFromIdentityMock).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      deferred.resolve({
+        thesis: 'I turn platform complexity into product leverage.',
+      })
+      await deferred.promise
+    })
+  })
+
+  it('aborts thesis generation on unmount without surfacing abort errors', async () => {
+    seed()
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const deferred =
+      createDeferred<
+        Awaited<ReturnType<typeof identityParameterMocks.generateIdentityThesisFromIdentityMock>>
+      >()
+    identityParameterMocks.generateIdentityThesisFromIdentityMock.mockReturnValueOnce(
+      deferred.promise,
+    )
+
+    const { unmount } = render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /^regenerate thesis$/i }))
+    await waitFor(() => {
+      expect(identityParameterMocks.generateIdentityThesisFromIdentityMock).toHaveBeenCalledTimes(1)
+    })
+    const signal = identityParameterMocks.generateIdentityThesisFromIdentityMock.mock
+      .calls[0]?.[2]?.signal
+
+    unmount()
+
+    expect(signal?.aborted).toBe(true)
+
+    await act(async () => {
+      const abortError = new Error('aborted')
+      abortError.name = 'AbortError'
+      deferred.reject(abortError)
+      await deferred.promise.catch(() => undefined)
+    })
+
+    expect(consoleErrorSpy).not.toHaveBeenCalled()
+    consoleErrorSpy.mockRestore()
+  })
+
+  it('discards a generated thesis draft if identity changes during generation', async () => {
+    seed()
+    const deferred =
+      createDeferred<
+        Awaited<ReturnType<typeof identityParameterMocks.generateIdentityThesisFromIdentityMock>>
+      >()
+    identityParameterMocks.generateIdentityThesisFromIdentityMock.mockReturnValueOnce(
+      deferred.promise,
+    )
+
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
+    fireEvent.click(screen.getByRole('button', { name: /run action: regenerate thesis/i }))
+
+    await waitFor(() => {
+      expect(identityParameterMocks.generateIdentityThesisFromIdentityMock).toHaveBeenCalledTimes(1)
+    })
+
+    const nextIdentity = useIdentityStore.getState().currentIdentity!
+    useIdentityStore.setState({
+      currentIdentity: {
+        ...nextIdentity,
+        model_revision: nextIdentity.model_revision + 1,
+      },
+    })
+
+    await act(async () => {
+      deferred.resolve({
+        thesis: 'I turn platform complexity into product leverage.',
+        title: 'Platform Systems Lead',
+      })
+      await deferred.promise
+    })
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Identity changed during generation; discarded the thesis draft.'),
+      ).toBeTruthy()
+    })
+    expect(screen.queryByLabelText('Generated thesis draft')).toBeNull()
+  })
+
+  it('discards a generated thesis draft without changing the stored thesis', async () => {
+    seed()
+    const originalThesis = useIdentityStore.getState().currentIdentity?.identity.thesis
+    identityParameterMocks.generateIdentityThesisFromIdentityMock.mockResolvedValueOnce({
+      thesis: 'I turn platform complexity into product leverage.',
+      title: 'Platform Systems Lead',
+    })
+
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /^regenerate thesis$/i }))
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Generated thesis draft')).toBeTruthy()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
+
+    expect(screen.queryByLabelText('Generated thesis draft')).toBeNull()
+    expect(useIdentityStore.getState().currentIdentity?.identity.thesis).toBe(originalThesis)
+  })
+
+  it('refuses to apply a generated thesis draft after identity changes', async () => {
+    seed()
+    const originalThesis = useIdentityStore.getState().currentIdentity?.identity.thesis
+    identityParameterMocks.generateIdentityThesisFromIdentityMock.mockResolvedValueOnce({
+      thesis: 'I turn platform complexity into product leverage.',
+      title: 'Platform Systems Lead',
+    })
+
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /^regenerate thesis$/i }))
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Generated thesis draft')).toBeTruthy()
+    })
+
+    const nextIdentity = useIdentityStore.getState().currentIdentity!
+    useIdentityStore.setState({
+      currentIdentity: {
+        ...nextIdentity,
+        model_revision: nextIdentity.model_revision + 1,
+      },
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Apply thesis' }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Identity changed since this draft was generated; discarded the thesis draft.'),
+      ).toBeTruthy()
+    })
+    expect(screen.queryByLabelText('Generated thesis draft')).toBeNull()
+    expect(useIdentityStore.getState().currentIdentity?.identity.thesis).toBe(originalThesis)
+  })
+
+  it('generates career chapters from roles from the action list', async () => {
+    seed((id) => {
+      id.self_model.arc = []
+    })
+
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
+    fireEvent.click(screen.getByRole('button', { name: /run action: draft chapters/i }))
+
+    await waitFor(() => {
+      expect(useIdentityStore.getState().currentIdentity?.self_model.arc).toEqual([
+        {
+          company: 'Contoso Networks',
+          chapter: 'Senior Platform Engineer chapter focused on Unlocked on-prem delivery.',
+        },
+      ])
+    })
+  })
+
+  it('surfaces a message when chapter drafting has no roles to use', async () => {
+    seed((id) => {
+      id.roles = []
+      id.self_model.arc = []
+    })
+
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Draft chapters from roles' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Add roles before generating career chapters.')).toBeTruthy()
+    })
+  })
+
+  it('uses a neutral chapter proof fallback when role bullets have no impact or outcome', async () => {
+    seed((id) => {
+      id.self_model.arc = []
+      const role = id.roles[0]
+      if (!role) return
+      role.bullets = [
+        {
+          id: 'thin-proof',
+          tags: [],
+          source_text: 'Maintained the platform delivery surface.',
+          problem: 'Platform work needed continuity.',
+          action: 'Maintained deployment systems.',
+          outcome: '',
+          impact: [],
+          metrics: {},
+          technologies: [],
+        },
+      ]
+    })
+
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Draft chapters from roles' }))
+
+    await waitFor(() => {
+      expect(useIdentityStore.getState().currentIdentity?.self_model.arc).toEqual([
+        {
+          company: 'Contoso Networks',
+          chapter: 'Senior Platform Engineer chapter focused on delivered key outcomes.',
+        },
+      ])
+    })
+  })
+
+  it('prefers impact over outcome when drafting career chapters', async () => {
+    seed((id) => {
+      id.self_model.arc = []
+      const bullet = id.roles[0]?.bullets[0]
+      if (!bullet) return
+      bullet.impact = ['Raised enterprise deployment confidence']
+      bullet.outcome = 'Shipped deployment automation.'
+    })
+
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Draft chapters from roles' }))
+
+    await waitFor(() => {
+      expect(useIdentityStore.getState().currentIdentity?.self_model.arc).toEqual([
+        {
+          company: 'Contoso Networks',
+          chapter: 'Senior Platform Engineer chapter focused on Raised enterprise deployment confidence.',
+        },
+      ])
+    })
+  })
+
+  it('surfaces bullet deepening before skill depth when source bullets are shallow', () => {
+    seed((id) => {
+      const bullet = id.roles[0]?.bullets[0]
+      if (!bullet) return
+      bullet.source_text = 'Ported the platform to Kubernetes-based installs.'
+      bullet.problem = ''
+      bullet.action = ''
+      bullet.outcome = ''
+      bullet.impact = []
+    })
+
+    render(<IdentityMapPage />)
+
+    const actionPanel = screen.getByRole('region', { name: 'Deepen bullet evidence' })
+    expect(within(actionPanel).getByText('1 pending')).toBeTruthy()
+    fireEvent.click(
+      within(actionPanel).getByRole('button', { name: /run next action: review bullets \(1\)/i }),
+    )
+
+    expect(useIdentityStore.getState().mapSelection).toEqual({
+      type: 'bullet',
+      roleId: 'contoso',
+      bulletId: 'platform-migration',
+    })
+  })
+
+  it('moves keyboard focus to the target band when jumping from the action modal', async () => {
+    seed((id) => {
+      const bullet = id.roles[0]?.bullets[0]
+      if (!bullet) return
+      bullet.source_text = 'Ported the platform to Kubernetes-based installs.'
+      bullet.problem = ''
+      bullet.action = ''
+      bullet.outcome = ''
+    })
+
+    render(<IdentityMapPage />)
+    const rolesBand = document.querySelector<HTMLElement>('[data-layer="roles"]')
+    if (!rolesBand) throw new Error('Expected roles band to render.')
+
+    fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
+    const dialog = screen.getByRole('dialog', { name: 'Identity action items' })
+    const jumpButton = within(dialog).getAllByRole('button', { name: 'Jump' })[0]
+    if (!jumpButton) throw new Error('Expected first action jump button.')
+    fireEvent.click(jumpButton)
+
+    await waitFor(() => {
+      expect(document.activeElement).toBe(rolesBand)
+    })
+  })
+
+  it('keeps the action modal keyboard-dismissable and restores focus to the trigger', async () => {
+    seed()
+    document.body.style.overflow = 'auto'
+    const { container } = render(<IdentityMapPage />)
+
+    const trigger = screen.getByRole('button', { name: 'View all actions' })
+    fireEvent.click(trigger)
+    const dialog = screen.getByRole('dialog', { name: 'Identity action items' })
+    const canvas = container.querySelector('.identity-map-canvas')
+    const inspectorSlot = container.querySelector('.identity-map-inspector-slot')
+
+    expect(canvas?.hasAttribute('inert')).toBe(true)
+    expect(inspectorSlot?.hasAttribute('inert')).toBe(true)
+    expect(document.body.style.overflow).toBe('hidden')
+
+    await waitFor(() => {
+      expect(document.activeElement).toBe(dialog)
+    })
+
+    const focusableButtons = within(dialog)
+      .getAllByRole('button')
+      .filter((button) => !(button as HTMLButtonElement).disabled)
+    const firstButton = focusableButtons[0] as HTMLButtonElement
+    const lastButton = focusableButtons[focusableButtons.length - 1] as HTMLButtonElement
+
+    lastButton.focus()
+    fireEvent.keyDown(dialog, { key: 'Tab' })
+    expect(document.activeElement).toBe(firstButton)
+
+    firstButton.focus()
+    fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true })
+    expect(document.activeElement).toBe(lastButton)
+
+    dialog.focus()
+    fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true })
+    expect(document.activeElement).toBe(lastButton)
+
+    fireEvent.click(dialog)
+    expect(screen.getByRole('dialog', { name: 'Identity action items' })).toBeTruthy()
+
+    const backdrop = container.querySelector('.identity-action-backdrop')
+    if (!backdrop) throw new Error('Expected modal backdrop control.')
+    fireEvent.click(backdrop)
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Identity action items' })).toBeNull()
+    })
+    expect(canvas?.hasAttribute('inert')).toBe(false)
+    expect(inspectorSlot?.hasAttribute('inert')).toBe(false)
+    expect(document.body.style.overflow).toBe('auto')
+
+    fireEvent.click(trigger)
+    const reopenedDialog = screen.getByRole('dialog', { name: 'Identity action items' })
+    fireEvent.keyDown(reopenedDialog, { key: 'Escape' })
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Identity action items' })).toBeNull()
+    })
+    await waitFor(() => {
+      expect(document.activeElement).toBe(trigger)
+    })
+    document.body.style.overflow = ''
+  })
+
+  it('highlights jumped action bands, replaces stale highlights, and clears the timer', () => {
+    vi.useFakeTimers()
+    seed((id) => {
+      const bullet = id.roles[0]?.bullets[0]
+      if (!bullet) return
+      bullet.source_text = 'Ported the platform to Kubernetes-based installs.'
+      bullet.problem = ''
+      bullet.action = ''
+      bullet.outcome = ''
+    })
+
+    try {
+      render(<IdentityMapPage />)
+      const rolesBand = document.querySelector<HTMLElement>('[data-layer="roles"]')
+      const thesisBand = document.querySelector<HTMLElement>('[data-layer="thesis"]')
+      if (!rolesBand || !thesisBand) throw new Error('Expected identity bands to render.')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Jump to step' }))
+      expect(rolesBand.classList.contains('action-highlight')).toBe(true)
+
+      fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
+      fireEvent.click(screen.getByRole('button', { name: /run action: review map/i }))
+      act(() => {
+        vi.advanceTimersByTime(0)
+      })
+
+      expect(rolesBand.classList.contains('action-highlight')).toBe(false)
+      expect(thesisBand.classList.contains('action-highlight')).toBe(true)
+
+      act(() => {
+        vi.advanceTimersByTime(1800)
+      })
+      expect(thesisBand.classList.contains('action-highlight')).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('advances the next action from positioning to strategy to review', () => {
+    seed((id) => {
+      id.self_model.arc = [{ company: 'Contoso Networks', chapter: 'Platform delivery chapter.' }]
+      id.self_model.competitive_moat = undefined
+      id.self_model.unfair_advantages = []
+      id.search_vectors = []
+      id.awareness = { open_questions: [] }
+    })
+    render(<IdentityMapPage />)
+    expect(screen.getByRole('region', { name: 'Generate strategic positioning' })).toBeTruthy()
+
+    cleanup()
+    seed((id) => {
+      id.self_model.arc = [{ company: 'Contoso Networks', chapter: 'Platform delivery chapter.' }]
+      id.self_model.competitive_moat = 'Platform engineering plus deployment architecture.'
+      id.self_model.unfair_advantages = ['Kubernetes delivery plus product judgment']
+      id.search_vectors = []
+      id.awareness = { open_questions: [] }
+    })
+    render(<IdentityMapPage />)
+    expect(screen.getByRole('region', { name: 'Generate search parameters' })).toBeTruthy()
+
+    cleanup()
+    seed((id) => {
+      id.self_model.arc = [{ company: 'Contoso Networks', chapter: 'Platform delivery chapter.' }]
+      id.self_model.competitive_moat = 'Platform engineering plus deployment architecture.'
+      id.self_model.unfair_advantages = ['Kubernetes delivery plus product judgment']
+      id.search_vectors = [
+        {
+          id: 'platform-vector',
+          title: 'Platform engineering',
+          thesis: 'Target platform engineering roles.',
+          target_roles: ['Staff Platform Engineer'],
+          keywords: { primary: ['platform'], secondary: [] },
+          priority: 'high',
+        },
+      ]
+      id.awareness = { open_questions: [] }
+    })
+    render(<IdentityMapPage />)
+    expect(screen.getByRole('region', { name: 'Review the identity map' })).toBeTruthy()
   })
 
   it('does not run identity inference on map mount', () => {
@@ -503,7 +1081,9 @@ describe('Identity Map — match-rule add/remove', () => {
   })
 
   it('reruns top-level positioning refresh after each settled request', async () => {
-    seed()
+    seed((id) => {
+      id.self_model.arc = [{ company: 'Contoso Networks', chapter: 'Platform delivery chapter.' }]
+    })
     identityParameterMocks.generateStrategicPositioningFromIdentityMock
       .mockResolvedValueOnce({
         unfair_advantages: [],
@@ -519,14 +1099,14 @@ describe('Identity Map — match-rule add/remove', () => {
     render(<IdentityMapPage />)
 
     fireEvent.click(
-      screen.getByRole('button', { name: /recommended after skill depth: refresh positioning/i }),
+      screen.getByRole('button', { name: /run next action: refresh positioning/i }),
     )
     await waitFor(() => {
       expect(identityParameterMocks.generateStrategicPositioningFromIdentityMock).toHaveBeenCalledTimes(1)
     })
 
     fireEvent.click(
-      screen.getByRole('button', { name: /recommended after skill depth: refresh positioning/i }),
+      screen.getByRole('button', { name: /run next action: refresh positioning/i }),
     )
     await waitFor(() => {
       expect(identityParameterMocks.generateStrategicPositioningFromIdentityMock).toHaveBeenCalledTimes(2)
@@ -562,12 +1142,13 @@ describe('Identity Map — match-rule add/remove', () => {
       expect(identityParameterMocks.generateStrategicPositioningFromIdentityMock).toHaveBeenCalledTimes(1)
     })
 
-    fireEvent.click(
-      screen.getByRole('button', { name: /recommended after positioning: generate strategy/i }),
-    )
+    fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
+    fireEvent.click(screen.getByRole('button', { name: /run action: generate parameters/i }))
 
     expect(identityParameterMocks.generateStrategicPositioningFromIdentityMock).toHaveBeenCalledTimes(1)
-    expect(screen.getByText('Strategy generation is already running.')).toBeTruthy()
+    await waitFor(() => {
+      expect(screen.getByText('Strategy generation is already running.')).toBeTruthy()
+    })
 
     await act(async () => {
       deferred.resolve({
@@ -580,7 +1161,9 @@ describe('Identity Map — match-rule add/remove', () => {
   })
 
   it('does not start duplicate positioning refresh from the top control while one is running', async () => {
-    seed()
+    seed((id) => {
+      id.self_model.arc = [{ company: 'Contoso Networks', chapter: 'Platform delivery chapter.' }]
+    })
     const deferred = createDeferred<{
       unfair_advantages: string[]
       search_vectors: []
@@ -593,14 +1176,14 @@ describe('Identity Map — match-rule add/remove', () => {
     render(<IdentityMapPage />)
 
     fireEvent.click(
-      screen.getByRole('button', { name: /recommended after skill depth: refresh positioning/i }),
+      screen.getByRole('button', { name: /run next action: refresh positioning/i }),
     )
     await waitFor(() => {
       expect(identityParameterMocks.generateStrategicPositioningFromIdentityMock).toHaveBeenCalledTimes(1)
     })
 
     fireEvent.click(
-      screen.getByRole('button', { name: /recommended after skill depth: refresh positioning/i }),
+      screen.getByRole('button', { name: /run next action: refresh positioning/i }),
     )
 
     expect(identityParameterMocks.generateStrategicPositioningFromIdentityMock).toHaveBeenCalledTimes(1)
@@ -616,8 +1199,10 @@ describe('Identity Map — match-rule add/remove', () => {
     })
   })
 
-  it('uses reduced-motion-safe scrolling when a top inference control targets a band', () => {
-    seed()
+  it('uses reduced-motion-safe scrolling when a top action targets a band', () => {
+    seed((id) => {
+      id.self_model.arc = [{ company: 'Contoso Networks', chapter: 'Platform delivery chapter.' }]
+    })
     identityParameterMocks.generateStrategicPositioningFromIdentityMock.mockResolvedValueOnce({
       unfair_advantages: [],
       search_vectors: [],
@@ -643,7 +1228,7 @@ describe('Identity Map — match-rule add/remove', () => {
       render(<IdentityMapPage />)
 
       fireEvent.click(
-        screen.getByRole('button', { name: /recommended after skill depth: refresh positioning/i }),
+        screen.getByRole('button', { name: /run next action: refresh positioning/i }),
       )
 
       expect(scrollIntoViewMock).toHaveBeenCalledWith({
@@ -662,7 +1247,7 @@ describe('Identity Map — match-rule add/remove', () => {
     }
   })
 
-  it('smooth-scrolls the search band when the top strategy control runs', () => {
+  it('smooth-scrolls the search band when the strategy action runs', async () => {
     seed()
     identityParameterMocks.generateStrategicPositioningFromIdentityMock.mockResolvedValueOnce({
       unfair_advantages: [],
@@ -682,22 +1267,21 @@ describe('Identity Map — match-rule add/remove', () => {
     try {
       render(<IdentityMapPage />)
       const searchBand = document.querySelector<HTMLElement>('[data-layer="search"]')
-      if (!searchBand) throw new Error('Expected Search Strategy band to render.')
+      if (!searchBand) throw new Error('Expected Search Parameters band to render.')
       const scrollIntoViewMock = vi.fn()
       Object.defineProperty(searchBand, 'scrollIntoView', {
         configurable: true,
         value: scrollIntoViewMock,
       })
 
-      fireEvent.click(
-        screen.getByRole('button', {
-          name: /recommended after positioning: generate strategy/i,
-        }),
-      )
+      fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
+      fireEvent.click(screen.getByRole('button', { name: /run action: generate parameters/i }))
 
-      expect(scrollIntoViewMock).toHaveBeenCalledWith({
-        behavior: 'smooth',
-        block: 'start',
+      await waitFor(() => {
+        expect(scrollIntoViewMock).toHaveBeenCalledWith({
+          behavior: 'smooth',
+          block: 'start',
+        })
       })
     } finally {
       Object.defineProperty(window, 'matchMedia', {
@@ -708,7 +1292,9 @@ describe('Identity Map — match-rule add/remove', () => {
   })
 
   it('smooth-scrolls when matchMedia is unavailable', () => {
-    seed()
+    seed((id) => {
+      id.self_model.arc = [{ company: 'Contoso Networks', chapter: 'Platform delivery chapter.' }]
+    })
     identityParameterMocks.generateStrategicPositioningFromIdentityMock.mockResolvedValueOnce({
       unfair_advantages: [],
       search_vectors: [],
@@ -730,7 +1316,7 @@ describe('Identity Map — match-rule add/remove', () => {
       render(<IdentityMapPage />)
 
       fireEvent.click(
-        screen.getByRole('button', { name: /recommended after skill depth: refresh positioning/i }),
+        screen.getByRole('button', { name: /run next action: refresh positioning/i }),
       )
 
       expect(scrollIntoViewMock).toHaveBeenCalledWith({
@@ -756,11 +1342,14 @@ describe('Identity Map — match-rule add/remove', () => {
 
     render(<IdentityMapPage />)
 
+    fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
+    const actionDialog = screen.getByRole('dialog', { name: 'Identity action items' })
     expect(
-      (screen.getByRole('button', {
-        name: /recommended first: review skill depth/i,
+      (within(actionDialog).getByRole('button', {
+        name: /run action: review skill depth/i,
       }) as HTMLButtonElement).disabled,
     ).toBe(true)
+    fireEvent.click(within(actionDialog).getByRole('button', { name: 'Close' }))
     expect(screen.getByRole('button', { name: 'Platform' })).toBeTruthy()
     expect(screen.getByText('0 items')).toBeTruthy()
     expect(screen.queryByText('Skill depth')).toBeNull()
@@ -868,6 +1457,7 @@ describe('Identity Map — search-vector full-edit + add/remove', () => {
     facetEnvMock.facetClientEnv.anthropicProxyUrl = 'https://ai.example/proxy'
     identityParameterMocks.generateSearchVectorsFromIdentityMock.mockReset()
     identityParameterMocks.generateAwarenessFromIdentityMock.mockReset()
+    identityParameterMocks.generateIdentityThesisFromIdentityMock.mockReset()
     identityParameterMocks.generateStrategicPositioningFromIdentityMock.mockReset()
   })
   afterEach(() => cleanup())
@@ -899,7 +1489,7 @@ describe('Identity Map — search-vector full-edit + add/remove', () => {
 
     render(<IdentityMapPage />)
 
-    expect(screen.getByText('Search Strategy')).toBeTruthy()
+    expect(screen.getByText('Search Parameters')).toBeTruthy()
     expect(screen.getByText('Search Vectors')).toBeTruthy()
     expect(screen.getByText('Open Questions')).toBeTruthy()
 
@@ -1718,6 +2308,7 @@ describe('Identity Map — awareness-question full-edit + add/remove', () => {
     facetEnvMock.facetClientEnv.anthropicProxyUrl = 'https://ai.example/proxy'
     identityParameterMocks.generateSearchVectorsFromIdentityMock.mockReset()
     identityParameterMocks.generateAwarenessFromIdentityMock.mockReset()
+    identityParameterMocks.generateIdentityThesisFromIdentityMock.mockReset()
     identityParameterMocks.generateStrategicPositioningFromIdentityMock.mockReset()
   })
   afterEach(() => cleanup())
@@ -2039,6 +2630,7 @@ describe('Identity Map — skill inline editing', () => {
     facetEnvMock.facetClientEnv.anthropicProxyUrl = 'https://ai.example/proxy'
     identityParameterMocks.generateSearchVectorsFromIdentityMock.mockReset()
     identityParameterMocks.generateAwarenessFromIdentityMock.mockReset()
+    identityParameterMocks.generateIdentityThesisFromIdentityMock.mockReset()
     identityParameterMocks.generateStrategicPositioningFromIdentityMock.mockReset()
   })
   afterEach(() => cleanup())
@@ -2309,6 +2901,7 @@ describe('Identity Map — sad-path editing coverage', () => {
     facetEnvMock.facetClientEnv.anthropicProxyUrl = 'https://ai.example/proxy'
     identityParameterMocks.generateSearchVectorsFromIdentityMock.mockReset()
     identityParameterMocks.generateAwarenessFromIdentityMock.mockReset()
+    identityParameterMocks.generateIdentityThesisFromIdentityMock.mockReset()
     identityParameterMocks.generateStrategicPositioningFromIdentityMock.mockReset()
   })
   afterEach(() => cleanup())

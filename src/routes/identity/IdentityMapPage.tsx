@@ -1,6 +1,14 @@
-import { useEffect, useRef, useState } from 'react'
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent,
+  type MouseEvent,
+} from 'react'
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import { Sparkles, Upload } from 'lucide-react'
+import { ListChecks, LocateFixed, Sparkles, Upload } from 'lucide-react'
 import { isMapSelectionValid, useIdentityStore } from '../../store/identityStore'
 import {
   buildStaleSelectionNotice,
@@ -24,6 +32,183 @@ import { PreferencesBand } from './bands/PreferencesBand'
 import { SearchStrategyBand } from './bands/SearchStrategyBand'
 import { resolveIdentityEnrichmentNavTarget } from './identityNavigation'
 import './identityMap.css'
+
+type IdentityActionId =
+  | 'bullets'
+  | 'skills'
+  | 'thesis'
+  | 'chapters'
+  | 'positioning'
+  | 'strategy'
+  | 'review'
+type IdentityActionStatusTone = 'next' | 'ready' | 'done' | 'muted'
+type IdentityActionItem = {
+  id: IdentityActionId
+  step: string
+  title: string
+  body: string
+  statusLabel: string
+  statusTone: IdentityActionStatusTone
+  targetLayer: BandLayer
+  actionLabel: string
+  canRun: boolean
+}
+type IdentityMapGuideStyle = CSSProperties & {
+  '--identity-map-guide-hero'?: string
+}
+type IdentityActionContext = {
+  bulletDepthCount: number
+  skillPendingCount: number
+  hasSkillDepthToReview: boolean
+  hasPendingSkillDepth: boolean
+  hasThesis: boolean
+  hasChapters: boolean
+  canGenerateChapters: boolean
+  hasPositioning: boolean
+  hasSearchStrategy: boolean
+  skillInferenceLabel: string
+}
+
+const identityMapGuideHeroImage = new URL(
+  '../../../brand/exports/hero/facet-product-explanation-hero.webp',
+  import.meta.url,
+).href
+
+const getIdentityActionPhase = ({
+  bulletDepthCount,
+  hasPendingSkillDepth,
+  hasThesis,
+  hasChapters,
+  canGenerateChapters,
+  hasPositioning,
+  hasSearchStrategy,
+}: IdentityActionContext): IdentityActionId => {
+  if (bulletDepthCount > 0) return 'bullets'
+  if (hasPendingSkillDepth) return 'skills'
+  if (!hasThesis) return 'thesis'
+  if (!hasChapters && canGenerateChapters) return 'chapters'
+  if (!hasPositioning) return 'positioning'
+  if (!hasSearchStrategy) return 'strategy'
+  return 'review'
+}
+
+const deriveIdentityActions = (context: IdentityActionContext): IdentityActionItem[] => {
+  const {
+    bulletDepthCount,
+    skillPendingCount,
+    hasSkillDepthToReview,
+    hasPendingSkillDepth,
+    hasThesis,
+    hasChapters,
+    canGenerateChapters,
+    hasPositioning,
+    hasSearchStrategy,
+    skillInferenceLabel,
+  } = context
+  const actionPhase = getIdentityActionPhase(context)
+
+  return [
+    {
+      id: 'bullets',
+      step: '1 Bullet evidence',
+      title: bulletDepthCount > 0 ? 'Deepen bullet evidence' : 'Review bullet evidence',
+      body:
+        bulletDepthCount > 0
+          ? `${bulletDepthCount} bullets still have source text that can be deepened into richer problem, action, and outcome fields.`
+          : 'Bullet evidence is structured. Revisit it when you add new source text.',
+      statusLabel: bulletDepthCount > 0 ? `${bulletDepthCount} pending` : 'Ready',
+      statusTone: actionPhase === 'bullets' ? 'next' : 'done',
+      targetLayer: 'roles',
+      actionLabel: bulletDepthCount > 0 ? `Review bullets (${bulletDepthCount})` : 'Review bullets',
+      canRun: true,
+    },
+    {
+      id: 'skills',
+      step: '2 Skill depth',
+      title: hasPendingSkillDepth ? 'Deepen skill evidence' : 'Review skill depth',
+      body: hasPendingSkillDepth
+        ? `${skillPendingCount} skills still need depth. Deepening them gives later positioning the richest evidence to work from.`
+        : hasSkillDepthToReview
+          ? 'Skill depth is filled in. Review it when the evidence changes.'
+          : 'No skills are available yet. Import or add skills before deepening evidence.',
+      statusLabel: hasPendingSkillDepth
+        ? `${skillPendingCount} pending`
+        : hasSkillDepthToReview
+          ? 'Ready'
+          : 'No skills',
+      statusTone:
+        actionPhase === 'skills' ? 'next' : hasSkillDepthToReview ? 'done' : 'muted',
+      targetLayer: 'skills',
+      actionLabel: skillInferenceLabel,
+      canRun: hasSkillDepthToReview,
+    },
+    {
+      id: 'thesis',
+      step: '3 Thesis',
+      title: hasThesis ? 'Regenerate identity thesis' : 'Generate identity thesis',
+      body: hasThesis
+        ? 'Refresh the top identity claim after evidence edits.'
+        : 'Draft the durable identity claim from the current evidence.',
+      statusLabel: actionPhase === 'thesis' ? 'Next' : hasThesis ? 'Ready' : 'After evidence',
+      statusTone: actionPhase === 'thesis' ? 'next' : hasThesis ? 'done' : 'ready',
+      targetLayer: 'thesis',
+      actionLabel: hasThesis ? 'Regenerate thesis' : 'Generate thesis',
+      canRun: true,
+    },
+    {
+      id: 'chapters',
+      step: '4 Career chapters',
+      title: hasChapters ? 'Regenerate career chapter draft' : 'Draft career chapters',
+      body: hasChapters
+        ? 'Refresh the starter career arc after role evidence changes.'
+        : 'Create starter narrative chapters before generating positioning.',
+      statusLabel: actionPhase === 'chapters' ? 'Next' : hasChapters ? 'Ready' : 'After thesis',
+      statusTone: actionPhase === 'chapters' ? 'next' : hasChapters ? 'done' : 'ready',
+      targetLayer: 'self',
+      actionLabel: hasChapters ? 'Regenerate chapter draft' : 'Draft chapters',
+      canRun: canGenerateChapters,
+    },
+    {
+      id: 'positioning',
+      step: '5 Positioning',
+      title: hasPositioning ? 'Refresh positioning' : 'Generate strategic positioning',
+      body: hasPositioning
+        ? 'Positioning exists. Refresh it after major evidence edits.'
+        : 'Use the current evidence to draft strategic positioning and competitive moat material.',
+      statusLabel:
+        actionPhase === 'positioning' ? 'Next' : hasPositioning ? 'Ready' : 'After evidence',
+      statusTone: actionPhase === 'positioning' ? 'next' : hasPositioning ? 'done' : 'ready',
+      targetLayer: 'self',
+      actionLabel: 'Refresh positioning',
+      canRun: true,
+    },
+    {
+      id: 'strategy',
+      step: '6 Search parameters',
+      title: hasSearchStrategy ? 'Regenerate search parameters' : 'Generate search parameters',
+      body: hasSearchStrategy
+        ? 'Search vectors and open questions exist. Regenerate after positioning changes.'
+        : 'Turn positioning into search vectors and open questions for research and targeting.',
+      statusLabel:
+        actionPhase === 'strategy' ? 'Next' : hasSearchStrategy ? 'Ready' : 'After positioning',
+      statusTone: actionPhase === 'strategy' ? 'next' : hasSearchStrategy ? 'done' : 'ready',
+      targetLayer: 'search',
+      actionLabel: 'Generate parameters',
+      canRun: true,
+    },
+    {
+      id: 'review',
+      step: '7 Review',
+      title: 'Review the identity map',
+      body: 'Scan the bands and make durable edits where the source material needs correction.',
+      statusLabel: actionPhase === 'review' ? 'Next' : 'Later',
+      statusTone: actionPhase === 'review' ? 'next' : 'muted',
+      targetLayer: 'thesis',
+      actionLabel: 'Review map',
+      canRun: true,
+    },
+  ]
+}
 
 /**
  * Identity Map — single canvas + sticky inspector layout for the identity workspace.
@@ -51,10 +236,17 @@ export function IdentityMapPage() {
   const validatedReturn = validateReturnUrl(requestedReturn)
 
   const [staleNotice, setStaleNotice] = useState<string | null>(null)
+  const [showActionItems, setShowActionItems] = useState(false)
+  const [thesisRequestId, setThesisRequestId] = useState(0)
+  const [chapterRequestId, setChapterRequestId] = useState(0)
   const [positioningRequestId, setPositioningRequestId] = useState(0)
   const [strategyRequestId, setStrategyRequestId] = useState(0)
   const honoredSelRef = useRef<string | null>(null)
   const honoredFocusRef = useRef<string | null>(null)
+  const actionHighlightTimeoutRef = useRef<number | null>(null)
+  const actionFocusRestoreTimeoutRef = useRef<number | null>(null)
+  const actionDialogRef = useRef<HTMLDivElement | null>(null)
+  const actionTriggerRef = useRef<HTMLButtonElement | null>(null)
   // One-shot signal from forward → reverse: when forward dispatches
   // setMapSelection, reverse on the same effect tick still sees pre-dispatch
   // state and would otherwise treat it as divergence. The flag tells reverse
@@ -162,11 +354,44 @@ export function IdentityMapPage() {
   const bulletCount = identity?.roles?.reduce((sum, r) => sum + (r.bullets?.length ?? 0), 0) ?? 0
   const projectCount = identity?.projects?.length ?? 0
   const schemaRevision = identity?.schema_revision ?? '—'
-  const enrichmentProgress = identity ? getIdentityEnrichmentProgress(identity) : null
+  const enrichmentProgress = useMemo(
+    () => (identity ? getIdentityEnrichmentProgress(identity) : null),
+    [identity],
+  )
   const skillInferenceLabel =
     enrichmentProgress && enrichmentProgress.pending > 0
       ? `Deepen skills (${enrichmentProgress.pending})`
       : 'Review skill depth'
+  const skillPendingCount = enrichmentProgress?.pending ?? 0
+  const hasSkillDepthToReview = Boolean(enrichmentProgress && enrichmentProgress.total > 0)
+  const hasPendingSkillDepth = Boolean(enrichmentProgress && enrichmentProgress.pending > 0)
+  const hasThesis = Boolean(identity?.identity?.thesis?.trim())
+  const hasChapters = (identity?.self_model?.arc?.length ?? 0) > 0
+  const canGenerateChapters = (identity?.roles?.length ?? 0) > 0
+  const hasPositioning = Boolean(
+    identity?.self_model?.competitive_moat?.trim() ||
+      (identity?.self_model?.unfair_advantages?.length ?? 0) > 0,
+  )
+  const hasSearchStrategy =
+    (identity?.search_vectors?.length ?? 0) > 0 ||
+    (identity?.awareness?.open_questions?.length ?? 0) > 0
+  const bulletDepthTargets = useMemo(
+    () =>
+      (identity?.roles ?? []).flatMap((role) =>
+        (role.bullets ?? [])
+          .filter((bullet) => {
+            const hasSource = Boolean(bullet.source_text?.trim())
+            const hasStructuredDepth =
+              Boolean(bullet.problem?.trim()) &&
+              Boolean(bullet.action?.trim()) &&
+              Boolean(bullet.outcome?.trim())
+            return hasSource && !hasStructuredDepth
+          })
+          .map((bullet) => ({ roleId: role.id, bulletId: bullet.id })),
+      ),
+    [identity],
+  )
+  const bulletDepthCount = bulletDepthTargets.length
 
   const goToImport = () => {
     void navigate({ to: '/identity/import' })
@@ -177,27 +402,237 @@ export function IdentityMapPage() {
     void navigate(resolveIdentityEnrichmentNavTarget(identity))
   }
 
-  const scrollToLayer = (layer: Extract<BandLayer, 'self' | 'search'>) => {
+  useEffect(() => {
+    return () => {
+      if (actionHighlightTimeoutRef.current !== null) {
+        window.clearTimeout(actionHighlightTimeoutRef.current)
+      }
+      if (actionFocusRestoreTimeoutRef.current !== null) {
+        window.clearTimeout(actionFocusRestoreTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  const scrollToLayer = (
+    layer: BandLayer,
+    options: { highlight?: boolean; focus?: boolean } = {},
+  ) => {
     const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
     const behavior: ScrollBehavior = reduceMotion ? 'auto' : 'smooth'
+    const element = document.querySelector<HTMLElement>(getIdentityBandSelector(layer))
+    element?.scrollIntoView?.({ behavior, block: 'start' })
+
+    if (options.focus && element) {
+      if (!element.hasAttribute('tabindex')) {
+        element.tabIndex = -1
+      }
+      element.focus({ preventScroll: true })
+    }
+
+    if (!options.highlight || !element) return
+
     document
-      .querySelector<HTMLElement>(getIdentityBandSelector(layer))
-      ?.scrollIntoView?.({ behavior, block: 'start' })
+      .querySelectorAll<HTMLElement>('.identity-band.action-highlight')
+      .forEach((highlighted) => highlighted.classList.remove('action-highlight'))
+    element.classList.add('action-highlight')
+
+    if (actionHighlightTimeoutRef.current !== null) {
+      window.clearTimeout(actionHighlightTimeoutRef.current)
+    }
+    actionHighlightTimeoutRef.current = window.setTimeout(() => {
+      element.classList.remove('action-highlight')
+      actionHighlightTimeoutRef.current = null
+    }, 1800)
   }
 
   const refreshPositioning = () => {
     setPositioningRequestId((requestId) => requestId + 1)
-    scrollToLayer('self')
+    scrollToLayer('self', { highlight: true, focus: true })
+  }
+
+  const generateThesis = () => {
+    setThesisRequestId((requestId) => requestId + 1)
+    scrollToLayer('thesis', { highlight: true, focus: true })
+  }
+
+  const generateChapters = () => {
+    setChapterRequestId((requestId) => requestId + 1)
+    scrollToLayer('self', { highlight: true, focus: true })
   }
 
   const generateSearchStrategy = () => {
     setStrategyRequestId((requestId) => requestId + 1)
-    scrollToLayer('search')
+    scrollToLayer('search', { highlight: true, focus: true })
+  }
+
+  const openActionItems = (event: MouseEvent<HTMLButtonElement>) => {
+    actionTriggerRef.current = event.currentTarget
+    setShowActionItems(true)
+  }
+
+  const closeActionItems = ({ restoreFocus = true }: { restoreFocus?: boolean } = {}) => {
+    setShowActionItems(false)
+    if (!restoreFocus) return
+    if (actionFocusRestoreTimeoutRef.current !== null) {
+      window.clearTimeout(actionFocusRestoreTimeoutRef.current)
+    }
+    actionFocusRestoreTimeoutRef.current = window.setTimeout(() => {
+      actionTriggerRef.current?.focus()
+      actionFocusRestoreTimeoutRef.current = null
+    }, 0)
+  }
+
+  const afterActionItemsClose = (callback: () => void) => {
+    closeActionItems({ restoreFocus: false })
+    window.setTimeout(callback, 0)
+  }
+
+  useEffect(() => {
+    if (!showActionItems) return
+    actionDialogRef.current?.focus()
+  }, [showActionItems])
+
+  useEffect(() => {
+    if (!showActionItems) return undefined
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [showActionItems])
+
+  const handleActionDialogKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      closeActionItems()
+      return
+    }
+
+    if (event.key !== 'Tab') return
+    const dialog = actionDialogRef.current
+    if (!dialog) return
+
+    const focusable = Array.from(
+      dialog.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      ),
+    ).filter((element) => {
+      const style = window.getComputedStyle(element)
+      // The dialog markup is shallow; own computed style is enough to exclude hidden controls.
+      return (
+        !element.hasAttribute('disabled') &&
+        element.getAttribute('aria-hidden') !== 'true' &&
+        style.display !== 'none' &&
+        style.visibility !== 'hidden'
+      )
+    })
+
+    if (focusable.length === 0) {
+      event.preventDefault()
+      dialog.focus()
+      return
+    }
+
+    const first = focusable[0]
+    const last = focusable[focusable.length - 1]
+    if (document.activeElement === dialog) {
+      event.preventDefault()
+      const target = event.shiftKey ? last : first
+      target?.focus()
+    } else if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault()
+      last?.focus()
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault()
+      first?.focus()
+    }
+  }
+
+  const goToBulletDepth = () => {
+    const [target] = bulletDepthTargets
+    if (target) {
+      setMapSelection({ type: 'bullet', roleId: target.roleId, bulletId: target.bulletId })
+    }
+    scrollToLayer('roles', { highlight: true, focus: true })
+  }
+
+  const runIdentityAction = (item: IdentityActionItem) => {
+    if (!item.canRun) return
+
+    switch (item.id) {
+      case 'bullets':
+        goToBulletDepth()
+        break
+      case 'skills':
+        goToSkillEnrichment()
+        break
+      case 'thesis':
+        generateThesis()
+        break
+      case 'chapters':
+        generateChapters()
+        break
+      case 'positioning':
+        refreshPositioning()
+        break
+      case 'strategy':
+        generateSearchStrategy()
+        break
+      case 'review':
+        scrollToLayer('thesis', { highlight: true, focus: true })
+        break
+    }
+  }
+
+  const actionItems = useMemo<IdentityActionItem[]>(
+    () =>
+      identity
+        ? deriveIdentityActions({
+            bulletDepthCount,
+            skillPendingCount,
+            hasSkillDepthToReview,
+            hasPendingSkillDepth,
+            hasThesis,
+            hasChapters,
+            canGenerateChapters,
+            hasPositioning,
+            hasSearchStrategy,
+            skillInferenceLabel,
+          })
+        : [],
+    [
+      identity,
+      bulletDepthCount,
+      skillPendingCount,
+      hasPendingSkillDepth,
+      hasThesis,
+      hasChapters,
+      canGenerateChapters,
+      hasPositioning,
+      hasSearchStrategy,
+      hasSkillDepthToReview,
+      skillInferenceLabel,
+    ],
+  )
+  const nextAction = useMemo(
+    () =>
+      actionItems.find((item) => item.statusTone === 'next') ??
+      actionItems.find((item) => item.statusTone === 'ready') ??
+      actionItems[0] ??
+      null,
+    [actionItems],
+  )
+  const jumpToNextAction = () => {
+    if (!nextAction) return
+    scrollToLayer(nextAction.targetLayer, { highlight: true, focus: true })
   }
 
   return (
     <div className="identity-map">
-      <main className="identity-map-canvas">
+      <main
+        className="identity-map-canvas"
+        inert={showActionItems ? true : undefined}
+      >
         {validatedReturn ? (
           <button
             type="button"
@@ -251,7 +686,15 @@ export function IdentityMapPage() {
                 {identity.identity.location} · {identity.identity.remote ? 'Remote' : 'On-site'} ·{' '}
                 {identity.identity.email}
               </p>
-              <section className="identity-map-guide" aria-labelledby="identity-map-guide-title">
+              <section
+                className="identity-map-guide"
+                aria-labelledby="identity-map-guide-title"
+                style={
+                  {
+                    '--identity-map-guide-hero': `url(${identityMapGuideHeroImage})`,
+                  } as IdentityMapGuideStyle
+                }
+              >
                 <p className="label-tracked identity-map-guide-eyebrow">How to use this map</p>
                 <h2 id="identity-map-guide-title">Edit the durable identity here.</h2>
                 <p className="chapter-copy">
@@ -260,49 +703,52 @@ export function IdentityMapPage() {
                   band for the durable edits that belong to that slice.
                 </p>
               </section>
-              <section className="identity-map-inference" aria-labelledby="identity-map-inference-title">
-                <div className="identity-map-inference-copy">
-                  <p className="label-tracked identity-map-guide-eyebrow">Recommended inference order</p>
-                  <h2 id="identity-map-inference-title">Deepen evidence before generating strategy.</h2>
-                  <p className="chapter-copy">
-                    Later inference reads the current identity. Skills and bullets first gives positioning
-                    and search strategy the richest evidence to work from.
-                  </p>
-                </div>
-                <div className="identity-map-inference-actions">
-                  <button
-                    type="button"
-                    className="inspector-btn primary"
-                    onClick={goToSkillEnrichment}
-                    disabled={!enrichmentProgress || enrichmentProgress.total === 0}
-                  >
-                    <span className="sr-only">Recommended first: </span>
-                    {' '}
-                    <Sparkles size={14} aria-hidden="true" />
-                    {skillInferenceLabel}
-                  </button>
-                  <button
-                    type="button"
-                    className="inspector-btn"
-                    onClick={refreshPositioning}
-                  >
-                    <span className="sr-only">Recommended after skill depth: </span>
-                    {' '}
-                    <Sparkles size={14} aria-hidden="true" />
-                    Refresh positioning
-                  </button>
-                  <button
-                    type="button"
-                    className="inspector-btn"
-                    onClick={generateSearchStrategy}
-                  >
-                    <span className="sr-only">Recommended after positioning: </span>
-                    {' '}
-                    <Sparkles size={14} aria-hidden="true" />
-                    Generate strategy
-                  </button>
-                </div>
-              </section>
+              {nextAction ? (
+                <section
+                  className="identity-map-action-panel"
+                  aria-labelledby="identity-map-action-title"
+                >
+                  <div className="identity-map-action-copy">
+                    <p className="label-tracked identity-map-guide-eyebrow">Next action</p>
+                    <h2 id="identity-map-action-title">{nextAction.title}</h2>
+                    <p className="chapter-copy">{nextAction.body}</p>
+                    <div className="identity-map-action-meta">
+                      <span
+                        className={`identity-action-status label-tracked ${nextAction.statusTone}`}
+                      >
+                        {nextAction.statusLabel}
+                      </span>
+                      <span className="label-tracked">
+                        Bullets → skills → thesis → chapters → positioning → search
+                      </span>
+                    </div>
+                  </div>
+                  <div className="identity-map-action-buttons">
+                    <button
+                      type="button"
+                      className="inspector-btn primary"
+                      onClick={() => runIdentityAction(nextAction)}
+                      disabled={!nextAction.canRun}
+                      aria-label={`Run next action: ${nextAction.actionLabel}`}
+                    >
+                      <Sparkles size={14} aria-hidden="true" />
+                      {nextAction.actionLabel}
+                    </button>
+                    <button type="button" className="inspector-btn" onClick={jumpToNextAction}>
+                      <LocateFixed size={14} aria-hidden="true" />
+                      Jump to step
+                    </button>
+                    <button
+                      type="button"
+                      className="inspector-btn"
+                      onClick={openActionItems}
+                    >
+                      <ListChecks size={14} aria-hidden="true" />
+                      View all actions
+                    </button>
+                  </div>
+                </section>
+              ) : null}
             </>
           ) : (
             <div className="identity-map-empty-cta">
@@ -334,8 +780,11 @@ export function IdentityMapPage() {
           </div>
         ) : null}
 
-        <ThesisBand />
-        <SelfModelBand positioningRequestId={positioningRequestId} />
+        <ThesisBand thesisRequestId={thesisRequestId} />
+        <SelfModelBand
+          chapterRequestId={chapterRequestId}
+          positioningRequestId={positioningRequestId}
+        />
         <ProfilesBand />
         <RolesBand />
         <SkillsBand />
@@ -352,7 +801,82 @@ export function IdentityMapPage() {
         </footer>
       </main>
 
-      <IdentityInspector />
+      <div
+        className="identity-map-inspector-slot"
+        inert={showActionItems ? true : undefined}
+      >
+        <IdentityInspector />
+      </div>
+
+      {showActionItems ? (
+        <div className="modal-overlay">
+          <div
+            className="identity-action-backdrop"
+            role="presentation"
+            onClick={() => closeActionItems()}
+          />
+          <div
+            className="modal-card identity-action-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="identity-action-modal-title"
+            ref={actionDialogRef}
+            tabIndex={-1}
+            onKeyDown={handleActionDialogKeyDown}
+          >
+            <header className="modal-header">
+              <h3 id="identity-action-modal-title">Identity action items</h3>
+              <button
+                type="button"
+                className="identity-map-notice-dismiss label-tracked"
+                onClick={() => closeActionItems()}
+              >
+                Close
+              </button>
+            </header>
+            <ol className="identity-action-list">
+              {actionItems.map((item) => (
+                <li key={item.id} className="identity-action-item">
+                  <div className="identity-action-item-copy">
+                    <div className="identity-action-item-head">
+                      <span className="identity-action-step label-tracked">{item.step}</span>
+                      <span className={`identity-action-status label-tracked ${item.statusTone}`}>
+                        {item.statusLabel}
+                      </span>
+                    </div>
+                    <h4>{item.title}</h4>
+                    <p className="chapter-copy">{item.body}</p>
+                  </div>
+                  <div className="identity-action-item-buttons">
+                    <button
+                      type="button"
+                      className="inspector-btn"
+                      onClick={() =>
+                        afterActionItemsClose(() =>
+                          scrollToLayer(item.targetLayer, { highlight: true, focus: true }),
+                        )
+                      }
+                    >
+                      <LocateFixed size={14} aria-hidden="true" />
+                      Jump
+                    </button>
+                    <button
+                      type="button"
+                      className="inspector-btn primary"
+                      onClick={() => afterActionItemsClose(() => runIdentityAction(item))}
+                      disabled={!item.canRun}
+                      aria-label={`Run action: ${item.actionLabel}`}
+                    >
+                      <Sparkles size={14} aria-hidden="true" />
+                      {item.actionLabel}
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

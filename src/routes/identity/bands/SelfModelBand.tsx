@@ -51,8 +51,10 @@ function buildArcStops(arc: ProfessionalIdentityArcEntry[]): ArcStop[] {
 }
 
 export function SelfModelBand({
+  chapterRequestId = 0,
   positioningRequestId = 0,
 }: {
+  chapterRequestId?: number
   positioningRequestId?: number
 }) {
   const identity = useIdentityStore((s) => s.currentIdentity)
@@ -60,6 +62,7 @@ export function SelfModelBand({
   const setSelection = useIdentityStore((s) => s.setMapSelection)
   const updateCompetitiveMoat = useIdentityStore((s) => s.updateCurrentCompetitiveMoat)
   const updateUnfairAdvantages = useIdentityStore((s) => s.updateCurrentUnfairAdvantages)
+  const updateArc = useIdentityStore((s) => s.updateCurrentSelfModelArc)
   const updateVectors = useIdentityStore((s) => s.updateCurrentSearchVectors)
   const updateQuestions = useIdentityStore((s) => s.updateCurrentAwarenessQuestions)
   const fill = selfModelFillStrength(identity)
@@ -125,6 +128,49 @@ export function SelfModelBand({
     positioningMessageIdRef.current += 1
     setPositioningMessage({ ...message, id: positioningMessageIdRef.current })
   }, [])
+
+  const handleGenerateChaptersFromRoles = useCallback(() => {
+    const currentIdentity = useIdentityStore.getState().currentIdentity
+    if (!currentIdentity) return
+
+    const chapters = currentIdentity.roles.map<ProfessionalIdentityArcEntry>((role) => {
+      const bullets = role.bullets ?? []
+      const firstImpact = bullets
+        .flatMap((bullet) => bullet.impact ?? [])
+        .map((impact) => impact.trim())
+        .find(Boolean)
+      const firstOutcome = bullets
+        .map((bullet) => bullet.outcome?.trim())
+        .find(Boolean)
+      const proof = firstImpact || firstOutcome || 'delivered key outcomes'
+
+      return {
+        company: role.company,
+        chapter: `${role.title} chapter focused on ${proof}.`,
+      }
+    })
+
+    if (chapters.length === 0) {
+      showPositioningMessage({
+        tone: 'info',
+        text: 'Add roles before generating career chapters.',
+        autoDismiss: true,
+      })
+      return
+    }
+
+    updateArc(chapters)
+    showPositioningMessage({
+      tone: 'info',
+      text: `Generated ${chapters.length} career chapter${chapters.length === 1 ? '' : 's'} from roles.`,
+      autoDismiss: true,
+    })
+  }, [showPositioningMessage, updateArc])
+
+  useInferenceRequest({
+    requestId: chapterRequestId,
+    handler: handleGenerateChaptersFromRoles,
+  })
 
   const dismissPositioningDraft = () => {
     setPositioningDraft(null)
@@ -316,11 +362,9 @@ export function SelfModelBand({
               <button
                 type="button"
                 className="inspector-btn primary self-arc-cta"
-                onClick={() => {
-                  // Phase D wires this to identityParametersGeneration utilities.
-                }}
+                onClick={handleGenerateChaptersFromRoles}
               >
-                Generate chapters from roles
+                Draft chapters from roles
               </button>
             </div>
           ) : (

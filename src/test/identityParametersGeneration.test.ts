@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { cloneIdentityFixture } from './fixtures/identityFixture'
 import {
   generateAwarenessFromIdentity,
+  generateIdentityThesisFromIdentity,
   generateSearchVectorsFromIdentity,
   generateStrategicPositioningFromIdentity,
 } from '../utils/identityParametersGeneration'
@@ -213,6 +214,63 @@ describe('identityParametersGeneration', () => {
     ).rejects.toBeInstanceOf(JsonExtractionError)
   })
 
+  it('normalizes generated identity thesis text and strips voice tells', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                thesis: 'Turns platform ambiguity — and delivery risk — into shipped systems.',
+                title: ' Platform Systems Lead ',
+                origin: 'Repeated migration work — across deployment surfaces.',
+                elaboration: '',
+              }),
+            },
+          },
+        ],
+      }),
+    } as Response)
+
+    const thesis = await generateIdentityThesisFromIdentity(
+      cloneIdentityFixture(),
+      'https://ai.example/proxy',
+    )
+
+    expect(thesis).toEqual({
+      thesis: 'Turns platform ambiguity, and delivery risk, into shipped systems.',
+      title: 'Platform Systems Lead',
+      origin: 'Repeated migration work, across deployment surfaces.',
+    })
+  })
+
+  it('rejects generated identity thesis responses without a thesis', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: '{"title":"Platform Systems Lead"}' } }],
+      }),
+    } as Response)
+
+    await expect(
+      generateIdentityThesisFromIdentity(cloneIdentityFixture(), 'https://ai.example/proxy'),
+    ).rejects.toThrow('Generated thesis response must include thesis.')
+  })
+
+  it('preserves extraction errors for missing identity thesis JSON blocks', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: 'Here is your thesis in plain English.' } }],
+      }),
+    } as Response)
+
+    await expect(
+      generateIdentityThesisFromIdentity(cloneIdentityFixture(), 'https://ai.example/proxy'),
+    ).rejects.toBeInstanceOf(JsonExtractionError)
+  })
+
   it('requests Opus for identity strategy inference', async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce({
@@ -233,14 +291,22 @@ describe('identityParametersGeneration', () => {
           choices: [{ message: { content: '{"search_vectors":[],"open_questions":[]}' } }],
         }),
       } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [{ message: { content: '{"thesis":"Leads durable platform delivery."}' } }],
+        }),
+      } as Response)
 
     await generateSearchVectorsFromIdentity(cloneIdentityFixture(), 'https://ai.example/proxy')
     await generateAwarenessFromIdentity(cloneIdentityFixture(), 'https://ai.example/proxy')
     await generateStrategicPositioningFromIdentity(cloneIdentityFixture(), 'https://ai.example/proxy')
+    await generateIdentityThesisFromIdentity(cloneIdentityFixture(), 'https://ai.example/proxy')
 
     const vectorRequest = JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body))
     const awarenessRequest = JSON.parse(String(vi.mocked(fetch).mock.calls[1]?.[1]?.body))
     const strategyRequest = JSON.parse(String(vi.mocked(fetch).mock.calls[2]?.[1]?.body))
+    const thesisRequest = JSON.parse(String(vi.mocked(fetch).mock.calls[3]?.[1]?.body))
 
     expect(vectorRequest).toMatchObject({
       feature: 'research.profile-inference',
@@ -251,6 +317,10 @@ describe('identityParametersGeneration', () => {
       model: 'opus',
     })
     expect(strategyRequest).toMatchObject({
+      feature: 'research.profile-inference',
+      model: 'opus',
+    })
+    expect(thesisRequest).toMatchObject({
       feature: 'research.profile-inference',
       model: 'opus',
     })

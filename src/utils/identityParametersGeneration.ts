@@ -1,5 +1,6 @@
 import type {
   ProfessionalAwarenessSeverity,
+  ProfessionalIdentityCore,
   ProfessionalIdentityV3,
   ProfessionalOpenQuestion,
   ProfessionalSearchVector,
@@ -21,6 +22,11 @@ export interface ProfessionalStrategicInference {
   open_questions: ProfessionalOpenQuestion[]
 }
 
+export type ProfessionalIdentityThesisInference = Pick<
+  ProfessionalIdentityCore,
+  'thesis' | 'title' | 'origin' | 'elaboration'
+>
+
 export interface ProfessionalStrategicInferenceOptions {
   mode?: 'fill' | 'regenerate'
   signal?: AbortSignal
@@ -36,6 +42,8 @@ const normalizeStringArray = (value: unknown): string[] =>
 
 const normalizeOptionalString = (value: unknown): string | undefined =>
   isString(value) && value.trim() ? value.trim() : undefined
+
+const removeVoiceTells = (value: string): string => value.replace(/\s*—\s*/g, ', ').trim()
 
 const buildGenerationPrompt = (identity: ProfessionalIdentityV3) =>
   JSON.stringify(
@@ -169,6 +177,67 @@ const normalizeGeneratedStrategy = (payload: unknown): ProfessionalStrategicInfe
     unfair_advantages: normalizeStringArray(record.unfair_advantages),
     search_vectors: normalizeGeneratedVectors(record),
     open_questions: normalizeGeneratedAwareness(openQuestionsPayload),
+  }
+}
+
+const normalizeGeneratedThesis = (payload: unknown): ProfessionalIdentityThesisInference => {
+  const record = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {}
+  const thesis = normalizeOptionalString(record.thesis)
+  if (!thesis) {
+    throw new Error('Generated thesis response must include thesis.')
+  }
+
+  const title = normalizeOptionalString(record.title)
+  const origin = normalizeOptionalString(record.origin)
+  const elaboration = normalizeOptionalString(record.elaboration)
+
+  return {
+    thesis: removeVoiceTells(thesis),
+    ...(title ? { title: removeVoiceTells(title) } : {}),
+    ...(origin ? { origin: removeVoiceTells(origin) } : {}),
+    ...(elaboration ? { elaboration: removeVoiceTells(elaboration) } : {}),
+  }
+}
+
+export async function generateIdentityThesisFromIdentity(
+  identity: ProfessionalIdentityV3,
+  endpoint: string,
+  options: { signal?: AbortSignal } = {},
+): Promise<ProfessionalIdentityThesisInference> {
+  const systemPrompt = `You are a senior career strategist for staff-plus engineering candidates. Return JSON only.
+Generate the candidate's durable identity thesis from the supplied identity model.
+
+Respect generator_rules.accuracy as hard truth constraints. Do not invent candidate claims. Use roles, projects, skills, profiles, and existing self_model as evidence.
+
+Voice requirements:
+- Write like a precise senior engineer, not a marketing page.
+- Avoid AI tells: no em dashes, no hype, no vague transformation language, no "uniquely positioned" phrasing.
+- The thesis should be one strong sentence.
+- The title should be short and role-like.
+- The origin and elaboration may be private scaffolding, but must still be grounded in evidence.
+
+Response schema:
+{
+  "thesis": "string",
+  "title": "optional string",
+  "origin": "optional string",
+  "elaboration": "optional string"
+}`
+
+  const rawResponse = await callLlmProxy(endpoint, systemPrompt, buildGenerationPrompt(identity), {
+    feature: 'research.profile-inference',
+    model: GENERATION_MODEL,
+    timeoutMs: RESEARCH_PROFILE_INFERENCE_TIMEOUT_MS,
+    signal: options.signal,
+  })
+
+  try {
+    return normalizeGeneratedThesis(parseGeneratedPayload(rawResponse, 'Generated identity thesis response'))
+  } catch (error) {
+    if (error instanceof JsonExtractionError) {
+      throw error
+    }
+    throw error instanceof Error ? error : new Error('Failed to parse generated identity thesis.')
   }
 }
 
