@@ -20,13 +20,14 @@
   --text-2xs: 11px;
   --text-sm: 14px;
   --status-dot-size: 8px;
+  --app-topbar-padding-y: 6px;
 
   /* Height of the AppShell .app-topbar — overridden at runtime by AppShell's
      ResizeObserver to match the actual rendered height. The value below is a
      close-enough fallback for the initial paint (and for tests that render
      pages outside AppShell). Layout regions like the Identity Map's inspector
      aside subtract this from 100vh for full-height sticky sizing. */
-  --app-topbar-height: 96px;
+  --app-topbar-height: 56px;
 
   /* Build workspace height floors by breakpoint: desktop flex basis, stacked fixed panel height. */
   --build-workspace-panel-height-lg: clamp(520px, 62vh, 760px);
@@ -3716,7 +3717,7 @@ select.component-input {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-4);
-  padding: var(--space-4) var(--space-6);
+  padding: var(--app-topbar-padding-y) var(--space-6);
   border-bottom: 1px solid var(--border-subtle);
   background: var(--bg-surface);
 }
@@ -3739,13 +3740,18 @@ select.component-input {
 }
 
 .app-topbar-brand .facet-lockup {
-  gap: 8px;
+  gap: var(--space-2);
+}
+
+.app-topbar-brand .facet-gem-mark {
+  width: 24px;
+  height: auto;
 }
 
 .app-topbar-brand .facet-wordmark {
-  font-size: 28px;
-  font-weight: 600;
-  letter-spacing: 1px;
+  font-size: 36px;
+  font-weight: 500;
+  letter-spacing: 0;
 }
 
 .app-topbar-divider {
@@ -3771,13 +3777,6 @@ select.component-input {
   margin: 0;
   font-size: 20px;
   line-height: 1.2;
-}
-
-.app-topbar-description {
-  margin: 4px 0 0;
-  font-size: 13px;
-  line-height: 1.45;
-  color: var(--text-secondary);
 }
 
 .app-topbar-actions {
@@ -4038,7 +4037,7 @@ select.component-input {
   }
 
   .app-topbar {
-    padding: var(--space-3) var(--space-4);
+    padding: var(--app-topbar-padding-y) var(--space-4);
   }
 
   .app-topbar-start {
@@ -4053,7 +4052,6 @@ select.component-input {
     font-size: 18px;
   }
 
-  .app-topbar-description,
   .app-topbar-brand .facet-wordmark,
   .app-topbar-divider {
     display: none;

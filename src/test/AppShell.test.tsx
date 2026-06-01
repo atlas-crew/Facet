@@ -500,11 +500,7 @@ describe('AppShell hosted workspace bootstrap', () => {
     expect(screen.queryByRole('button', { name: /backup workspace/i })).toBeNull()
     expect(screen.queryByText(/^Backup$/i)).toBeNull()
     expect(document.querySelector('.app-topbar-eyebrow')?.textContent).toBe('Analyze Workspace')
-    expect(
-      screen.getByText(
-        'Turn your identity into targeted searches and pipeline-ready opportunities.',
-      ),
-    ).toBeTruthy()
+    expect(document.querySelector('.app-topbar-description')).toBeNull()
   })
 
   it('links the topbar brand to the landing page', () => {

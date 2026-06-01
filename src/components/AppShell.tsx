@@ -70,75 +70,61 @@ const NAV_ITEMS = [
     to: HOME_ROUTE,
     icon: Home,
     label: 'Overview',
-    description: 'Monitor workspace readiness and jump into the next useful action.',
   },
   {
     to: '/identity' as const,
     icon: Fingerprint,
     label: 'Identity',
-    description: 'Shape your professional identity, evidence, and search strategy.',
   },
   {
     to: '/research' as const,
     icon: Search,
     label: 'Research',
-    description: 'Turn your identity into targeted searches and pipeline-ready opportunities.',
   },
   {
     to: '/match' as const,
     icon: Target,
     label: 'Match',
-    description: 'Compare your profile to a role and analyze alignment before you tailor.',
   },
   {
     to: '/build' as const,
     icon: Layers,
     label: 'Build',
-    description:
-      'Generate tailored resumes from your identity model, AI vector suggestions, and per-job pipeline context.',
   },
   {
     to: '/pipeline' as const,
     icon: ListChecks,
     label: 'Pipeline',
-    description:
-      'Track opportunities, investigate openings, and keep momentum across applications.',
   },
   {
     to: '/prep' as const,
     icon: BookOpen,
     label: 'Prep',
-    description: 'Prepare for interviews with company context, likely questions, and story drills.',
   },
   {
     to: '/debrief' as const,
     icon: MessageSquareQuote,
     label: 'Debrief',
-    description: 'Capture interview outcomes and feed learnings back into your identity.',
   },
   {
     to: '/letters' as const,
     icon: FileText,
     label: 'Letters',
-    description: 'Draft role-specific outreach and cover letters from your current materials.',
   },
   {
     to: '/linkedin' as const,
     icon: AtSign,
     label: 'LinkedIn',
-    description: 'Turn your identity into polished LinkedIn-ready profile language.',
   },
   {
     to: '/recruiter' as const,
     icon: BadgeCheck,
     label: 'Recruiter',
-    description: 'Generate a concise recruiter-facing brief from your current match context.',
   },
   {
     to: '/admin' as const,
     icon: ShieldCheck,
     label: 'Admin',
-    description: 'Inspect platform operations and hosted billing webhook receipts.',
   },
 ] as const
 
@@ -273,7 +259,6 @@ export function AppShell() {
       return {
         title: 'Overview',
         eyebrow: 'Workspace Overview',
-        description: 'Jump into the next step of your search system and monitor overall readiness.',
       }
     }
 
@@ -281,7 +266,6 @@ export function AppShell() {
       return {
         title: activeNavItem.label,
         eyebrow: activeNavGroup?.eyebrow ?? 'Workspace',
-        description: activeNavItem.description,
       }
     }
 
@@ -289,7 +273,6 @@ export function AppShell() {
       return {
         title: 'Help',
         eyebrow: 'Utility Workspace',
-        description: 'Find product guidance, troubleshooting notes, and usage details.',
       }
     }
 
@@ -297,14 +280,12 @@ export function AppShell() {
       return {
         title: 'Account',
         eyebrow: 'Utility Workspace',
-        description: 'Manage hosted access, billing state, and account-level settings.',
       }
     }
 
     return {
       title: 'Facet',
       eyebrow: 'Workspace',
-      description: 'Move through the core search workflow and supporting tools.',
     }
   }, [activeNavGroup, activeNavItem, currentPath, isHelpRoute, isHomeRoute])
 
@@ -973,7 +954,6 @@ export function AppShell() {
             <div className="app-topbar-copy">
               <p className="app-topbar-eyebrow">{routeContext.eyebrow}</p>
               <h1 className="app-topbar-title">{routeContext.title}</h1>
-              <p className="app-topbar-description">{routeContext.description}</p>
             </div>
           </div>
           <div className="app-topbar-actions">
