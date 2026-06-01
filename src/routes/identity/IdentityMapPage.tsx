@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import { Upload } from 'lucide-react'
+import { Sparkles, Upload } from 'lucide-react'
 import { isMapSelectionValid, useIdentityStore } from '../../store/identityStore'
 import {
   buildStaleSelectionNotice,
@@ -11,7 +11,10 @@ import {
   validateReturnUrl,
   getReturnOriginName,
 } from '../../utils/mapSelectionUrl'
+import { getIdentityEnrichmentProgress } from '../../utils/identityEnrichment'
 import { IdentityInspector } from './IdentityInspector'
+import type { BandLayer } from './IdentityBand'
+import { getIdentityBandSelector } from './identityBandLayers'
 import { ThesisBand } from './bands/ThesisBand'
 import { SelfModelBand } from './bands/SelfModelBand'
 import { ProfilesBand } from './bands/ProfilesBand'
@@ -19,6 +22,7 @@ import { RolesBand } from './bands/RolesBand'
 import { SkillsBand } from './bands/SkillsBand'
 import { PreferencesBand } from './bands/PreferencesBand'
 import { SearchStrategyBand } from './bands/SearchStrategyBand'
+import { resolveIdentityEnrichmentNavTarget } from './identityNavigation'
 import './identityMap.css'
 
 /**
@@ -47,6 +51,8 @@ export function IdentityMapPage() {
   const validatedReturn = validateReturnUrl(requestedReturn)
 
   const [staleNotice, setStaleNotice] = useState<string | null>(null)
+  const [positioningRequestId, setPositioningRequestId] = useState(0)
+  const [strategyRequestId, setStrategyRequestId] = useState(0)
   const honoredSelRef = useRef<string | null>(null)
   const honoredFocusRef = useRef<string | null>(null)
   // One-shot signal from forward → reverse: when forward dispatches
@@ -156,9 +162,37 @@ export function IdentityMapPage() {
   const bulletCount = identity?.roles?.reduce((sum, r) => sum + (r.bullets?.length ?? 0), 0) ?? 0
   const projectCount = identity?.projects?.length ?? 0
   const schemaRevision = identity?.schema_revision ?? '—'
+  const enrichmentProgress = identity ? getIdentityEnrichmentProgress(identity) : null
+  const skillInferenceLabel =
+    enrichmentProgress && enrichmentProgress.pending > 0
+      ? `Deepen skills (${enrichmentProgress.pending})`
+      : 'Review skill depth'
 
   const goToImport = () => {
     void navigate({ to: '/identity/import' })
+  }
+
+  const goToSkillEnrichment = () => {
+    if (!identity) return
+    void navigate(resolveIdentityEnrichmentNavTarget(identity))
+  }
+
+  const scrollToLayer = (layer: Extract<BandLayer, 'self' | 'search'>) => {
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+    const behavior: ScrollBehavior = reduceMotion ? 'auto' : 'smooth'
+    document
+      .querySelector<HTMLElement>(getIdentityBandSelector(layer))
+      ?.scrollIntoView?.({ behavior, block: 'start' })
+  }
+
+  const refreshPositioning = () => {
+    setPositioningRequestId((requestId) => requestId + 1)
+    scrollToLayer('self')
+  }
+
+  const generateSearchStrategy = () => {
+    setStrategyRequestId((requestId) => requestId + 1)
+    scrollToLayer('search')
   }
 
   return (
@@ -226,6 +260,49 @@ export function IdentityMapPage() {
                   band for the durable edits that belong to that slice.
                 </p>
               </section>
+              <section className="identity-map-inference" aria-labelledby="identity-map-inference-title">
+                <div className="identity-map-inference-copy">
+                  <p className="label-tracked identity-map-guide-eyebrow">Recommended inference order</p>
+                  <h2 id="identity-map-inference-title">Deepen evidence before generating strategy.</h2>
+                  <p className="chapter-copy">
+                    Later inference reads the current identity. Skills and bullets first gives positioning
+                    and search strategy the richest evidence to work from.
+                  </p>
+                </div>
+                <div className="identity-map-inference-actions">
+                  <button
+                    type="button"
+                    className="inspector-btn primary"
+                    onClick={goToSkillEnrichment}
+                    disabled={!enrichmentProgress || enrichmentProgress.total === 0}
+                  >
+                    <span className="sr-only">Recommended first: </span>
+                    {' '}
+                    <Sparkles size={14} aria-hidden="true" />
+                    {skillInferenceLabel}
+                  </button>
+                  <button
+                    type="button"
+                    className="inspector-btn"
+                    onClick={refreshPositioning}
+                  >
+                    <span className="sr-only">Recommended after skill depth: </span>
+                    {' '}
+                    <Sparkles size={14} aria-hidden="true" />
+                    Refresh positioning
+                  </button>
+                  <button
+                    type="button"
+                    className="inspector-btn"
+                    onClick={generateSearchStrategy}
+                  >
+                    <span className="sr-only">Recommended after positioning: </span>
+                    {' '}
+                    <Sparkles size={14} aria-hidden="true" />
+                    Generate strategy
+                  </button>
+                </div>
+              </section>
             </>
           ) : (
             <div className="identity-map-empty-cta">
@@ -258,12 +335,12 @@ export function IdentityMapPage() {
         ) : null}
 
         <ThesisBand />
-        <SelfModelBand />
+        <SelfModelBand positioningRequestId={positioningRequestId} />
         <ProfilesBand />
         <RolesBand />
         <SkillsBand />
         <PreferencesBand />
-        <SearchStrategyBand />
+        <SearchStrategyBand strategyRequestId={strategyRequestId} />
 
         <footer className="identity-map-footer">
           <span className="label-tracked">

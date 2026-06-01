@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Sparkles } from 'lucide-react'
 import type {
   ProfessionalIdentityV3,
@@ -6,7 +6,6 @@ import type {
   ProfessionalSearchVector,
 } from '../../../identity/schema'
 import { useIdentityStore } from '../../../store/identityStore'
-import { facetClientEnv } from '../../../utils/facetEnv'
 import { searchStrategyFillStrength } from '../../../utils/identityFillStrength'
 import {
   generateAwarenessFromIdentity,
@@ -14,8 +13,12 @@ import {
   generateStrategicPositioningFromIdentity,
 } from '../../../utils/identityParametersGeneration'
 import { createId } from '../../../utils/idUtils'
-import { sanitizeEndpointUrl } from '../../../utils/urlUtils'
 import { IdentityBand } from '../IdentityBand'
+import {
+  ensureIdentityInferenceEndpoint,
+  IdentityInferenceConfigError,
+} from '../identityInferenceRuntime'
+import { useInferenceRequest } from '../useInferenceRequest'
 
 type StrategyGenerationKind = 'strategy' | 'vectors' | 'questions'
 type StrategyGenerationMessage = {
@@ -27,7 +30,9 @@ type StrategyGenerationMessage = {
 }
 type StrategySelectionType = 'search-vector' | 'awareness-question'
 
-class StrategyGenerationConfigError extends Error {}
+const ensureEndpoint = () => {
+  return ensureIdentityInferenceEndpoint('Connect the AI proxy before generating search strategy.')
+}
 
 const getIdentityGenerationKey = (identity: ProfessionalIdentityV3) =>
   // identityStore.syncIdentityDocument advances model_revision for durable identity edits,
@@ -161,7 +166,11 @@ function StrategyGenerationStatus({
   )
 }
 
-export function SearchStrategyBand() {
+export function SearchStrategyBand({
+  strategyRequestId = 0,
+}: {
+  strategyRequestId?: number
+}) {
   const identity = useIdentityStore((s) => s.currentIdentity)
   const selection = useIdentityStore((s) => s.mapSelection)
   const setSelection = useIdentityStore((s) => s.setMapSelection)
@@ -194,20 +203,10 @@ export function SearchStrategyBand() {
     return () => window.clearTimeout(timeoutId)
   }, [generationMessage])
 
-  const showGenerationMessage = (message: Omit<StrategyGenerationMessage, 'id'>) => {
+  const showGenerationMessage = useCallback((message: Omit<StrategyGenerationMessage, 'id'>) => {
     generationMessageIdRef.current += 1
     setGenerationMessage({ ...message, id: generationMessageIdRef.current })
-  }
-
-  const ensureEndpoint = () => {
-    const aiEndpoint = sanitizeEndpointUrl(facetClientEnv.anthropicProxyUrl)
-    if (!aiEndpoint) {
-      throw new StrategyGenerationConfigError(
-        'Connect the AI proxy before generating search strategy.',
-      )
-    }
-    return aiEndpoint
-  }
+  }, [])
 
   const runStrategyGeneration = async <Item extends { id: string }>({
     kind,
@@ -306,7 +305,7 @@ export function SearchStrategyBand() {
       })
     } catch (error) {
       const message = error instanceof Error ? error.message : ''
-      const isConfigError = error instanceof StrategyGenerationConfigError
+      const isConfigError = error instanceof IdentityInferenceConfigError
       if (!isConfigError) {
         console.error(error)
       }
@@ -322,7 +321,7 @@ export function SearchStrategyBand() {
     }
   }
 
-  const handleGenerateStrategy = async () => {
+  const handleGenerateStrategy = useCallback(async () => {
     const currentIdentity = useIdentityStore.getState().currentIdentity
     if (!currentIdentity || generatingRef.current) return
 
@@ -406,7 +405,7 @@ export function SearchStrategyBand() {
       })
     } catch (error) {
       const message = error instanceof Error ? error.message : ''
-      const isConfigError = error instanceof StrategyGenerationConfigError
+      const isConfigError = error instanceof IdentityInferenceConfigError
       if (!isConfigError) {
         console.error(error)
       }
@@ -420,7 +419,27 @@ export function SearchStrategyBand() {
       generatingRef.current = null
       setGenerating(null)
     }
-  }
+  }, [
+    setSelection,
+    showGenerationMessage,
+    updateCompetitiveMoat,
+    updateQuestions,
+    updateUnfairAdvantages,
+    updateVectors,
+  ])
+  useInferenceRequest({
+    requestId: strategyRequestId,
+    handler: handleGenerateStrategy,
+    skipWhen: () => generatingRef.current !== null,
+    onSkipped: () => {
+      showGenerationMessage({
+        kind: 'strategy',
+        tone: 'info',
+        text: 'Strategy generation is already running.',
+        autoDismiss: true,
+      })
+    },
+  })
 
   const handleGenerateVectors = () =>
     runStrategyGeneration<ProfessionalSearchVector>({

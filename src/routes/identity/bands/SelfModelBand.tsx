@@ -1,15 +1,17 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Sparkles } from 'lucide-react'
 import type { ProfessionalIdentityArcEntry } from '../../../identity/schema'
 import { useIdentityStore } from '../../../store/identityStore'
-import { facetClientEnv } from '../../../utils/facetEnv'
 import { selfModelFillStrength } from '../../../utils/identityFillStrength'
 import {
   generateStrategicPositioningFromIdentity,
   type ProfessionalStrategicInference,
 } from '../../../utils/identityParametersGeneration'
-import { sanitizeEndpointUrl } from '../../../utils/urlUtils'
 import { IdentityBand } from '../IdentityBand'
+import {
+  ensureIdentityInferenceEndpoint,
+  IdentityInferenceConfigError,
+} from '../identityInferenceRuntime'
 import {
   computePositioningDraftApplication,
   formatPositioningApplyMessage,
@@ -18,6 +20,7 @@ import {
   hasPositioningDraftSections,
   type PositioningDraftApplySections,
 } from '../positioningDraft'
+import { useInferenceRequest } from '../useInferenceRequest'
 
 interface ArcStop extends ProfessionalIdentityArcEntry {
   id: string
@@ -30,9 +33,11 @@ type PositioningGenerationMessage = {
   autoDismiss: boolean
 }
 
-class PositioningGenerationConfigError extends Error {}
-
 const POSITIONING_MESSAGE_DISMISS_MS = 8000
+
+const ensurePositioningEndpoint = () => {
+  return ensureIdentityInferenceEndpoint('Connect the AI proxy before refreshing positioning.')
+}
 
 /**
  * Build arc stops from persisted `self_model.arc[]` only. We deliberately do
@@ -45,7 +50,11 @@ function buildArcStops(arc: ProfessionalIdentityArcEntry[]): ArcStop[] {
   return arc.map((entry, index) => ({ ...entry, id: `${entry.company}:${index}` }))
 }
 
-export function SelfModelBand() {
+export function SelfModelBand({
+  positioningRequestId = 0,
+}: {
+  positioningRequestId?: number
+}) {
   const identity = useIdentityStore((s) => s.currentIdentity)
   const selection = useIdentityStore((s) => s.mapSelection)
   const setSelection = useIdentityStore((s) => s.setMapSelection)
@@ -112,20 +121,10 @@ export function SelfModelBand() {
     setPositioningMessage(null)
   }, [identityGenerationKey, positioningDraftKey])
 
-  const showPositioningMessage = (message: Omit<PositioningGenerationMessage, 'id'>) => {
+  const showPositioningMessage = useCallback((message: Omit<PositioningGenerationMessage, 'id'>) => {
     positioningMessageIdRef.current += 1
     setPositioningMessage({ ...message, id: positioningMessageIdRef.current })
-  }
-
-  const ensurePositioningEndpoint = () => {
-    const aiEndpoint = sanitizeEndpointUrl(facetClientEnv.anthropicProxyUrl)
-    if (!aiEndpoint) {
-      throw new PositioningGenerationConfigError(
-        'Connect the AI proxy before refreshing positioning.',
-      )
-    }
-    return aiEndpoint
-  }
+  }, [])
 
   const dismissPositioningDraft = () => {
     setPositioningDraft(null)
@@ -146,7 +145,7 @@ export function SelfModelBand() {
     updateUnfairAdvantages(advantages.filter((_, i) => i !== index))
   }
 
-  const handleRefreshPositioning = async () => {
+  const handleRefreshPositioning = useCallback(async () => {
     if (!identity || positioningGenerationRef.current) return
 
     try {
@@ -204,7 +203,7 @@ export function SelfModelBand() {
         return
       }
       const message = error instanceof Error ? error.message : ''
-      const isConfigError = error instanceof PositioningGenerationConfigError
+      const isConfigError = error instanceof IdentityInferenceConfigError
       if (!isConfigError) {
         console.error(error)
       }
@@ -220,7 +219,19 @@ export function SelfModelBand() {
         setGeneratingPositioning(false)
       }
     }
-  }
+  }, [identity, moat, moatDraft, showPositioningMessage, updateCompetitiveMoat])
+  useInferenceRequest({
+    requestId: positioningRequestId,
+    handler: handleRefreshPositioning,
+    skipWhen: () => positioningGenerationRef.current,
+    onSkipped: () => {
+      showPositioningMessage({
+        tone: 'info',
+        text: 'Positioning refresh is already running.',
+        autoDismiss: true,
+      })
+    },
+  })
 
   const applyDraftSections = (sections: PositioningDraftApplySections) => {
     if (!positioningDraft) return

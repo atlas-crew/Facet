@@ -400,6 +400,9 @@ describe('Identity Map — match-rule add/remove', () => {
 
     render(<IdentityMapPage />)
 
+    expect(
+      screen.getByRole('button', { name: /recommended first: review skill depth/i }).textContent,
+    ).toContain('Review skill depth')
     const panel = screen.getByText('Skill depth').closest('.skills-enrichment-panel') as HTMLElement
     expect(within(panel).getByRole('button', { name: 'Review skill depth' })).toBeTruthy()
     expect(within(panel).queryByRole('button', { name: 'Deepen skills' })).toBeNull()
@@ -411,6 +414,341 @@ describe('Identity Map — match-rule add/remove', () => {
     })
   })
 
+  it('routes top inference controls to skill depth, positioning, and strategy generation', async () => {
+    seed((id) => {
+      id.skills.groups[0]!.items = [
+        {
+          name: 'Kubernetes',
+          tags: ['platform', 'kubernetes'],
+          depth: 'strong',
+          context: 'Used for customer-hosted deployments.',
+          positioning: 'Platform modernization and Kubernetes operations.',
+        },
+        {
+          name: 'TypeScript',
+          tags: ['backend', 'typescript'],
+        },
+      ]
+      id.search_vectors = []
+      id.awareness = { open_questions: [] }
+    })
+    identityParameterMocks.generateStrategicPositioningFromIdentityMock
+      .mockResolvedValueOnce({
+        unfair_advantages: [],
+        search_vectors: [],
+        open_questions: [],
+      })
+      .mockResolvedValueOnce({
+        unfair_advantages: ['Platform infrastructure depth plus product judgment'],
+        search_vectors: [],
+        open_questions: [],
+      })
+
+    render(<IdentityMapPage />)
+
+    expect(screen.getByText('Deepen evidence before generating strategy.')).toBeTruthy()
+    expect(
+      screen.getByRole('button', { name: /recommended first: deepen skills \(1\)/i }).textContent,
+    ).toContain('Deepen skills (1)')
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /recommended first: deepen skills \(1\)/i }),
+    )
+    expect(navigateMock).toHaveBeenCalledWith({
+      to: '/identity/enrich/$groupId/$skillName',
+      params: {
+        groupId: 'platform',
+        skillName: 'TypeScript',
+      },
+    })
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /recommended after skill depth: refresh positioning/i }),
+    )
+    await waitFor(() => {
+      expect(identityParameterMocks.generateStrategicPositioningFromIdentityMock).toHaveBeenCalledTimes(1)
+    })
+    expect(identityParameterMocks.generateStrategicPositioningFromIdentityMock).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        identity: expect.objectContaining({ name: 'Alex Example' }),
+      }),
+      'https://ai.example/proxy',
+      expect.objectContaining({ mode: 'regenerate' }),
+    )
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /recommended after positioning: generate strategy/i }),
+    )
+    await waitFor(() => {
+      expect(identityParameterMocks.generateStrategicPositioningFromIdentityMock).toHaveBeenCalledTimes(2)
+    })
+    expect(identityParameterMocks.generateStrategicPositioningFromIdentityMock).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        identity: expect.objectContaining({ name: 'Alex Example' }),
+      }),
+      'https://ai.example/proxy',
+    )
+  })
+
+  it('does not run identity inference on map mount', () => {
+    seed()
+
+    render(<IdentityMapPage />)
+
+    expect(identityParameterMocks.generateStrategicPositioningFromIdentityMock).not.toHaveBeenCalled()
+    expect(identityParameterMocks.generateSearchVectorsFromIdentityMock).not.toHaveBeenCalled()
+    expect(identityParameterMocks.generateAwarenessFromIdentityMock).not.toHaveBeenCalled()
+  })
+
+  it('reruns top-level positioning refresh after each settled request', async () => {
+    seed()
+    identityParameterMocks.generateStrategicPositioningFromIdentityMock
+      .mockResolvedValueOnce({
+        unfair_advantages: [],
+        search_vectors: [],
+        open_questions: [],
+      })
+      .mockResolvedValueOnce({
+        unfair_advantages: [],
+        search_vectors: [],
+        open_questions: [],
+      })
+
+    render(<IdentityMapPage />)
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /recommended after skill depth: refresh positioning/i }),
+    )
+    await waitFor(() => {
+      expect(identityParameterMocks.generateStrategicPositioningFromIdentityMock).toHaveBeenCalledTimes(1)
+    })
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /recommended after skill depth: refresh positioning/i }),
+    )
+    await waitFor(() => {
+      expect(identityParameterMocks.generateStrategicPositioningFromIdentityMock).toHaveBeenCalledTimes(2)
+    })
+    expect(identityParameterMocks.generateStrategicPositioningFromIdentityMock).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        identity: expect.objectContaining({ name: 'Alex Example' }),
+      }),
+      'https://ai.example/proxy',
+      expect.objectContaining({ mode: 'regenerate' }),
+    )
+  })
+
+  it('does not start duplicate strategy generation from the top control while one is running', async () => {
+    seed((id) => {
+      id.search_vectors = []
+      id.awareness = { open_questions: [] }
+    })
+    const deferred = createDeferred<{
+      unfair_advantages: string[]
+      search_vectors: []
+      open_questions: []
+    }>()
+    identityParameterMocks.generateStrategicPositioningFromIdentityMock.mockReturnValueOnce(
+      deferred.promise,
+    )
+
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /^generate strategy$/i }))
+    await waitFor(() => {
+      expect(identityParameterMocks.generateStrategicPositioningFromIdentityMock).toHaveBeenCalledTimes(1)
+    })
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /recommended after positioning: generate strategy/i }),
+    )
+
+    expect(identityParameterMocks.generateStrategicPositioningFromIdentityMock).toHaveBeenCalledTimes(1)
+    expect(screen.getByText('Strategy generation is already running.')).toBeTruthy()
+
+    await act(async () => {
+      deferred.resolve({
+        unfair_advantages: [],
+        search_vectors: [],
+        open_questions: [],
+      })
+      await deferred.promise
+    })
+  })
+
+  it('does not start duplicate positioning refresh from the top control while one is running', async () => {
+    seed()
+    const deferred = createDeferred<{
+      unfair_advantages: string[]
+      search_vectors: []
+      open_questions: []
+    }>()
+    identityParameterMocks.generateStrategicPositioningFromIdentityMock.mockReturnValueOnce(
+      deferred.promise,
+    )
+
+    render(<IdentityMapPage />)
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /recommended after skill depth: refresh positioning/i }),
+    )
+    await waitFor(() => {
+      expect(identityParameterMocks.generateStrategicPositioningFromIdentityMock).toHaveBeenCalledTimes(1)
+    })
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /recommended after skill depth: refresh positioning/i }),
+    )
+
+    expect(identityParameterMocks.generateStrategicPositioningFromIdentityMock).toHaveBeenCalledTimes(1)
+    expect(screen.getByText('Positioning refresh is already running.')).toBeTruthy()
+
+    await act(async () => {
+      deferred.resolve({
+        unfair_advantages: [],
+        search_vectors: [],
+        open_questions: [],
+      })
+      await deferred.promise
+    })
+  })
+
+  it('uses reduced-motion-safe scrolling when a top inference control targets a band', () => {
+    seed()
+    identityParameterMocks.generateStrategicPositioningFromIdentityMock.mockResolvedValueOnce({
+      unfair_advantages: [],
+      search_vectors: [],
+      open_questions: [],
+    })
+    const originalMatchMedia = window.matchMedia
+    const originalScrollIntoView = HTMLElement.prototype.scrollIntoView
+    const scrollIntoViewMock = vi.fn()
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: vi.fn().mockReturnValue({
+        matches: true,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }),
+    })
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: scrollIntoViewMock,
+    })
+
+    try {
+      render(<IdentityMapPage />)
+
+      fireEvent.click(
+        screen.getByRole('button', { name: /recommended after skill depth: refresh positioning/i }),
+      )
+
+      expect(scrollIntoViewMock).toHaveBeenCalledWith({
+        behavior: 'auto',
+        block: 'start',
+      })
+    } finally {
+      Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        value: originalMatchMedia,
+      })
+      Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+        configurable: true,
+        value: originalScrollIntoView,
+      })
+    }
+  })
+
+  it('smooth-scrolls the search band when the top strategy control runs', () => {
+    seed()
+    identityParameterMocks.generateStrategicPositioningFromIdentityMock.mockResolvedValueOnce({
+      unfair_advantages: [],
+      search_vectors: [],
+      open_questions: [],
+    })
+    const originalMatchMedia = window.matchMedia
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: vi.fn().mockReturnValue({
+        matches: false,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }),
+    })
+
+    try {
+      render(<IdentityMapPage />)
+      const searchBand = document.querySelector<HTMLElement>('[data-layer="search"]')
+      if (!searchBand) throw new Error('Expected Search Strategy band to render.')
+      const scrollIntoViewMock = vi.fn()
+      Object.defineProperty(searchBand, 'scrollIntoView', {
+        configurable: true,
+        value: scrollIntoViewMock,
+      })
+
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: /recommended after positioning: generate strategy/i,
+        }),
+      )
+
+      expect(scrollIntoViewMock).toHaveBeenCalledWith({
+        behavior: 'smooth',
+        block: 'start',
+      })
+    } finally {
+      Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        value: originalMatchMedia,
+      })
+    }
+  })
+
+  it('smooth-scrolls when matchMedia is unavailable', () => {
+    seed()
+    identityParameterMocks.generateStrategicPositioningFromIdentityMock.mockResolvedValueOnce({
+      unfair_advantages: [],
+      search_vectors: [],
+      open_questions: [],
+    })
+    const originalMatchMedia = window.matchMedia
+    const originalScrollIntoView = HTMLElement.prototype.scrollIntoView
+    const scrollIntoViewMock = vi.fn()
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: undefined,
+    })
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: scrollIntoViewMock,
+    })
+
+    try {
+      render(<IdentityMapPage />)
+
+      fireEvent.click(
+        screen.getByRole('button', { name: /recommended after skill depth: refresh positioning/i }),
+      )
+
+      expect(scrollIntoViewMock).toHaveBeenCalledWith({
+        behavior: 'smooth',
+        block: 'start',
+      })
+    } finally {
+      Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        value: originalMatchMedia,
+      })
+      Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+        configurable: true,
+        value: originalScrollIntoView,
+      })
+    }
+  })
+
   it('does not show skill-depth controls when groups have no skills to enrich', () => {
     seed((id) => {
       id.skills.groups[0]!.items = []
@@ -418,6 +756,11 @@ describe('Identity Map — match-rule add/remove', () => {
 
     render(<IdentityMapPage />)
 
+    expect(
+      (screen.getByRole('button', {
+        name: /recommended first: review skill depth/i,
+      }) as HTMLButtonElement).disabled,
+    ).toBe(true)
     expect(screen.getByRole('button', { name: 'Platform' })).toBeTruthy()
     expect(screen.getByText('0 items')).toBeTruthy()
     expect(screen.queryByText('Skill depth')).toBeNull()
@@ -436,6 +779,7 @@ describe('Identity Map — match-rule add/remove', () => {
     expect(screen.getByText('No identity yet')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Start from a resume' })).toBeTruthy()
     expect(screen.queryByText('Edit the durable identity here.')).toBeNull()
+    expect(screen.queryByText('Deepen evidence before generating strategy.')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Generate research thesis' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Regenerate research thesis' })).toBeNull()
   })

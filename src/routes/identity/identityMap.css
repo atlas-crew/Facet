@@ -216,9 +216,47 @@
   line-height: 1.6;
 }
 
+.identity-map-inference {
+  max-width: 920px;
+  margin-top: var(--space-4);
+  padding: var(--space-4) calc(var(--space-4) + var(--space-1));
+  border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--layer-search);
+  border-radius: 8px;
+  background: var(--bg-surface);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-4);
+  align-items: center;
+}
+
+.identity-map-inference h2 {
+  margin: 0 0 var(--space-2);
+  color: var(--text-primary);
+  font-size: 16px;
+  line-height: 1.25;
+  letter-spacing: 0;
+}
+
+.identity-map-inference .chapter-copy {
+  max-width: 640px;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.identity-map-inference-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
 .identity-band {
   position: relative;
   margin-bottom: calc(var(--space-6) + var(--space-1));
+  scroll-margin-top: calc(var(--app-topbar-height) + var(--space-4));
 }
 
 .identity-band[data-layer='thesis'] {
@@ -1716,6 +1754,13 @@
   .skills-enrichment-panel {
     grid-template-columns: 1fr;
     align-items: flex-start;
+  }
+  .identity-map-inference {
+    grid-template-columns: 1fr;
+    align-items: flex-start;
+  }
+  .identity-map-inference-actions {
+    justify-content: flex-start;
   }
   .identity-inspector {
     position: static;
