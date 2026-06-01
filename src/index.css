@@ -108,6 +108,13 @@
   --focus-ring-color: var(--accent-primary);
   --focus-ring-halo: color-mix(in srgb, var(--accent-primary) 28%, transparent);
 
+  --scrollbar-size: 12px;
+  --scrollbar-track: transparent;
+  --scrollbar-track-hover: color-mix(in srgb, var(--bg-inset) 82%, transparent);
+  --scrollbar-thumb: color-mix(in srgb, var(--border-strong) 84%, transparent);
+  --scrollbar-thumb-hover: color-mix(in srgb, var(--accent-primary) 34%, var(--border-strong));
+  --scrollbar-thumb-active: color-mix(in srgb, var(--accent-primary) 58%, var(--border-strong));
+
   --priority-must: #0f172a;
   --priority-strong: #475569;
   --priority-optional: #4a5568;
@@ -156,6 +163,11 @@
 
   --focus-ring-color: var(--accent-primary);
   --focus-ring-halo: color-mix(in srgb, var(--accent-primary) 28%, transparent);
+
+  --scrollbar-track-hover: color-mix(in srgb, var(--bg-inset) 82%, transparent);
+  --scrollbar-thumb: color-mix(in srgb, var(--border-strong) 82%, transparent);
+  --scrollbar-thumb-hover: color-mix(in srgb, var(--accent-primary) 32%, var(--border-strong));
+  --scrollbar-thumb-active: color-mix(in srgb, var(--accent-primary) 56%, var(--border-strong));
 
   --priority-must: #0f172a;
   --priority-strong: #475569;
@@ -210,6 +222,11 @@
 
   --focus-ring-color: #8ec5ec;
   --focus-ring-halo: color-mix(in srgb, #8ec5ec 55%, transparent);
+
+  --scrollbar-track-hover: color-mix(in srgb, var(--bg-surface-hover) 58%, transparent);
+  --scrollbar-thumb: color-mix(in srgb, var(--border-strong) 88%, transparent);
+  --scrollbar-thumb-hover: color-mix(in srgb, var(--accent-primary) 38%, var(--border-strong));
+  --scrollbar-thumb-active: color-mix(in srgb, var(--accent-primary) 68%, var(--border-strong));
 
   --priority-must: #e8ecf2;
   --priority-strong: #c0c8d4;
@@ -270,6 +287,11 @@ body,
   margin: 0;
 }
 
+html {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
 body {
   font-family: var(--font-sans);
   color: var(--text-primary);
@@ -297,41 +319,38 @@ select {
   box-shadow: 0 0 0 4px var(--focus-ring-halo);
 }
 
-/* Scrollbar styling for dark theme */
-.left-panel-body,
-.preview-shell,
-.pdf-preview-shell,
-.jd-modal {
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-subtle) transparent;
+/* App-wide scrollbars: compact, visible on dark surfaces, and quiet at rest. */
+*::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
 }
 
-.left-panel-body::-webkit-scrollbar,
-.preview-shell::-webkit-scrollbar,
-.pdf-preview-shell::-webkit-scrollbar,
-.jd-modal::-webkit-scrollbar {
-  width: 6px;
+*::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
 }
 
-.left-panel-body::-webkit-scrollbar-thumb,
-.preview-shell::-webkit-scrollbar-thumb,
-.pdf-preview-shell::-webkit-scrollbar-thumb,
-.jd-modal::-webkit-scrollbar-thumb {
-  background: var(--border-subtle);
-  border-radius: 3px;
+*::-webkit-scrollbar-track:hover {
+  background: var(--scrollbar-track-hover);
 }
 
-.left-panel-body::-webkit-scrollbar-thumb:hover,
-.preview-shell::-webkit-scrollbar-thumb:hover,
-.pdf-preview-shell::-webkit-scrollbar-thumb:hover,
-.jd-modal::-webkit-scrollbar-thumb:hover {
-  background: var(--border-default);
+*::-webkit-scrollbar-thumb {
+  min-height: 40px;
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-color: var(--scrollbar-thumb);
+  background-clip: padding-box;
 }
 
-.left-panel-body::-webkit-scrollbar-track,
-.preview-shell::-webkit-scrollbar-track,
-.pdf-preview-shell::-webkit-scrollbar-track,
-.jd-modal::-webkit-scrollbar-track {
+*::-webkit-scrollbar-thumb:hover {
+  border-color: var(--scrollbar-track-hover);
+  background-color: var(--scrollbar-thumb-hover);
+}
+
+*::-webkit-scrollbar-thumb:active {
+  background-color: var(--scrollbar-thumb-active);
+}
+
+*::-webkit-scrollbar-corner {
   background: transparent;
 }
 
@@ -816,8 +835,7 @@ select {
   gap: var(--space-2);
   overflow-x: auto;
   padding-bottom: 4px;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-subtle) transparent;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
 .theme-gallery-card {
@@ -995,12 +1013,11 @@ select {
   padding-bottom: 2px;
   scroll-padding-inline: var(--space-3);
   scrollbar-gutter: stable;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-strong) transparent;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
 .vector-pills-scroll::-webkit-scrollbar {
-  height: 6px;
+  height: 8px;
 }
 
 .vector-pills-scroll::-webkit-scrollbar-track {
@@ -1008,7 +1025,8 @@ select {
 }
 
 .vector-pills-scroll::-webkit-scrollbar-thumb {
-  background: var(--border-strong);
+  border-width: 2px;
+  background: var(--scrollbar-thumb);
   border-radius: 999px;
 }
 
