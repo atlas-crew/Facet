@@ -131,6 +131,9 @@ interface IdentityState {
   updateCurrentIdentityCore: (updates: Partial<ProfessionalIdentityCore>) => void
   updateCurrentProfiles: (value: ProfessionalProfile[]) => void
   updateCurrentPhilosophy: (value: ProfessionalPhilosophyEntry[]) => void
+  updateCurrentInterviewStyle: (
+    value: ProfessionalIdentityV3['self_model']['interview_style'],
+  ) => void
   updateCurrentSelfModelArc: (value: ProfessionalIdentityArcEntry[]) => void
   updateCurrentCompetitiveMoat: (value: string) => void
   updateCurrentUnfairAdvantages: (value: string[]) => void
@@ -1440,6 +1443,16 @@ export const useIdentityStore = create<IdentityState>()(
             self_model: {
               ...identity.self_model,
               philosophy: value,
+            },
+          })),
+        ),
+      updateCurrentInterviewStyle: (value) =>
+        set((state) =>
+          updateCurrentIdentity(state, (identity) => ({
+            ...identity,
+            self_model: {
+              ...identity.self_model,
+              interview_style: value,
             },
           })),
         ),

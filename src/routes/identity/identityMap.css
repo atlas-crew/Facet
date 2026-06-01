@@ -520,6 +520,42 @@
   border-radius: 8px;
   padding: var(--space-4) calc(var(--space-4) + var(--space-1));
 }
+.self-knowledge-controls {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-3) calc(var(--space-4) + var(--space-1));
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-surface);
+}
+.self-knowledge-controls .arc-label {
+  margin-bottom: var(--space-1);
+}
+.self-knowledge-controls p {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: 13px;
+}
+.self-knowledge-generate {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  white-space: nowrap;
+}
+.self-knowledge-generate[aria-busy='true'] {
+  cursor: progress;
+  opacity: 0.72;
+}
+.self-knowledge-status {
+  grid-column: 1 / -1;
+}
+.self-knowledge-status .strategy-generation-message.empty {
+  opacity: 0;
+  pointer-events: none;
+}
 .arc-label {
   font-size: 12px;
   color: var(--text-tertiary);
@@ -1954,6 +1990,14 @@
 @media (max-width: 700px) {
   .identity-map-canvas {
     padding: var(--space-4) var(--space-4) var(--space-8);
+  }
+  .self-grid,
+  .self-knowledge-controls {
+    grid-template-columns: 1fr;
+  }
+  .self-knowledge-generate {
+    width: 100%;
+    justify-content: center;
   }
   .identity-map-guide {
     min-height: 0;

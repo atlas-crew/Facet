@@ -4,6 +4,7 @@ import type { ProfessionalIdentityArcEntry } from '../../../identity/schema'
 import { useIdentityStore } from '../../../store/identityStore'
 import { selfModelFillStrength } from '../../../utils/identityFillStrength'
 import {
+  generateSelfKnowledgeFromIdentity,
   generateStrategicPositioningFromIdentity,
   type ProfessionalStrategicInference,
 } from '../../../utils/identityParametersGeneration'
@@ -39,6 +40,12 @@ const ensurePositioningEndpoint = () => {
   return ensureIdentityInferenceEndpoint('Connect the AI proxy before refreshing positioning.')
 }
 
+const ensureSelfKnowledgeEndpoint = () => {
+  return ensureIdentityInferenceEndpoint(
+    'Connect the AI proxy before generating philosophy and interview self-knowledge.',
+  )
+}
+
 /**
  * Build arc stops from persisted `self_model.arc[]` only. We deliberately do
  * NOT auto-derive chapters from `roles[]` — that would produce a degenerate
@@ -52,9 +59,11 @@ function buildArcStops(arc: ProfessionalIdentityArcEntry[]): ArcStop[] {
 
 export function SelfModelBand({
   chapterRequestId = 0,
+  selfKnowledgeRequestId = 0,
   positioningRequestId = 0,
 }: {
   chapterRequestId?: number
+  selfKnowledgeRequestId?: number
   positioningRequestId?: number
 }) {
   const identity = useIdentityStore((s) => s.currentIdentity)
@@ -63,6 +72,8 @@ export function SelfModelBand({
   const updateCompetitiveMoat = useIdentityStore((s) => s.updateCurrentCompetitiveMoat)
   const updateUnfairAdvantages = useIdentityStore((s) => s.updateCurrentUnfairAdvantages)
   const updateArc = useIdentityStore((s) => s.updateCurrentSelfModelArc)
+  const updatePhilosophy = useIdentityStore((s) => s.updateCurrentPhilosophy)
+  const updateInterviewStyle = useIdentityStore((s) => s.updateCurrentInterviewStyle)
   const updateVectors = useIdentityStore((s) => s.updateCurrentSearchVectors)
   const updateQuestions = useIdentityStore((s) => s.updateCurrentAwarenessQuestions)
   const fill = selfModelFillStrength(identity)
@@ -71,8 +82,11 @@ export function SelfModelBand({
     [identity],
   )
   const positioningGenerationRef = useRef(false)
+  const selfKnowledgeGenerationRef = useRef(false)
   const positioningMessageIdRef = useRef(0)
+  const selfKnowledgeMessageIdRef = useRef(0)
   const positioningAbortRef = useRef<AbortController | null>(null)
+  const selfKnowledgeAbortRef = useRef<AbortController | null>(null)
   const mountedRef = useRef(true)
 
   const self = identity?.self_model
@@ -90,7 +104,10 @@ export function SelfModelBand({
     useState<ProfessionalStrategicInference | null>(null)
   const [positioningDraftKey, setPositioningDraftKey] = useState<string | null>(null)
   const [generatingPositioning, setGeneratingPositioning] = useState(false)
+  const [generatingSelfKnowledge, setGeneratingSelfKnowledge] = useState(false)
   const [positioningMessage, setPositioningMessage] =
+    useState<PositioningGenerationMessage | null>(null)
+  const [selfKnowledgeMessage, setSelfKnowledgeMessage] =
     useState<PositioningGenerationMessage | null>(null)
   useEffect(() => {
     setMoatDraft(moat)
@@ -101,6 +118,7 @@ export function SelfModelBand({
     return () => {
       mountedRef.current = false
       positioningAbortRef.current?.abort()
+      selfKnowledgeAbortRef.current?.abort()
     }
   }, [])
 
@@ -116,6 +134,17 @@ export function SelfModelBand({
   }, [positioningMessage])
 
   useEffect(() => {
+    if (!selfKnowledgeMessage?.autoDismiss) return undefined
+
+    const messageId = selfKnowledgeMessage.id
+    const timeoutId = window.setTimeout(() => {
+      setSelfKnowledgeMessage((current) => (current?.id === messageId ? null : current))
+    }, POSITIONING_MESSAGE_DISMISS_MS)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [selfKnowledgeMessage])
+
+  useEffect(() => {
     if (!positioningDraftKey) return
     if (identityGenerationKey === positioningDraftKey) return
 
@@ -129,9 +158,25 @@ export function SelfModelBand({
     setPositioningMessage({ ...message, id: positioningMessageIdRef.current })
   }, [])
 
+  const showSelfKnowledgeMessage = useCallback(
+    (message: Omit<PositioningGenerationMessage, 'id'>) => {
+      selfKnowledgeMessageIdRef.current += 1
+      setSelfKnowledgeMessage({ ...message, id: selfKnowledgeMessageIdRef.current })
+    },
+    [],
+  )
+
   const handleGenerateChaptersFromRoles = useCallback(() => {
     const currentIdentity = useIdentityStore.getState().currentIdentity
     if (!currentIdentity) return
+    if (currentIdentity.self_model.arc.length > 0) {
+      showSelfKnowledgeMessage({
+        tone: 'info',
+        text: 'Career chapters already exist. Review or edit them in the arc instead of replacing them from roles.',
+        autoDismiss: true,
+      })
+      return
+    }
 
     const chapters = currentIdentity.roles.map<ProfessionalIdentityArcEntry>((role) => {
       const bullets = role.bullets ?? []
@@ -151,7 +196,7 @@ export function SelfModelBand({
     })
 
     if (chapters.length === 0) {
-      showPositioningMessage({
+      showSelfKnowledgeMessage({
         tone: 'info',
         text: 'Add roles before generating career chapters.',
         autoDismiss: true,
@@ -160,16 +205,110 @@ export function SelfModelBand({
     }
 
     updateArc(chapters)
-    showPositioningMessage({
+    showSelfKnowledgeMessage({
       tone: 'info',
       text: `Generated ${chapters.length} career chapter${chapters.length === 1 ? '' : 's'} from roles.`,
       autoDismiss: true,
     })
-  }, [showPositioningMessage, updateArc])
+  }, [showSelfKnowledgeMessage, updateArc])
 
   useInferenceRequest({
     requestId: chapterRequestId,
     handler: handleGenerateChaptersFromRoles,
+  })
+
+  const handleGenerateSelfKnowledge = useCallback(async () => {
+    const currentIdentity = useIdentityStore.getState().currentIdentity
+    if (!currentIdentity || selfKnowledgeGenerationRef.current) return
+
+    try {
+      selfKnowledgeGenerationRef.current = true
+      selfKnowledgeAbortRef.current?.abort()
+      const abortController = new AbortController()
+      selfKnowledgeAbortRef.current = abortController
+      const endpoint = ensureSelfKnowledgeEndpoint()
+      const generationRevision = currentIdentity.model_revision ?? 0
+      setGeneratingSelfKnowledge(true)
+      showSelfKnowledgeMessage({
+        tone: 'info',
+        text: 'Generating philosophy and interview self-knowledge...',
+        autoDismiss: false,
+      })
+
+      const generated = await generateSelfKnowledgeFromIdentity(currentIdentity, endpoint, {
+        signal: abortController.signal,
+      })
+      if (abortController.signal.aborted || !mountedRef.current) return
+      const latestIdentity = useIdentityStore.getState().currentIdentity
+      if (!latestIdentity || (latestIdentity.model_revision ?? 0) !== generationRevision) {
+        showSelfKnowledgeMessage({
+          tone: 'info',
+          text: 'Identity changed during generation; discarded the self-knowledge draft.',
+          autoDismiss: true,
+        })
+        return
+      }
+
+      const hasPhilosophy = generated.philosophy.length > 0
+      const hasInterview =
+        generated.interview_style.strengths.length > 0 ||
+        generated.interview_style.weaknesses.length > 0 ||
+        Boolean(generated.interview_style.prep_strategy.trim())
+      if (!hasPhilosophy && !hasInterview) {
+        showSelfKnowledgeMessage({
+          tone: 'info',
+          text: 'The generated draft did not return new self-knowledge.',
+          autoDismiss: true,
+        })
+        return
+      }
+
+      if (hasPhilosophy) updatePhilosophy(generated.philosophy)
+      if (hasInterview) updateInterviewStyle(generated.interview_style)
+
+      showSelfKnowledgeMessage({
+        tone: 'info',
+        text: `Generated ${generated.philosophy.length} philosophy position${
+          generated.philosophy.length === 1 ? '' : 's'
+        } and interview self-knowledge.`,
+        autoDismiss: true,
+      })
+    } catch (error) {
+      const isAbortError =
+        (error instanceof DOMException && error.name === 'AbortError') ||
+        (error instanceof Error && error.name === 'AbortError')
+      if (isAbortError) return
+
+      const message = error instanceof Error ? error.message : ''
+      const isConfigError = error instanceof IdentityInferenceConfigError
+      if (!isConfigError) {
+        console.error(error)
+      }
+      showSelfKnowledgeMessage({
+        tone: 'error',
+        text: isConfigError ? message : 'Unable to generate philosophy and interview self-knowledge.',
+        autoDismiss: false,
+      })
+    } finally {
+      if (mountedRef.current) {
+        selfKnowledgeAbortRef.current = null
+        selfKnowledgeGenerationRef.current = false
+        setGeneratingSelfKnowledge(false)
+      }
+    }
+  }, [showSelfKnowledgeMessage, updateInterviewStyle, updatePhilosophy])
+
+  useInferenceRequest({
+    requestId: selfKnowledgeRequestId,
+    handler: handleGenerateSelfKnowledge,
+    skipWhen: () => selfKnowledgeGenerationRef.current,
+    onSkipped: () => {
+      showSelfKnowledgeMessage({
+        tone: 'info',
+        text: 'Self-knowledge generation is already running.',
+        autoDismiss: true,
+      })
+    },
   })
 
   const dismissPositioningDraft = () => {
@@ -352,6 +491,29 @@ export function SelfModelBand({
       fill={fill}
     >
       <div className="self-grid">
+        <div className="self-knowledge-controls">
+          <div>
+            <div className="arc-label label-tracked">Inference</div>
+            <p className="chapter-copy">
+              Generate durable philosophy and interview self-knowledge from the current evidence.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="inspector-btn primary self-knowledge-generate"
+            onClick={handleGenerateSelfKnowledge}
+            disabled={!identity || generatingSelfKnowledge}
+            aria-busy={generatingSelfKnowledge}
+          >
+            <Sparkles size={14} aria-hidden="true" />
+            {generatingSelfKnowledge ? 'Generating...' : 'Generate self-knowledge'}
+          </button>
+          <div className="strategy-generation-stack self-knowledge-status">
+            <PositioningGenerationStatus message={selfKnowledgeMessage} tone="info" />
+            <PositioningGenerationStatus message={selfKnowledgeMessage} tone="error" />
+          </div>
+        </div>
+
         <div className="self-arc">
           <div className="arc-label label-tracked">Career Arc</div>
           {arc.length === 0 ? (

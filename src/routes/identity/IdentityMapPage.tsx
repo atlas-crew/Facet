@@ -38,6 +38,7 @@ type IdentityActionId =
   | 'skills'
   | 'thesis'
   | 'chapters'
+  | 'selfKnowledge'
   | 'positioning'
   | 'strategy'
   | 'review'
@@ -64,6 +65,7 @@ type IdentityActionContext = {
   hasThesis: boolean
   hasChapters: boolean
   canGenerateChapters: boolean
+  hasSelfKnowledge: boolean
   hasPositioning: boolean
   hasSearchStrategy: boolean
   skillInferenceLabel: string
@@ -80,6 +82,7 @@ const getIdentityActionPhase = ({
   hasThesis,
   hasChapters,
   canGenerateChapters,
+  hasSelfKnowledge,
   hasPositioning,
   hasSearchStrategy,
 }: IdentityActionContext): IdentityActionId => {
@@ -87,6 +90,7 @@ const getIdentityActionPhase = ({
   if (hasPendingSkillDepth) return 'skills'
   if (!hasThesis) return 'thesis'
   if (!hasChapters && canGenerateChapters) return 'chapters'
+  if (!hasSelfKnowledge) return 'selfKnowledge'
   if (!hasPositioning) return 'positioning'
   if (!hasSearchStrategy) return 'strategy'
   return 'review'
@@ -101,6 +105,7 @@ const deriveIdentityActions = (context: IdentityActionContext): IdentityActionIt
     hasThesis,
     hasChapters,
     canGenerateChapters,
+    hasSelfKnowledge,
     hasPositioning,
     hasSearchStrategy,
     skillInferenceLabel,
@@ -158,19 +163,40 @@ const deriveIdentityActions = (context: IdentityActionContext): IdentityActionIt
     {
       id: 'chapters',
       step: '4 Career chapters',
-      title: hasChapters ? 'Regenerate career chapter draft' : 'Draft career chapters',
+      title: hasChapters ? 'Review career chapters' : 'Draft career chapters',
       body: hasChapters
-        ? 'Refresh the starter career arc after role evidence changes.'
+        ? 'Career chapters are already authored. Review them directly instead of replacing narrative with role-derived text.'
         : 'Create starter narrative chapters before generating positioning.',
       statusLabel: actionPhase === 'chapters' ? 'Next' : hasChapters ? 'Ready' : 'After thesis',
       statusTone: actionPhase === 'chapters' ? 'next' : hasChapters ? 'done' : 'ready',
       targetLayer: 'self',
-      actionLabel: hasChapters ? 'Regenerate chapter draft' : 'Draft chapters',
-      canRun: canGenerateChapters,
+      actionLabel: hasChapters ? 'Review chapters' : 'Draft chapters',
+      canRun: hasChapters || canGenerateChapters,
+    },
+    {
+      id: 'selfKnowledge',
+      step: '5 Self-knowledge',
+      title: hasSelfKnowledge
+        ? 'Regenerate philosophy and interview self-knowledge'
+        : 'Generate philosophy and interview self-knowledge',
+      body: hasSelfKnowledge
+        ? 'Refresh the durable philosophy and interview preparation model after evidence edits.'
+        : 'Fill the operating principles, strengths, weaknesses, and prep strategy that make the map useful in interviews.',
+      statusLabel:
+        actionPhase === 'selfKnowledge'
+          ? 'Next'
+          : hasSelfKnowledge
+            ? 'Ready'
+            : 'After chapters',
+      statusTone:
+        actionPhase === 'selfKnowledge' ? 'next' : hasSelfKnowledge ? 'done' : 'ready',
+      targetLayer: 'self',
+      actionLabel: 'Generate self-knowledge',
+      canRun: true,
     },
     {
       id: 'positioning',
-      step: '5 Positioning',
+      step: '6 Positioning',
       title: hasPositioning ? 'Refresh positioning' : 'Generate strategic positioning',
       body: hasPositioning
         ? 'Positioning exists. Refresh it after major evidence edits.'
@@ -184,7 +210,7 @@ const deriveIdentityActions = (context: IdentityActionContext): IdentityActionIt
     },
     {
       id: 'strategy',
-      step: '6 Search parameters',
+      step: '7 Search parameters',
       title: hasSearchStrategy ? 'Regenerate search parameters' : 'Generate search parameters',
       body: hasSearchStrategy
         ? 'Search vectors and open questions exist. Regenerate after positioning changes.'
@@ -198,7 +224,7 @@ const deriveIdentityActions = (context: IdentityActionContext): IdentityActionIt
     },
     {
       id: 'review',
-      step: '7 Review',
+      step: '8 Review',
       title: 'Review the identity map',
       body: 'Scan the bands and make durable edits where the source material needs correction.',
       statusLabel: actionPhase === 'review' ? 'Next' : 'Later',
@@ -239,12 +265,14 @@ export function IdentityMapPage() {
   const [showActionItems, setShowActionItems] = useState(false)
   const [thesisRequestId, setThesisRequestId] = useState(0)
   const [chapterRequestId, setChapterRequestId] = useState(0)
+  const [selfKnowledgeRequestId, setSelfKnowledgeRequestId] = useState(0)
   const [positioningRequestId, setPositioningRequestId] = useState(0)
   const [strategyRequestId, setStrategyRequestId] = useState(0)
   const honoredSelRef = useRef<string | null>(null)
   const honoredFocusRef = useRef<string | null>(null)
   const actionHighlightTimeoutRef = useRef<number | null>(null)
   const actionFocusRestoreTimeoutRef = useRef<number | null>(null)
+  const actionDeferredRunTimeoutRef = useRef<number | null>(null)
   const actionDialogRef = useRef<HTMLDivElement | null>(null)
   const actionTriggerRef = useRef<HTMLButtonElement | null>(null)
   // One-shot signal from forward → reverse: when forward dispatches
@@ -368,6 +396,13 @@ export function IdentityMapPage() {
   const hasThesis = Boolean(identity?.identity?.thesis?.trim())
   const hasChapters = (identity?.self_model?.arc?.length ?? 0) > 0
   const canGenerateChapters = (identity?.roles?.length ?? 0) > 0
+  const hasInterviewSelfKnowledge = Boolean(
+    (identity?.self_model?.interview_style?.strengths?.length ?? 0) > 0 ||
+      (identity?.self_model?.interview_style?.weaknesses?.length ?? 0) > 0 ||
+      identity?.self_model?.interview_style?.prep_strategy?.trim(),
+  )
+  const hasSelfKnowledge =
+    (identity?.self_model?.philosophy?.length ?? 0) > 0 && hasInterviewSelfKnowledge
   const hasPositioning = Boolean(
     identity?.self_model?.competitive_moat?.trim() ||
       (identity?.self_model?.unfair_advantages?.length ?? 0) > 0,
@@ -409,6 +444,9 @@ export function IdentityMapPage() {
       }
       if (actionFocusRestoreTimeoutRef.current !== null) {
         window.clearTimeout(actionFocusRestoreTimeoutRef.current)
+      }
+      if (actionDeferredRunTimeoutRef.current !== null) {
+        window.clearTimeout(actionDeferredRunTimeoutRef.current)
       }
     }
   }, [])
@@ -460,6 +498,15 @@ export function IdentityMapPage() {
     scrollToLayer('self', { highlight: true, focus: true })
   }
 
+  const reviewChapters = () => {
+    scrollToLayer('self', { highlight: true, focus: true })
+  }
+
+  const generateSelfKnowledge = () => {
+    setSelfKnowledgeRequestId((requestId) => requestId + 1)
+    scrollToLayer('self', { highlight: true, focus: true })
+  }
+
   const generateSearchStrategy = () => {
     setStrategyRequestId((requestId) => requestId + 1)
     scrollToLayer('search', { highlight: true, focus: true })
@@ -484,7 +531,13 @@ export function IdentityMapPage() {
 
   const afterActionItemsClose = (callback: () => void) => {
     closeActionItems({ restoreFocus: false })
-    window.setTimeout(callback, 0)
+    if (actionDeferredRunTimeoutRef.current !== null) {
+      window.clearTimeout(actionDeferredRunTimeoutRef.current)
+    }
+    actionDeferredRunTimeoutRef.current = window.setTimeout(() => {
+      actionDeferredRunTimeoutRef.current = null
+      callback()
+    }, 0)
   }
 
   useEffect(() => {
@@ -570,7 +623,14 @@ export function IdentityMapPage() {
         generateThesis()
         break
       case 'chapters':
-        generateChapters()
+        if (hasChapters) {
+          reviewChapters()
+        } else {
+          generateChapters()
+        }
+        break
+      case 'selfKnowledge':
+        generateSelfKnowledge()
         break
       case 'positioning':
         refreshPositioning()
@@ -595,6 +655,7 @@ export function IdentityMapPage() {
             hasThesis,
             hasChapters,
             canGenerateChapters,
+            hasSelfKnowledge,
             hasPositioning,
             hasSearchStrategy,
             skillInferenceLabel,
@@ -608,6 +669,7 @@ export function IdentityMapPage() {
       hasThesis,
       hasChapters,
       canGenerateChapters,
+      hasSelfKnowledge,
       hasPositioning,
       hasSearchStrategy,
       hasSkillDepthToReview,
@@ -719,7 +781,13 @@ export function IdentityMapPage() {
                         {nextAction.statusLabel}
                       </span>
                       <span className="label-tracked">
-                        Bullets → skills → thesis → chapters → positioning → search
+                        <span className="sr-only">
+                          Recommended order: bullets, skills, thesis, chapters, self-knowledge,
+                          positioning, search.
+                        </span>
+                        <span aria-hidden="true">
+                          Bullets → skills → thesis → chapters → self-knowledge → positioning → search
+                        </span>
                       </span>
                     </div>
                   </div>
@@ -783,6 +851,7 @@ export function IdentityMapPage() {
         <ThesisBand thesisRequestId={thesisRequestId} />
         <SelfModelBand
           chapterRequestId={chapterRequestId}
+          selfKnowledgeRequestId={selfKnowledgeRequestId}
           positioningRequestId={positioningRequestId}
         />
         <ProfilesBand />

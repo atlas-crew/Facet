@@ -12,6 +12,7 @@ const identityParameterMocks = vi.hoisted(() => ({
   generateSearchVectorsFromIdentityMock: vi.fn(),
   generateAwarenessFromIdentityMock: vi.fn(),
   generateIdentityThesisFromIdentityMock: vi.fn(),
+  generateSelfKnowledgeFromIdentityMock: vi.fn(),
   generateStrategicPositioningFromIdentityMock: vi.fn(),
 }))
 const facetEnvMock = vi.hoisted(() => ({
@@ -49,6 +50,7 @@ vi.mock('../utils/identityParametersGeneration', () => ({
   generateSearchVectorsFromIdentity: identityParameterMocks.generateSearchVectorsFromIdentityMock,
   generateAwarenessFromIdentity: identityParameterMocks.generateAwarenessFromIdentityMock,
   generateIdentityThesisFromIdentity: identityParameterMocks.generateIdentityThesisFromIdentityMock,
+  generateSelfKnowledgeFromIdentity: identityParameterMocks.generateSelfKnowledgeFromIdentityMock,
   generateStrategicPositioningFromIdentity:
     identityParameterMocks.generateStrategicPositioningFromIdentityMock,
 }))
@@ -72,6 +74,12 @@ const seed = (modifier?: (id: ReturnType<typeof cloneIdentityFixture>) => void) 
   })
 }
 
+const getSelfKnowledgeControls = () => {
+  const controls = screen.getByText('Inference').closest('.self-knowledge-controls')
+  if (!controls) throw new Error('Expected self-knowledge controls to render.')
+  return controls as HTMLElement
+}
+
 describe('Identity Map — match-rule add/remove', () => {
   beforeEach(() => {
     navigateMock.mockReset()
@@ -79,6 +87,7 @@ describe('Identity Map — match-rule add/remove', () => {
     identityParameterMocks.generateSearchVectorsFromIdentityMock.mockReset()
     identityParameterMocks.generateAwarenessFromIdentityMock.mockReset()
     identityParameterMocks.generateIdentityThesisFromIdentityMock.mockReset()
+    identityParameterMocks.generateSelfKnowledgeFromIdentityMock.mockReset()
     identityParameterMocks.generateStrategicPositioningFromIdentityMock.mockReset()
   })
   afterEach(() => cleanup())
@@ -476,7 +485,9 @@ describe('Identity Map — match-rule add/remove', () => {
 
     const actionPanel = screen.getByRole('region', { name: 'Deepen skill evidence' })
     expect(
-      within(actionPanel).getByText('Bullets → skills → thesis → chapters → positioning → search'),
+      within(actionPanel).getByText(
+        'Bullets → skills → thesis → chapters → self-knowledge → positioning → search',
+      ),
     ).toBeTruthy()
     expect(within(actionPanel).getByText('1 pending')).toBeTruthy()
 
@@ -486,9 +497,10 @@ describe('Identity Map — match-rule add/remove', () => {
     expect(within(actionDialog).getByText('2 Skill depth')).toBeTruthy()
     expect(within(actionDialog).getByText('3 Thesis')).toBeTruthy()
     expect(within(actionDialog).getByText('4 Career chapters')).toBeTruthy()
-    expect(within(actionDialog).getByText('5 Positioning')).toBeTruthy()
-    expect(within(actionDialog).getByText('6 Search parameters')).toBeTruthy()
-    expect(within(actionDialog).getByText('7 Review')).toBeTruthy()
+    expect(within(actionDialog).getByText('5 Self-knowledge')).toBeTruthy()
+    expect(within(actionDialog).getByText('6 Positioning')).toBeTruthy()
+    expect(within(actionDialog).getByText('7 Search parameters')).toBeTruthy()
+    expect(within(actionDialog).getByText('8 Review')).toBeTruthy()
     fireEvent.click(within(actionDialog).getByRole('button', { name: 'Close' }))
 
     const deepenButton = within(actionPanel).getByRole('button', {
@@ -564,6 +576,357 @@ describe('Identity Map — match-rule add/remove', () => {
       origin: 'Repeated platform migration work.',
       elaboration: 'The strongest evidence sits in Kubernetes delivery and product judgment.',
     })
+  })
+
+  it('generates philosophy and interview self-knowledge from the action list', async () => {
+    seed((id) => {
+      id.self_model.philosophy = []
+      id.self_model.interview_style = {
+        strengths: [],
+        weaknesses: [],
+        prep_strategy: '',
+      }
+    })
+    identityParameterMocks.generateSelfKnowledgeFromIdentityMock.mockResolvedValueOnce({
+      philosophy: [
+        {
+          id: 'platform-judgment',
+          text: 'Favor platform moves when they unlock product access.',
+          tags: ['platform', 'product'],
+        },
+      ],
+      interview_style: {
+        strengths: ['Uses deployment architecture as market-access evidence.'],
+        weaknesses: ['Can go too deep on systems detail before framing the business stakes.'],
+        prep_strategy: 'Lead with the customer constraint, then use platform evidence as proof.',
+      },
+    })
+
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
+    fireEvent.click(screen.getByRole('button', { name: /run action: generate self-knowledge/i }))
+
+    await waitFor(() => {
+      expect(identityParameterMocks.generateSelfKnowledgeFromIdentityMock).toHaveBeenCalledWith(
+        expect.objectContaining({ identity: expect.objectContaining({ name: 'Alex Example' }) }),
+        'https://ai.example/proxy',
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      )
+    })
+    expect(useIdentityStore.getState().currentIdentity?.self_model.philosophy).toEqual([
+      {
+        id: 'platform-judgment',
+        text: 'Favor platform moves when they unlock product access.',
+        tags: ['platform', 'product'],
+      },
+    ])
+    expect(useIdentityStore.getState().currentIdentity?.self_model.interview_style).toEqual({
+      strengths: ['Uses deployment architecture as market-access evidence.'],
+      weaknesses: ['Can go too deep on systems detail before framing the business stakes.'],
+      prep_strategy: 'Lead with the customer constraint, then use platform evidence as proof.',
+    })
+    expect(
+      screen.getByText('Generated 1 philosophy position and interview self-knowledge.'),
+    ).toBeTruthy()
+  })
+
+  it('shows a configuration error when generating self-knowledge has no AI proxy', async () => {
+    seed((id) => {
+      id.self_model.philosophy = []
+      id.self_model.interview_style = {
+        strengths: [],
+        weaknesses: [],
+        prep_strategy: '',
+      }
+    })
+    facetEnvMock.facetClientEnv.anthropicProxyUrl = ''
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
+    fireEvent.click(screen.getByRole('button', { name: /run action: generate self-knowledge/i }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          'Connect the AI proxy before generating philosophy and interview self-knowledge.',
+        ),
+      ).toBeTruthy()
+    })
+    expect(consoleErrorSpy).not.toHaveBeenCalled()
+    consoleErrorSpy.mockRestore()
+    expect(identityParameterMocks.generateSelfKnowledgeFromIdentityMock).not.toHaveBeenCalled()
+  })
+
+  it('shows an error and clears busy state when self-knowledge generation fails', async () => {
+    seed()
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    identityParameterMocks.generateSelfKnowledgeFromIdentityMock.mockRejectedValueOnce(
+      new Error('proxy timeout'),
+    )
+
+    render(<IdentityMapPage />)
+    const controls = getSelfKnowledgeControls()
+    const generateButton = within(controls).getByRole('button', {
+      name: /^generate self-knowledge$/i,
+    })
+    fireEvent.click(generateButton)
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Unable to generate philosophy and interview self-knowledge.'),
+      ).toBeTruthy()
+    })
+    expect(consoleErrorSpy).toHaveBeenCalled()
+    consoleErrorSpy.mockRestore()
+    expect(generateButton.getAttribute('aria-busy')).toBe('false')
+  })
+
+  it('does not start duplicate self-knowledge generation while a request is running', async () => {
+    seed((id) => {
+      id.self_model.philosophy = []
+      id.self_model.interview_style = {
+        strengths: [],
+        weaknesses: [],
+        prep_strategy: '',
+      }
+    })
+    const deferred =
+      createDeferred<
+        Awaited<ReturnType<typeof identityParameterMocks.generateSelfKnowledgeFromIdentityMock>>
+      >()
+    identityParameterMocks.generateSelfKnowledgeFromIdentityMock.mockReturnValueOnce(
+      deferred.promise,
+    )
+
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
+    fireEvent.click(screen.getByRole('button', { name: /run action: generate self-knowledge/i }))
+    await waitFor(() => {
+      expect(identityParameterMocks.generateSelfKnowledgeFromIdentityMock).toHaveBeenCalledTimes(1)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
+    fireEvent.click(screen.getByRole('button', { name: /run action: generate self-knowledge/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Self-knowledge generation is already running.')).toBeTruthy()
+    })
+    expect(identityParameterMocks.generateSelfKnowledgeFromIdentityMock).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      deferred.resolve({
+        philosophy: [],
+        interview_style: {
+          strengths: [],
+          weaknesses: [],
+          prep_strategy: '',
+        },
+      })
+      await deferred.promise
+    })
+  })
+
+  it('discards generated self-knowledge if identity changes during generation', async () => {
+    seed((id) => {
+      id.self_model.philosophy = []
+      id.self_model.interview_style = {
+        strengths: [],
+        weaknesses: [],
+        prep_strategy: '',
+      }
+    })
+    const deferred =
+      createDeferred<
+        Awaited<ReturnType<typeof identityParameterMocks.generateSelfKnowledgeFromIdentityMock>>
+      >()
+    identityParameterMocks.generateSelfKnowledgeFromIdentityMock.mockReturnValueOnce(
+      deferred.promise,
+    )
+
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
+    fireEvent.click(screen.getByRole('button', { name: /run action: generate self-knowledge/i }))
+    await waitFor(() => {
+      expect(identityParameterMocks.generateSelfKnowledgeFromIdentityMock).toHaveBeenCalledTimes(1)
+    })
+
+    const nextIdentity = useIdentityStore.getState().currentIdentity!
+    useIdentityStore.setState({
+      currentIdentity: {
+        ...nextIdentity,
+        model_revision: nextIdentity.model_revision + 1,
+      },
+    })
+
+    await act(async () => {
+      deferred.resolve({
+        philosophy: [
+          {
+            id: 'platform-judgment',
+            text: 'Generated philosophy.',
+            tags: ['platform'],
+          },
+        ],
+        interview_style: {
+          strengths: ['Generated strength.'],
+          weaknesses: [],
+          prep_strategy: '',
+        },
+      })
+      await deferred.promise
+    })
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Identity changed during generation; discarded the self-knowledge draft.'),
+      ).toBeTruthy()
+    })
+    expect(useIdentityStore.getState().currentIdentity?.self_model.philosophy).toEqual([])
+    expect(useIdentityStore.getState().currentIdentity?.self_model.interview_style).toEqual({
+      strengths: [],
+      weaknesses: [],
+      prep_strategy: '',
+    })
+  })
+
+  it('preserves identity when generated self-knowledge is empty', async () => {
+    const existingPhilosophy = [
+      {
+        id: 'existing',
+        text: 'Existing philosophy.',
+        tags: ['existing'],
+      },
+    ]
+    const existingInterview = {
+      strengths: ['Existing strength.'],
+      weaknesses: ['Existing weakness.'],
+      prep_strategy: 'Existing prep.',
+    }
+    seed((id) => {
+      id.self_model.philosophy = existingPhilosophy
+      id.self_model.interview_style = existingInterview
+    })
+    identityParameterMocks.generateSelfKnowledgeFromIdentityMock.mockResolvedValueOnce({
+      philosophy: [],
+      interview_style: {
+        strengths: [],
+        weaknesses: [],
+        prep_strategy: '',
+      },
+    })
+
+    render(<IdentityMapPage />)
+    fireEvent.click(within(getSelfKnowledgeControls()).getByRole('button', {
+      name: /^generate self-knowledge$/i,
+    }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('The generated draft did not return new self-knowledge.'),
+      ).toBeTruthy()
+    })
+    expect(useIdentityStore.getState().currentIdentity?.self_model.philosophy).toEqual(
+      existingPhilosophy,
+    )
+    expect(useIdentityStore.getState().currentIdentity?.self_model.interview_style).toEqual(
+      existingInterview,
+    )
+  })
+
+  it('applies interview-only self-knowledge without replacing existing philosophy', async () => {
+    const existingPhilosophy = [
+      {
+        id: 'existing',
+        text: 'Existing philosophy.',
+        tags: ['existing'],
+      },
+    ]
+    seed((id) => {
+      id.self_model.philosophy = existingPhilosophy
+      id.self_model.interview_style = {
+        strengths: [],
+        weaknesses: [],
+        prep_strategy: '',
+      }
+    })
+    identityParameterMocks.generateSelfKnowledgeFromIdentityMock.mockResolvedValueOnce({
+      philosophy: [],
+      interview_style: {
+        strengths: ['Generated strength.'],
+        weaknesses: ['Generated weakness.'],
+        prep_strategy: 'Generated prep.',
+      },
+    })
+
+    render(<IdentityMapPage />)
+    fireEvent.click(within(getSelfKnowledgeControls()).getByRole('button', {
+      name: /^generate self-knowledge$/i,
+    }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Generated 0 philosophy positions and interview self-knowledge.'),
+      ).toBeTruthy()
+    })
+    expect(useIdentityStore.getState().currentIdentity?.self_model.philosophy).toEqual(
+      existingPhilosophy,
+    )
+    expect(useIdentityStore.getState().currentIdentity?.self_model.interview_style).toEqual({
+      strengths: ['Generated strength.'],
+      weaknesses: ['Generated weakness.'],
+      prep_strategy: 'Generated prep.',
+    })
+  })
+
+  it('applies philosophy-only self-knowledge without replacing existing interview notes', async () => {
+    const existingInterview = {
+      strengths: ['Existing strength.'],
+      weaknesses: ['Existing weakness.'],
+      prep_strategy: 'Existing prep.',
+    }
+    seed((id) => {
+      id.self_model.philosophy = []
+      id.self_model.interview_style = existingInterview
+    })
+    identityParameterMocks.generateSelfKnowledgeFromIdentityMock.mockResolvedValueOnce({
+      philosophy: [
+        {
+          id: 'platform-judgment',
+          text: 'Generated philosophy.',
+          tags: ['platform'],
+        },
+        {
+          id: 'customer-proof',
+          text: 'Generated customer proof philosophy.',
+          tags: ['customers'],
+        },
+      ],
+      interview_style: {
+        strengths: [],
+        weaknesses: [],
+        prep_strategy: '',
+      },
+    })
+
+    render(<IdentityMapPage />)
+    fireEvent.click(within(getSelfKnowledgeControls()).getByRole('button', {
+      name: /^generate self-knowledge$/i,
+    }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Generated 2 philosophy positions and interview self-knowledge.'),
+      ).toBeTruthy()
+    })
+    expect(useIdentityStore.getState().currentIdentity?.self_model.philosophy).toHaveLength(2)
+    expect(useIdentityStore.getState().currentIdentity?.self_model.interview_style).toEqual(
+      existingInterview,
+    )
   })
 
   it('recovers thesis generation after a missing proxy configuration error', async () => {
@@ -801,6 +1164,25 @@ describe('Identity Map — match-rule add/remove', () => {
         },
       ])
     })
+  })
+
+  it('reviews existing career chapters instead of replacing authored arc text', () => {
+    const authoredArc = [
+      {
+        company: 'Contoso Networks',
+        chapter: 'Authored chapter about turning deployment constraints into product access.',
+      },
+    ]
+    seed((id) => {
+      id.self_model.arc = authoredArc
+    })
+
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
+    fireEvent.click(screen.getByRole('button', { name: /run action: review chapters/i }))
+
+    expect(useIdentityStore.getState().currentIdentity?.self_model.arc).toEqual(authoredArc)
   })
 
   it('surfaces a message when chapter drafting has no roles to use', async () => {

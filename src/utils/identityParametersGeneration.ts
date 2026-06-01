@@ -1,7 +1,9 @@
 import type {
   ProfessionalAwarenessSeverity,
+  ProfessionalInterviewStyle,
   ProfessionalIdentityCore,
   ProfessionalIdentityV3,
+  ProfessionalPhilosophyEntry,
   ProfessionalOpenQuestion,
   ProfessionalSearchVector,
   ProfessionalSearchVectorPriority,
@@ -26,6 +28,11 @@ export type ProfessionalIdentityThesisInference = Pick<
   ProfessionalIdentityCore,
   'thesis' | 'title' | 'origin' | 'elaboration'
 >
+
+export interface ProfessionalSelfKnowledgeInference {
+  philosophy: ProfessionalPhilosophyEntry[]
+  interview_style: ProfessionalInterviewStyle
+}
 
 export interface ProfessionalStrategicInferenceOptions {
   mode?: 'fill' | 'regenerate'
@@ -199,6 +206,41 @@ const normalizeGeneratedThesis = (payload: unknown): ProfessionalIdentityThesisI
   }
 }
 
+const normalizeGeneratedSelfKnowledge = (payload: unknown): ProfessionalSelfKnowledgeInference => {
+  const record = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {}
+  const philosophy = Array.isArray(record.philosophy) ? record.philosophy : []
+  const interviewRecord =
+    record.interview_style && typeof record.interview_style === 'object'
+      ? (record.interview_style as Record<string, unknown>)
+      : {}
+
+  return {
+    philosophy: philosophy.flatMap((entry) => {
+      if (!entry || typeof entry !== 'object') return []
+
+      const philosophyEntry = entry as Record<string, unknown>
+      const text = normalizeOptionalString(philosophyEntry.text)
+      if (!text) return []
+
+      return [
+        {
+          id:
+            isString(philosophyEntry.id) && philosophyEntry.id.trim()
+              ? philosophyEntry.id.trim()
+              : createId('phil'),
+          text: removeVoiceTells(text),
+          tags: normalizeStringArray(philosophyEntry.tags).map(removeVoiceTells),
+        } satisfies ProfessionalPhilosophyEntry,
+      ]
+    }),
+    interview_style: {
+      strengths: normalizeStringArray(interviewRecord.strengths).map(removeVoiceTells),
+      weaknesses: normalizeStringArray(interviewRecord.weaknesses).map(removeVoiceTells),
+      prep_strategy: removeVoiceTells(normalizeOptionalString(interviewRecord.prep_strategy) ?? ''),
+    },
+  }
+}
+
 export async function generateIdentityThesisFromIdentity(
   identity: ProfessionalIdentityV3,
   endpoint: string,
@@ -238,6 +280,63 @@ Response schema:
       throw error
     }
     throw error instanceof Error ? error : new Error('Failed to parse generated identity thesis.')
+  }
+}
+
+export async function generateSelfKnowledgeFromIdentity(
+  identity: ProfessionalIdentityV3,
+  endpoint: string,
+  options: { signal?: AbortSignal } = {},
+): Promise<ProfessionalSelfKnowledgeInference> {
+  const systemPrompt = `You are a senior career strategist for staff-plus engineering candidates. Return JSON only.
+Generate durable self-knowledge from the supplied identity model: philosophy positions and interview self-knowledge.
+
+Respect generator_rules.accuracy as hard truth constraints. Do not invent candidate claims. Use roles, projects, skills, profiles, thesis, and existing self_model as evidence.
+
+Reasoning requirements:
+- Philosophy entries should capture durable operating principles, engineering taste, leadership beliefs, and market-facing judgment.
+- Interview strengths should be specific patterns the candidate can credibly prove.
+- Interview weaknesses should be honest, non-damaging calibration points that can guide preparation.
+- Prep strategy should tell the candidate how to use their evidence in interviews, not generic advice.
+- Prefer 3 to 5 philosophy entries, 3 to 5 strengths, 2 to 4 weaknesses, and one concise prep strategy.
+
+Voice requirements:
+- Write like a precise senior engineer, not a marketing page.
+- Avoid AI tells: no em dashes, no hype, no vague transformation language, no "uniquely positioned" phrasing.
+- Use plain punctuation. Never use an em dash.
+
+Response schema:
+{
+  "philosophy": [
+    {
+      "id": "optional stable kebab-case string",
+      "text": "string",
+      "tags": ["string"]
+    }
+  ],
+  "interview_style": {
+    "strengths": ["string"],
+    "weaknesses": ["string"],
+    "prep_strategy": "string"
+  }
+}`
+
+  const rawResponse = await callLlmProxy(endpoint, systemPrompt, buildGenerationPrompt(identity), {
+    feature: 'research.profile-inference',
+    model: GENERATION_MODEL,
+    timeoutMs: RESEARCH_PROFILE_INFERENCE_TIMEOUT_MS,
+    signal: options.signal,
+  })
+
+  try {
+    return normalizeGeneratedSelfKnowledge(
+      parseGeneratedPayload(rawResponse, 'Generated self-knowledge response'),
+    )
+  } catch (error) {
+    if (error instanceof JsonExtractionError) {
+      throw error
+    }
+    throw error instanceof Error ? error : new Error('Failed to parse generated self-knowledge.')
   }
 }
 

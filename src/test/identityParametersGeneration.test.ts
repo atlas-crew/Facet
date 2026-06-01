@@ -4,6 +4,7 @@ import {
   generateAwarenessFromIdentity,
   generateIdentityThesisFromIdentity,
   generateSearchVectorsFromIdentity,
+  generateSelfKnowledgeFromIdentity,
   generateStrategicPositioningFromIdentity,
 } from '../utils/identityParametersGeneration'
 import { JsonExtractionError } from '../utils/llmProxy'
@@ -225,7 +226,7 @@ describe('identityParametersGeneration', () => {
                 thesis: 'Turns platform ambiguity — and delivery risk — into shipped systems.',
                 title: ' Platform Systems Lead ',
                 origin: 'Repeated migration work — across deployment surfaces.',
-                elaboration: '',
+                elaboration: 'Built proof — across deployment surfaces.',
               }),
             },
           },
@@ -242,6 +243,7 @@ describe('identityParametersGeneration', () => {
       thesis: 'Turns platform ambiguity, and delivery risk, into shipped systems.',
       title: 'Platform Systems Lead',
       origin: 'Repeated migration work, across deployment surfaces.',
+      elaboration: 'Built proof, across deployment surfaces.',
     })
   })
 
@@ -271,6 +273,107 @@ describe('identityParametersGeneration', () => {
     ).rejects.toBeInstanceOf(JsonExtractionError)
   })
 
+  it('normalizes generated self-knowledge and strips voice tells', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                philosophy: [
+                  {
+                    id: ' platform-judgment ',
+                    text: 'Favor platform moves — only when they unlock product access.',
+                    tags: [' platform — product ', ''],
+                  },
+                  { text: '' },
+                ],
+                interview_style: {
+                  strengths: [' Turns ambiguity — into execution '],
+                  weaknesses: [' Can over-index — on systems depth '],
+                  prep_strategy: 'Anchor answers in proof — then explain tradeoffs.',
+                },
+              }),
+            },
+          },
+        ],
+      }),
+    } as Response)
+
+    const selfKnowledge = await generateSelfKnowledgeFromIdentity(
+      cloneIdentityFixture(),
+      'https://ai.example/proxy',
+    )
+
+    expect(selfKnowledge.philosophy).toEqual([
+      {
+        id: 'platform-judgment',
+        text: 'Favor platform moves, only when they unlock product access.',
+        tags: ['platform, product'],
+      },
+    ])
+    expect(selfKnowledge.interview_style).toEqual({
+      strengths: ['Turns ambiguity, into execution'],
+      weaknesses: ['Can over-index, on systems depth'],
+      prep_strategy: 'Anchor answers in proof, then explain tradeoffs.',
+    })
+  })
+
+  it('creates fallback ids for generated philosophy entries without stable ids', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                philosophy: [
+                  {
+                    text: 'Make platform work legible to product and customer constraints.',
+                    tags: ['platform'],
+                  },
+                  {
+                    id: '   ',
+                    text: 'Treat deployment architecture as market access.',
+                    tags: ['deployment'],
+                  },
+                ],
+                interview_style: {
+                  strengths: [],
+                  weaknesses: [],
+                  prep_strategy: '',
+                },
+              }),
+            },
+          },
+        ],
+      }),
+    } as Response)
+
+    const selfKnowledge = await generateSelfKnowledgeFromIdentity(
+      cloneIdentityFixture(),
+      'https://ai.example/proxy',
+    )
+
+    expect(selfKnowledge.philosophy).toHaveLength(2)
+    expect(selfKnowledge.philosophy[0]?.id).toMatch(/^phil-/)
+    expect(selfKnowledge.philosophy[1]?.id).toMatch(/^phil-/)
+  })
+
+  it('preserves extraction errors for missing self-knowledge JSON blocks', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: 'Here is your self knowledge in prose.' } }],
+      }),
+    } as Response)
+
+    await expect(
+      generateSelfKnowledgeFromIdentity(cloneIdentityFixture(), 'https://ai.example/proxy'),
+    ).rejects.toBeInstanceOf(JsonExtractionError)
+  })
+
   it('requests Opus for identity strategy inference', async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce({
@@ -297,16 +400,26 @@ describe('identityParametersGeneration', () => {
           choices: [{ message: { content: '{"thesis":"Leads durable platform delivery."}' } }],
         }),
       } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            { message: { content: '{"philosophy":[],"interview_style":{"prep_strategy":""}}' } },
+          ],
+        }),
+      } as Response)
 
     await generateSearchVectorsFromIdentity(cloneIdentityFixture(), 'https://ai.example/proxy')
     await generateAwarenessFromIdentity(cloneIdentityFixture(), 'https://ai.example/proxy')
     await generateStrategicPositioningFromIdentity(cloneIdentityFixture(), 'https://ai.example/proxy')
     await generateIdentityThesisFromIdentity(cloneIdentityFixture(), 'https://ai.example/proxy')
+    await generateSelfKnowledgeFromIdentity(cloneIdentityFixture(), 'https://ai.example/proxy')
 
     const vectorRequest = JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body))
     const awarenessRequest = JSON.parse(String(vi.mocked(fetch).mock.calls[1]?.[1]?.body))
     const strategyRequest = JSON.parse(String(vi.mocked(fetch).mock.calls[2]?.[1]?.body))
     const thesisRequest = JSON.parse(String(vi.mocked(fetch).mock.calls[3]?.[1]?.body))
+    const selfKnowledgeRequest = JSON.parse(String(vi.mocked(fetch).mock.calls[4]?.[1]?.body))
 
     expect(vectorRequest).toMatchObject({
       feature: 'research.profile-inference',
@@ -321,6 +434,10 @@ describe('identityParametersGeneration', () => {
       model: 'opus',
     })
     expect(thesisRequest).toMatchObject({
+      feature: 'research.profile-inference',
+      model: 'opus',
+    })
+    expect(selfKnowledgeRequest).toMatchObject({
       feature: 'research.profile-inference',
       model: 'opus',
     })
