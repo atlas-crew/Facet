@@ -34,6 +34,8 @@ export function serializeMapSelection(selection: MapSelection): string {
   switch (selection.type) {
     case 'thesis':
       return 'thesis'
+    case 'competitive-moat':
+      return 'competitive-moat'
     case 'philosophy':
       return `philosophy:${enc(selection.id)}`
     case 'arc-stop':
@@ -81,6 +83,9 @@ export function parseMapSelection(serialized: string | undefined | null): MapSel
     case 'thesis':
       if (rest.length !== 0) return null
       return { type: 'thesis' }
+    case 'competitive-moat':
+      if (rest.length !== 0) return null
+      return { type: 'competitive-moat' }
     case 'philosophy':
       if (rest.length !== 1 || !rest[0]) return null
       return { type: 'philosophy', id: rest[0] }
@@ -130,6 +135,8 @@ export function getEntityNoun(selection: MapSelection): string {
   switch (selection.type) {
     case 'thesis':
       return 'thesis selection'
+    case 'competitive-moat':
+      return 'competitive moat'
     case 'philosophy':
       return 'philosophy entry'
     case 'arc-stop':

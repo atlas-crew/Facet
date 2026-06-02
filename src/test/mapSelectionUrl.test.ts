@@ -14,6 +14,7 @@ import {
 
 const allVariants: MapSelection[] = [
   { type: 'thesis' },
+  { type: 'competitive-moat' },
   { type: 'philosophy', id: 'phil-1' },
   { type: 'arc-stop', id: 'Contoso Networks:0' },
   { type: 'profile', id: 'profile-platform' },
@@ -84,6 +85,10 @@ describe('parseMapSelection rejection paths', () => {
 
   it('returns null when thesis carries unexpected payload', () => {
     expect(parseMapSelection('thesis:unexpected')).toBeNull()
+  })
+
+  it('returns null when competitive moat carries unexpected payload', () => {
+    expect(parseMapSelection('competitive-moat:unexpected')).toBeNull()
   })
 
   it('returns null for invalid match-rule kind narrowing', () => {

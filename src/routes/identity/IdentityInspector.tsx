@@ -5,6 +5,7 @@ import type { MapSelection } from '../../types/identity'
 import { ArcStopInspector } from './inspectorSlots/ArcStopInspector'
 import { AwarenessQuestionInspector } from './inspectorSlots/AwarenessQuestionInspector'
 import { BulletInspector } from './inspectorSlots/BulletInspector'
+import { CompetitiveMoatInspector } from './inspectorSlots/CompetitiveMoatInspector'
 import { MatchRuleInspector } from './inspectorSlots/MatchRuleInspector'
 import { PhilosophyInspector } from './inspectorSlots/PhilosophyInspector'
 import { PrefFieldInspector } from './inspectorSlots/PrefFieldInspector'
@@ -71,6 +72,8 @@ function InspectorBody({
   switch (selection.type) {
     case 'thesis':
       return <ThesisInspector identity={identity} />
+    case 'competitive-moat':
+      return <CompetitiveMoatInspector identity={identity} />
     case 'philosophy':
       return <PhilosophyInspector identity={identity} positionId={selection.id} />
     case 'arc-stop':

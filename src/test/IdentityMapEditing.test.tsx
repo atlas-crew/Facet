@@ -3,6 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { IdentityMapPage } from '../routes/identity/IdentityMapPage'
+import { SelfModelBand } from '../routes/identity/bands/SelfModelBand'
 import { useIdentityStore } from '../store/identityStore'
 import { resolveStorage } from '../store/storage'
 import { cloneIdentityFixture } from './fixtures/identityFixture'
@@ -131,16 +132,101 @@ describe('Identity Map — match-rule add/remove', () => {
   })
 
 
-  it('renders dark-theme controls for strategic positioning inputs', () => {
-    seed()
+  it('renders competitive moat as a selectable card and keeps advantage input styled', () => {
+    seed((id) => {
+      id.self_model.competitive_moat = 'Platform engineering plus deployment architecture.'
+    })
     render(<IdentityMapPage />)
 
-    expect(screen.getByLabelText('Competitive moat').classList.contains('self-moat-textarea')).toBe(
-      true,
-    )
+    expect(screen.queryByLabelText('Competitive moat')).toBeNull()
+    expect(
+      screen
+        .getByRole('button', { name: /platform engineering plus deployment architecture/i })
+        .classList.contains('self-moat-card'),
+    ).toBe(true)
     expect(
       screen.getByLabelText('New unfair advantage').classList.contains('self-advantage-input'),
     ).toBe(true)
+  })
+
+  it('edits competitive moat from the inspector after selecting the moat card', () => {
+    seed((id) => {
+      id.self_model.competitive_moat = 'Existing authored moat.'
+    })
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /existing authored moat/i }))
+
+    expect(screen.getByRole('heading', { name: 'Competitive Moat' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit moat' }))
+    fireEvent.change(screen.getByLabelText('Competitive Moat'), {
+      target: { value: 'Updated platform moat.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(useIdentityStore.getState().currentIdentity?.self_model.competitive_moat).toBe(
+      'Updated platform moat.',
+    )
+    expect(screen.getByRole('button', { name: /updated platform moat/i })).toBeTruthy()
+  })
+
+  it('shows competitive moat empty state and adds the moat from the inspector', () => {
+    seed((id) => {
+      id.self_model.competitive_moat = ''
+    })
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /no competitive moat captured yet/i }))
+
+    expect(screen.getByRole('heading', { name: 'Competitive Moat' })).toBeTruthy()
+    expect(screen.getByText('No competitive moat captured yet.')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Add moat' }))
+    fireEvent.change(screen.getByLabelText('Competitive Moat'), {
+      target: { value: 'New moat from inspector.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(useIdentityStore.getState().currentIdentity?.self_model.competitive_moat).toBe(
+      'New moat from inspector.',
+    )
+    expect(screen.getByRole('button', { name: /new moat from inspector/i })).toBeTruthy()
+  })
+
+  it('cancels competitive moat inspector edits without changing the identity', () => {
+    seed((id) => {
+      id.self_model.competitive_moat = 'Original moat.'
+    })
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /original moat/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit moat' }))
+    fireEvent.change(screen.getByLabelText('Competitive Moat'), {
+      target: { value: 'Discarded moat draft.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(useIdentityStore.getState().currentIdentity?.self_model.competitive_moat).toBe(
+      'Original moat.',
+    )
+    expect(screen.getByRole('button', { name: /original moat/i })).toBeTruthy()
+    expect(screen.queryByText('Discarded moat draft.')).toBeNull()
+  })
+
+  it('clears competitive moat from the inspector when saving empty text', () => {
+    seed((id) => {
+      id.self_model.competitive_moat = 'Stale moat to remove.'
+    })
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /stale moat to remove/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit moat' }))
+    fireEvent.change(screen.getByLabelText('Competitive Moat'), {
+      target: { value: '   ' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(useIdentityStore.getState().currentIdentity?.self_model.competitive_moat).toBeUndefined()
+    expect(screen.getByRole('button', { name: /no competitive moat captured yet/i })).toBeTruthy()
   })
 
   it('refreshes strategic positioning into a reviewed draft before applying sections', async () => {
@@ -631,6 +717,107 @@ describe('Identity Map — match-rule add/remove', () => {
     ).toBeTruthy()
   })
 
+  it('renders interview self-knowledge strengths, weaknesses, and prep strategy', () => {
+    seed((id) => {
+      id.self_model.interview_style = {
+        strengths: ['Translate low-level platform details into product consequences.'],
+        weaknesses: ['Can over-explain architecture before naming the buyer constraint.'],
+        prep_strategy: 'Lead with the customer access problem, then use platform proof.',
+      }
+    })
+
+    render(<IdentityMapPage />)
+
+    const interviewSection = screen
+      .getByText('Interview Self-Knowledge')
+      .closest('.self-interview') as HTMLElement | null
+    if (!interviewSection) throw new Error('Expected interview self-knowledge section.')
+
+    expect(
+      within(interviewSection).getByText(
+        'Translate low-level platform details into product consequences.',
+      ),
+    ).toBeTruthy()
+    expect(
+      within(interviewSection).getByText(
+        'Can over-explain architecture before naming the buyer constraint.',
+      ),
+    ).toBeTruthy()
+    expect(
+      within(interviewSection).getByText(
+        'Lead with the customer access problem, then use platform proof.',
+      ),
+    ).toBeTruthy()
+  })
+
+  it('renders empty interview self-knowledge placeholders', () => {
+    seed((id) => {
+      id.self_model.interview_style = {
+        strengths: [],
+        weaknesses: [],
+        prep_strategy: '',
+      }
+    })
+
+    render(<IdentityMapPage />)
+
+    const interviewSection = screen
+      .getByText('Interview Self-Knowledge')
+      .closest('.self-interview') as HTMLElement | null
+    if (!interviewSection) throw new Error('Expected interview self-knowledge section.')
+
+    expect(within(interviewSection).getAllByText(/not captured/i)).toHaveLength(3)
+  })
+
+  it('auto-dismisses self-knowledge info messages after the timeout', async () => {
+    vi.useFakeTimers()
+    try {
+      seed((id) => {
+        id.self_model.philosophy = []
+        id.self_model.interview_style = {
+          strengths: [],
+          weaknesses: [],
+          prep_strategy: '',
+        }
+      })
+      identityParameterMocks.generateSelfKnowledgeFromIdentityMock.mockResolvedValueOnce({
+        philosophy: [
+          {
+            id: 'platform-judgment',
+            text: 'Favor platform moves when they unlock product access.',
+            tags: ['platform'],
+          },
+        ],
+        interview_style: {
+          strengths: [],
+          weaknesses: [],
+          prep_strategy: '',
+        },
+      })
+
+      render(<IdentityMapPage />)
+
+      fireEvent.click(within(getSelfKnowledgeControls()).getByRole('button', {
+        name: /^generate self-knowledge$/i,
+      }))
+      await act(async () => {
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+
+      const message = 'Generated 1 philosophy position and interview self-knowledge.'
+      expect(screen.getByText(message)).toBeTruthy()
+
+      act(() => {
+        vi.advanceTimersByTime(8000)
+      })
+
+      expect(screen.queryByText(message)).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('shows a configuration error when generating self-knowledge has no AI proxy', async () => {
     seed((id) => {
       id.self_model.philosophy = []
@@ -682,6 +869,43 @@ describe('Identity Map — match-rule add/remove', () => {
     expect(consoleErrorSpy).toHaveBeenCalled()
     consoleErrorSpy.mockRestore()
     expect(generateButton.getAttribute('aria-busy')).toBe('false')
+  })
+
+  it('aborts self-knowledge generation on unmount without surfacing abort errors', async () => {
+    seed()
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const deferred =
+      createDeferred<
+        Awaited<ReturnType<typeof identityParameterMocks.generateSelfKnowledgeFromIdentityMock>>
+      >()
+    identityParameterMocks.generateSelfKnowledgeFromIdentityMock.mockReturnValueOnce(
+      deferred.promise,
+    )
+
+    const { unmount } = render(<IdentityMapPage />)
+
+    fireEvent.click(within(getSelfKnowledgeControls()).getByRole('button', {
+      name: /^generate self-knowledge$/i,
+    }))
+    await waitFor(() => {
+      expect(identityParameterMocks.generateSelfKnowledgeFromIdentityMock).toHaveBeenCalledTimes(1)
+    })
+    const signal = identityParameterMocks.generateSelfKnowledgeFromIdentityMock.mock
+      .calls[0]?.[2]?.signal
+
+    unmount()
+
+    expect(signal?.aborted).toBe(true)
+
+    await act(async () => {
+      const abortError = new Error('aborted')
+      abortError.name = 'AbortError'
+      deferred.reject(abortError)
+      await deferred.promise.catch(() => undefined)
+    })
+
+    expect(consoleErrorSpy).not.toHaveBeenCalled()
+    consoleErrorSpy.mockRestore()
   })
 
   it('does not start duplicate self-knowledge generation while a request is running', async () => {
@@ -1183,6 +1407,29 @@ describe('Identity Map — match-rule add/remove', () => {
     fireEvent.click(screen.getByRole('button', { name: /run action: review chapters/i }))
 
     expect(useIdentityStore.getState().currentIdentity?.self_model.arc).toEqual(authoredArc)
+  })
+
+  it('explains why drafting chapters does not replace an existing authored arc', () => {
+    const authoredArc = [
+      {
+        company: 'Contoso Networks',
+        chapter: 'Authored chapter about turning deployment constraints into product access.',
+      },
+    ]
+    seed((id) => {
+      id.self_model.arc = authoredArc
+    })
+
+    const { rerender } = render(<SelfModelBand chapterRequestId={0} />)
+
+    rerender(<SelfModelBand chapterRequestId={1} />)
+
+    expect(useIdentityStore.getState().currentIdentity?.self_model.arc).toEqual(authoredArc)
+    expect(
+      screen.getByText(
+        'Career chapters already exist. Review or edit them in the arc instead of replacing them from roles.',
+      ),
+    ).toBeTruthy()
   })
 
   it('surfaces a message when chapter drafting has no roles to use', async () => {

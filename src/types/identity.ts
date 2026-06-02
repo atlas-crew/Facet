@@ -287,6 +287,7 @@ export type PreferenceFieldKey =
  */
 export type MapSelection =
   | { type: 'thesis' }
+  | { type: 'competitive-moat' }
   | { type: 'philosophy'; id: string }
   | { type: 'arc-stop'; id: string }
   | { type: 'profile'; id: string }

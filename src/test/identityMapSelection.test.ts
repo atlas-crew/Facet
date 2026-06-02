@@ -147,10 +147,11 @@ function buildCompleteIdentity(): ProfessionalIdentityV3 {
 }
 
 describe('isMapSelectionValid — positive coverage for every MapSelection variant', () => {
-  // 14 cases (13 type discriminants, with `match-rule` exercised on both `prioritize`
+  // 15 cases (14 type discriminants, with `match-rule` exercised on both `prioritize`
   // and `avoid` kinds since they read from different lists).
   const cases: Array<{ name: string; selection: MapSelection }> = [
     { name: 'thesis', selection: { type: 'thesis' } },
+    { name: 'competitive moat', selection: { type: 'competitive-moat' } },
     { name: 'philosophy', selection: { type: 'philosophy', id: 'absorb-complexity' } },
     { name: 'arc-stop', selection: { type: 'arc-stop', id: 'Contoso Networks:0' } },
     { name: 'profile', selection: { type: 'profile', id: 'platform-profile' } },

@@ -27,14 +27,14 @@ interface ArcStop extends ProfessionalIdentityArcEntry {
   id: string
 }
 
-type PositioningGenerationMessage = {
+type GenerationMessage = {
   id: number
   tone: 'info' | 'error'
   text: string
   autoDismiss: boolean
 }
 
-const POSITIONING_MESSAGE_DISMISS_MS = 8000
+const GENERATION_MESSAGE_DISMISS_MS = 8000
 
 const ensurePositioningEndpoint = () => {
   return ensureIdentityInferenceEndpoint('Connect the AI proxy before refreshing positioning.')
@@ -95,10 +95,10 @@ export function SelfModelBand({
   const interview = self?.interview_style
   const moat = self?.competitive_moat ?? ''
   const advantages = useMemo(() => self?.unfair_advantages ?? [], [self?.unfair_advantages])
+  const isMoatSelected = selection?.type === 'competitive-moat'
 
-  // Local draft state for moat + advantages-add input. Re-syncs when the
+  // Local draft state for advantages-add input. Re-syncs when the
   // canonical identity values change (e.g., after import or reset).
-  const [moatDraft, setMoatDraft] = useState(moat)
   const [newAdvantage, setNewAdvantage] = useState('')
   const [positioningDraft, setPositioningDraft] =
     useState<ProfessionalStrategicInference | null>(null)
@@ -106,13 +106,9 @@ export function SelfModelBand({
   const [generatingPositioning, setGeneratingPositioning] = useState(false)
   const [generatingSelfKnowledge, setGeneratingSelfKnowledge] = useState(false)
   const [positioningMessage, setPositioningMessage] =
-    useState<PositioningGenerationMessage | null>(null)
+    useState<GenerationMessage | null>(null)
   const [selfKnowledgeMessage, setSelfKnowledgeMessage] =
-    useState<PositioningGenerationMessage | null>(null)
-  useEffect(() => {
-    setMoatDraft(moat)
-  }, [moat])
-
+    useState<GenerationMessage | null>(null)
   useEffect(() => {
     mountedRef.current = true
     return () => {
@@ -128,7 +124,7 @@ export function SelfModelBand({
     const messageId = positioningMessage.id
     const timeoutId = window.setTimeout(() => {
       setPositioningMessage((current) => (current?.id === messageId ? null : current))
-    }, POSITIONING_MESSAGE_DISMISS_MS)
+    }, GENERATION_MESSAGE_DISMISS_MS)
 
     return () => window.clearTimeout(timeoutId)
   }, [positioningMessage])
@@ -139,7 +135,7 @@ export function SelfModelBand({
     const messageId = selfKnowledgeMessage.id
     const timeoutId = window.setTimeout(() => {
       setSelfKnowledgeMessage((current) => (current?.id === messageId ? null : current))
-    }, POSITIONING_MESSAGE_DISMISS_MS)
+    }, GENERATION_MESSAGE_DISMISS_MS)
 
     return () => window.clearTimeout(timeoutId)
   }, [selfKnowledgeMessage])
@@ -153,13 +149,13 @@ export function SelfModelBand({
     setPositioningMessage(null)
   }, [identityGenerationKey, positioningDraftKey])
 
-  const showPositioningMessage = useCallback((message: Omit<PositioningGenerationMessage, 'id'>) => {
+  const showPositioningMessage = useCallback((message: Omit<GenerationMessage, 'id'>) => {
     positioningMessageIdRef.current += 1
     setPositioningMessage({ ...message, id: positioningMessageIdRef.current })
   }, [])
 
   const showSelfKnowledgeMessage = useCallback(
-    (message: Omit<PositioningGenerationMessage, 'id'>) => {
+    (message: Omit<GenerationMessage, 'id'>) => {
       selfKnowledgeMessageIdRef.current += 1
       setSelfKnowledgeMessage({ ...message, id: selfKnowledgeMessageIdRef.current })
     },
@@ -249,11 +245,17 @@ export function SelfModelBand({
         return
       }
 
-      const hasPhilosophy = generated.philosophy.length > 0
+      const generatedPhilosophy = generated.philosophy ?? []
+      const generatedInterview = generated.interview_style ?? {
+        strengths: [],
+        weaknesses: [],
+        prep_strategy: '',
+      }
+      const hasPhilosophy = generatedPhilosophy.length > 0
       const hasInterview =
-        generated.interview_style.strengths.length > 0 ||
-        generated.interview_style.weaknesses.length > 0 ||
-        Boolean(generated.interview_style.prep_strategy.trim())
+        (generatedInterview.strengths?.length ?? 0) > 0 ||
+        (generatedInterview.weaknesses?.length ?? 0) > 0 ||
+        Boolean(generatedInterview.prep_strategy?.trim())
       if (!hasPhilosophy && !hasInterview) {
         showSelfKnowledgeMessage({
           tone: 'info',
@@ -263,13 +265,19 @@ export function SelfModelBand({
         return
       }
 
-      if (hasPhilosophy) updatePhilosophy(generated.philosophy)
-      if (hasInterview) updateInterviewStyle(generated.interview_style)
+      if (hasPhilosophy) updatePhilosophy(generatedPhilosophy)
+      if (hasInterview) {
+        updateInterviewStyle({
+          strengths: generatedInterview.strengths ?? [],
+          weaknesses: generatedInterview.weaknesses ?? [],
+          prep_strategy: generatedInterview.prep_strategy ?? '',
+        })
+      }
 
       showSelfKnowledgeMessage({
         tone: 'info',
-        text: `Generated ${generated.philosophy.length} philosophy position${
-          generated.philosophy.length === 1 ? '' : 's'
+        text: `Generated ${generatedPhilosophy.length} philosophy position${
+          generatedPhilosophy.length === 1 ? '' : 's'
         } and interview self-knowledge.`,
         autoDismiss: true,
       })
@@ -317,9 +325,6 @@ export function SelfModelBand({
     setPositioningMessage(null)
   }
 
-  const commitMoat = () => {
-    if (moatDraft !== moat) updateCompetitiveMoat(moatDraft)
-  }
   const handleAddAdvantage = () => {
     const trimmed = newAdvantage.trim()
     if (!trimmed) return
@@ -334,9 +339,6 @@ export function SelfModelBand({
     if (!identity || positioningGenerationRef.current) return
 
     try {
-      if (moatDraft !== moat) {
-        updateCompetitiveMoat(moatDraft)
-      }
       const currentIdentity = useIdentityStore.getState().currentIdentity
       if (!currentIdentity) return
 
@@ -404,7 +406,7 @@ export function SelfModelBand({
         setGeneratingPositioning(false)
       }
     }
-  }, [identity, moat, moatDraft, showPositioningMessage, updateCompetitiveMoat])
+  }, [identity, showPositioningMessage])
   useInferenceRequest({
     requestId: positioningRequestId,
     handler: handleRefreshPositioning,
@@ -708,16 +710,20 @@ export function SelfModelBand({
           ) : null}
           <div className="self-positioning-block">
             <div className="self-positioning-label label-tracked">Competitive Moat</div>
-            <textarea
-              className="self-moat-textarea"
-              rows={3}
-              value={moatDraft}
-              onChange={(event) => setMoatDraft(event.target.value)}
-              onBlur={commitMoat}
-              placeholder="What makes you structurally different? e.g. 'Production Kubernetes plus product-aware platform judgment.'"
-              aria-label="Competitive moat"
-              disabled={!identity}
-            />
+            <button
+              type="button"
+              className={`self-moat-card${isMoatSelected ? ' selected' : ''}`}
+              onClick={() => setSelection({ type: 'competitive-moat' })}
+              aria-pressed={isMoatSelected}
+            >
+              <span className="self-moat-text chapter-copy">
+                {moat.trim() ||
+                  'No competitive moat captured yet. Click to add the structural difference you want positioning to honor.'}
+              </span>
+              <span className="self-moat-action label-tracked">
+                {moat.trim() ? 'Edit in inspector' : 'Add in inspector'}
+              </span>
+            </button>
           </div>
 
           <div className="self-positioning-block">
@@ -781,8 +787,8 @@ function PositioningGenerationStatus({
   message,
   tone,
 }: {
-  message: PositioningGenerationMessage | null
-  tone: PositioningGenerationMessage['tone']
+  message: GenerationMessage | null
+  tone: GenerationMessage['tone']
 }) {
   const hasMessage = message?.tone === tone
   const ariaLive = tone === 'info' ? 'polite' : 'assertive'

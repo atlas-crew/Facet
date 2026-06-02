@@ -729,6 +729,8 @@ export const isMapSelectionValid = (
   switch (selection.type) {
     case 'thesis':
       return true
+    case 'competitive-moat':
+      return true
     case 'philosophy':
       return identity.self_model?.philosophy?.some((p) => p.id === selection.id) ?? false
     case 'arc-stop':
