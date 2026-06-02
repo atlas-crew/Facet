@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { cloneIdentityFixture } from './fixtures/identityFixture'
 import {
   generateAwarenessFromIdentity,
+  generateIdentityProfilesFromIdentity,
   generateIdentityThesisFromIdentity,
   generateSearchVectorsFromIdentity,
   generateSelfKnowledgeFromIdentity,
@@ -105,6 +106,146 @@ describe('identityParametersGeneration', () => {
       RESEARCH_PROFILE_INFERENCE_TIMEOUT_MS,
     )
     setTimeoutSpy.mockRestore()
+  })
+
+  it('uses the expanded profile inference timeout budget for profile generation', async () => {
+    const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout')
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: '{"profiles":[]}' } }],
+      }),
+    } as Response)
+
+    await generateIdentityProfilesFromIdentity(cloneIdentityFixture(), 'https://ai.example/proxy')
+
+    expect(setTimeoutSpy).toHaveBeenCalledWith(
+      expect.any(Function),
+      RESEARCH_PROFILE_INFERENCE_TIMEOUT_MS,
+    )
+    setTimeoutSpy.mockRestore()
+  })
+
+  it('normalizes generated profile lenses and strips voice tells', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                profiles: [
+                  {
+                    id: 'Platform Strategy',
+                    tags: ['Platform Strategy', 'Product Judgment'],
+                    text: 'Turns platform constraints — into market access.',
+                  },
+                  {
+                    id: 'Platform Strategy',
+                    tags: ['Developer Experience'],
+                    text: 'Makes internal platforms easier to adopt.',
+                  },
+                ],
+              }),
+            },
+          },
+        ],
+      }),
+    } as Response)
+
+    const profiles = await generateIdentityProfilesFromIdentity(
+      cloneIdentityFixture(),
+      'https://ai.example/proxy',
+    )
+
+    expect(profiles).toEqual([
+      {
+        id: 'platform-strategy',
+        tags: ['platform-strategy', 'product-judgment'],
+        text: 'Turns platform constraints, into market access.',
+      },
+      {
+        id: 'platform-strategy-2',
+        tags: ['developer-experience'],
+        text: 'Makes internal platforms easier to adopt.',
+      },
+    ])
+  })
+
+  it('creates fallback profile ids and drops invalid generated profile entries', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                profiles: [
+                  {
+                    text: 'Frames deployment architecture as product access.',
+                  },
+                  null,
+                  'invalid profile',
+                  {
+                    id: 'missing-text',
+                    tags: ['ignored'],
+                  },
+                  {
+                    title: 'Security Platform',
+                    tags: ['Security Platform'],
+                    text: 'Connects security constraints to platform adoption.',
+                  },
+                ],
+              }),
+            },
+          },
+        ],
+      }),
+    } as Response)
+
+    const profiles = await generateIdentityProfilesFromIdentity(
+      cloneIdentityFixture(),
+      'https://ai.example/proxy',
+    )
+
+    expect(profiles).toEqual([
+      {
+        id: 'profile-1',
+        tags: [],
+        text: 'Frames deployment architecture as product access.',
+      },
+      {
+        id: 'security-platform',
+        tags: ['security-platform'],
+        text: 'Connects security constraints to platform adoption.',
+      },
+    ])
+  })
+
+  it('preserves extraction errors for missing profile JSON blocks', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: 'Here are profile lenses in prose.' } }],
+      }),
+    } as Response)
+
+    await expect(
+      generateIdentityProfilesFromIdentity(cloneIdentityFixture(), 'https://ai.example/proxy'),
+    ).rejects.toBeInstanceOf(JsonExtractionError)
+  })
+
+  it('wraps non-extraction profile parsing errors', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: '```json\n[]\n```' } }],
+      }),
+    } as Response)
+
+    await expect(
+      generateIdentityProfilesFromIdentity(cloneIdentityFixture(), 'https://ai.example/proxy'),
+    ).rejects.toThrow('Generated profiles response must be a JSON object.')
   })
 
   it('normalizes a combined strategic positioning response', async () => {
@@ -408,18 +549,26 @@ describe('identityParametersGeneration', () => {
           ],
         }),
       } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [{ message: { content: '{"profiles":[]}' } }],
+        }),
+      } as Response)
 
     await generateSearchVectorsFromIdentity(cloneIdentityFixture(), 'https://ai.example/proxy')
     await generateAwarenessFromIdentity(cloneIdentityFixture(), 'https://ai.example/proxy')
     await generateStrategicPositioningFromIdentity(cloneIdentityFixture(), 'https://ai.example/proxy')
     await generateIdentityThesisFromIdentity(cloneIdentityFixture(), 'https://ai.example/proxy')
     await generateSelfKnowledgeFromIdentity(cloneIdentityFixture(), 'https://ai.example/proxy')
+    await generateIdentityProfilesFromIdentity(cloneIdentityFixture(), 'https://ai.example/proxy')
 
     const vectorRequest = JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body))
     const awarenessRequest = JSON.parse(String(vi.mocked(fetch).mock.calls[1]?.[1]?.body))
     const strategyRequest = JSON.parse(String(vi.mocked(fetch).mock.calls[2]?.[1]?.body))
     const thesisRequest = JSON.parse(String(vi.mocked(fetch).mock.calls[3]?.[1]?.body))
     const selfKnowledgeRequest = JSON.parse(String(vi.mocked(fetch).mock.calls[4]?.[1]?.body))
+    const profileRequest = JSON.parse(String(vi.mocked(fetch).mock.calls[5]?.[1]?.body))
 
     expect(vectorRequest).toMatchObject({
       feature: 'research.profile-inference',
@@ -438,6 +587,10 @@ describe('identityParametersGeneration', () => {
       model: 'opus',
     })
     expect(selfKnowledgeRequest).toMatchObject({
+      feature: 'research.profile-inference',
+      model: 'opus',
+    })
+    expect(profileRequest).toMatchObject({
       feature: 'research.profile-inference',
       model: 'opus',
     })

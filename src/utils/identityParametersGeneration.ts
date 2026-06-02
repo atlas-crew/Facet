@@ -4,11 +4,12 @@ import type {
   ProfessionalIdentityCore,
   ProfessionalIdentityV3,
   ProfessionalPhilosophyEntry,
+  ProfessionalProfile,
   ProfessionalOpenQuestion,
   ProfessionalSearchVector,
   ProfessionalSearchVectorPriority,
 } from '../identity/schema'
-import { createId } from './idUtils'
+import { createId, slugify } from './idUtils'
 import { parseJsonWithRepair } from './jsonParsing'
 import { callLlmProxy, extractJsonBlock, JsonExtractionError, isString } from './llmProxy'
 import { RESEARCH_PROFILE_INFERENCE_TIMEOUT_MS } from './researchProfileInferenceConfig'
@@ -238,6 +239,97 @@ const normalizeGeneratedSelfKnowledge = (payload: unknown): ProfessionalSelfKnow
       weaknesses: normalizeStringArray(interviewRecord.weaknesses).map(removeVoiceTells),
       prep_strategy: removeVoiceTells(normalizeOptionalString(interviewRecord.prep_strategy) ?? ''),
     },
+  }
+}
+
+const normalizeGeneratedProfiles = (payload: unknown): ProfessionalProfile[] => {
+  const record = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {}
+  const profiles = Array.isArray(record.profiles) ? record.profiles : []
+  const seenIds = new Set<string>()
+
+  return profiles.flatMap((entry, index) => {
+    if (!entry || typeof entry !== 'object') return []
+
+    const profile = entry as Record<string, unknown>
+    const text = normalizeOptionalString(profile.text)
+    if (!text) return []
+
+    const idCandidate =
+      (isString(profile.id) && profile.id.trim()) ||
+      (isString(profile.title) && profile.title.trim()) ||
+      normalizeStringArray(profile.tags)[0] ||
+      ''
+    const baseId = slugify(idCandidate) || `profile-${index + 1}`
+    let id = baseId
+    let suffix = 2
+    while (seenIds.has(id)) {
+      id = `${baseId}-${suffix}`
+      suffix += 1
+    }
+    seenIds.add(id)
+    const tags = normalizeStringArray(profile.tags)
+      .map((tag) => slugify(removeVoiceTells(tag)))
+      .filter(Boolean)
+
+    return [
+      {
+        id,
+        tags,
+        text: removeVoiceTells(text),
+      } satisfies ProfessionalProfile,
+    ]
+  })
+}
+
+export async function generateIdentityProfilesFromIdentity(
+  identity: ProfessionalIdentityV3,
+  endpoint: string,
+  options: { signal?: AbortSignal } = {},
+): Promise<ProfessionalProfile[]> {
+  const systemPrompt = `You are a senior career strategist for staff-plus engineering candidates. Return JSON only.
+Generate durable profile lenses from the supplied identity model.
+
+Profiles are reusable identity framings. They are not JD audience tags and not one-off job tailoring. Each profile should capture a distinct, evidence-backed way to present the candidate's durable identity.
+
+Respect generator_rules.accuracy as hard truth constraints. Do not invent candidate claims. Use roles, projects, skills, thesis, self_model, and existing profiles as evidence.
+
+Reasoning requirements:
+- Return 2 to 4 profiles.
+- Make each profile distinct enough to justify its own lens.
+- Prefer profile IDs and tags that map to real positioning lanes, such as platform, infrastructure, security, leadership, product-judgment, or developer-experience.
+- The text should be one concise paragraph. It should be specific enough to guide resume assembly and profile writing.
+- If existing profiles are weak, replace them with sharper profile lenses. If existing profiles are strong, preserve their meaning while improving clarity.
+
+Voice requirements:
+- Write like a precise senior engineer, not a marketing page.
+- Avoid AI tells: no em dashes, no hype, no vague transformation language, no "uniquely positioned" phrasing.
+- Use plain punctuation. Never use an em dash.
+
+Response schema:
+{
+  "profiles": [
+    {
+      "id": "stable kebab-case string",
+      "tags": ["kebab-case string"],
+      "text": "string"
+    }
+  ]
+}`
+
+  const rawResponse = await callLlmProxy(endpoint, systemPrompt, buildGenerationPrompt(identity), {
+    feature: 'research.profile-inference',
+    model: GENERATION_MODEL,
+    timeoutMs: RESEARCH_PROFILE_INFERENCE_TIMEOUT_MS,
+    signal: options.signal,
+  })
+
+  try {
+    return normalizeGeneratedProfiles(parseGeneratedPayload(rawResponse, 'Generated profiles response'))
+  } catch (error) {
+    if (error instanceof JsonExtractionError) {
+      throw error
+    }
+    throw error instanceof Error ? error : new Error('Failed to parse generated profiles.')
   }
 }
 

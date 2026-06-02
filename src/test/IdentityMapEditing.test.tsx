@@ -13,6 +13,7 @@ const identityParameterMocks = vi.hoisted(() => ({
   generateSearchVectorsFromIdentityMock: vi.fn(),
   generateAwarenessFromIdentityMock: vi.fn(),
   generateIdentityThesisFromIdentityMock: vi.fn(),
+  generateIdentityProfilesFromIdentityMock: vi.fn(),
   generateSelfKnowledgeFromIdentityMock: vi.fn(),
   generateStrategicPositioningFromIdentityMock: vi.fn(),
 }))
@@ -51,6 +52,8 @@ vi.mock('../utils/identityParametersGeneration', () => ({
   generateSearchVectorsFromIdentity: identityParameterMocks.generateSearchVectorsFromIdentityMock,
   generateAwarenessFromIdentity: identityParameterMocks.generateAwarenessFromIdentityMock,
   generateIdentityThesisFromIdentity: identityParameterMocks.generateIdentityThesisFromIdentityMock,
+  generateIdentityProfilesFromIdentity:
+    identityParameterMocks.generateIdentityProfilesFromIdentityMock,
   generateSelfKnowledgeFromIdentity: identityParameterMocks.generateSelfKnowledgeFromIdentityMock,
   generateStrategicPositioningFromIdentity:
     identityParameterMocks.generateStrategicPositioningFromIdentityMock,
@@ -76,7 +79,7 @@ const seed = (modifier?: (id: ReturnType<typeof cloneIdentityFixture>) => void) 
 }
 
 const getSelfKnowledgeControls = () => {
-  const controls = screen.getByText('Inference').closest('.self-knowledge-controls')
+  const controls = document.querySelector('.self-knowledge-controls')
   if (!controls) throw new Error('Expected self-knowledge controls to render.')
   return controls as HTMLElement
 }
@@ -88,6 +91,7 @@ describe('Identity Map — match-rule add/remove', () => {
     identityParameterMocks.generateSearchVectorsFromIdentityMock.mockReset()
     identityParameterMocks.generateAwarenessFromIdentityMock.mockReset()
     identityParameterMocks.generateIdentityThesisFromIdentityMock.mockReset()
+    identityParameterMocks.generateIdentityProfilesFromIdentityMock.mockReset()
     identityParameterMocks.generateSelfKnowledgeFromIdentityMock.mockReset()
     identityParameterMocks.generateStrategicPositioningFromIdentityMock.mockReset()
   })
@@ -227,6 +231,367 @@ describe('Identity Map — match-rule add/remove', () => {
 
     expect(useIdentityStore.getState().currentIdentity?.self_model.competitive_moat).toBeUndefined()
     expect(screen.getByRole('button', { name: /no competitive moat captured yet/i })).toBeTruthy()
+  })
+
+  it('renders profiles as positioning-lens cards instead of audience editing forms', () => {
+    seed()
+    render(<IdentityMapPage />)
+
+    expect(screen.getByText('positioning lenses for reusable identity variants')).toBeTruthy()
+    expect(screen.queryByText('positioning variants for different audiences')).toBeNull()
+    expect(screen.queryByLabelText('Profile Text')).toBeNull()
+    expect(
+      screen
+        .getByRole('button', { name: /i make infrastructure tradeoffs legible/i })
+        .classList.contains('profile-card'),
+    ).toBe(true)
+    expect(screen.getByText('Edit in inspector').classList.contains('profile-action')).toBe(true)
+  })
+
+  it('edits profile text and tags from the inspector after selecting the profile card', () => {
+    seed()
+    render(<IdentityMapPage />)
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /i make infrastructure tradeoffs legible/i }),
+    )
+
+    expect(screen.getByRole('heading', { name: 'platform-profile' })).toBeTruthy()
+    expect(screen.getByText('Profile · Positioning Lens')).toBeTruthy()
+    expect(screen.queryByLabelText('Profile Text')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit profile' }))
+    fireEvent.change(screen.getByLabelText('Profile Text'), {
+      target: { value: 'Updated profile lens.' },
+    })
+    fireEvent.change(screen.getByLabelText('Tags (comma-separated)'), {
+      target: { value: 'platform, product judgment' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(useIdentityStore.getState().currentIdentity?.profiles[0]).toEqual({
+      id: 'platform-profile',
+      tags: ['platform', 'product judgment'],
+      text: 'Updated profile lens.',
+    })
+    expect(screen.getByRole('button', { name: /updated profile lens/i })).toBeTruthy()
+  })
+
+  it('cancels profile inspector edits without changing the profile', () => {
+    seed()
+    render(<IdentityMapPage />)
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /i make infrastructure tradeoffs legible/i }),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Edit profile' }))
+    fireEvent.change(screen.getByLabelText('Profile Text'), {
+      target: { value: 'Discarded profile draft.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(useIdentityStore.getState().currentIdentity?.profiles[0]).toEqual({
+      id: 'platform-profile',
+      tags: ['platform'],
+      text: 'I make infrastructure tradeoffs legible for product teams.',
+    })
+    expect(screen.getByRole('button', { name: /i make infrastructure tradeoffs legible/i })).toBeTruthy()
+    expect(screen.queryByText('Discarded profile draft.')).toBeNull()
+  })
+
+  it('does not allow saving a profile with empty text', () => {
+    seed()
+    render(<IdentityMapPage />)
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /i make infrastructure tradeoffs legible/i }),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Edit profile' }))
+    fireEvent.change(screen.getByLabelText('Profile Text'), {
+      target: { value: '   ' },
+    })
+
+    expect(screen.getByRole('button', { name: 'Save' }).getAttribute('disabled')).not.toBeNull()
+  })
+
+  it('generates profile lenses from the Profiles band button', async () => {
+    seed()
+    identityParameterMocks.generateIdentityProfilesFromIdentityMock.mockResolvedValueOnce([
+      {
+        id: 'platform-strategy',
+        tags: ['platform', 'product-judgment'],
+        text: 'Generated platform strategy lens.',
+      },
+      {
+        id: 'developer-experience',
+        tags: ['developer-experience'],
+        text: 'Generated developer experience lens.',
+      },
+    ])
+
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /^regenerate profiles$/i }))
+
+    await waitFor(() => {
+      expect(identityParameterMocks.generateIdentityProfilesFromIdentityMock).toHaveBeenCalledWith(
+        expect.objectContaining({ identity: expect.objectContaining({ name: 'Alex Example' }) }),
+        'https://ai.example/proxy',
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      )
+    })
+    expect(useIdentityStore.getState().currentIdentity?.profiles).toEqual([
+      {
+        id: 'platform-strategy',
+        tags: ['platform', 'product-judgment'],
+        text: 'Generated platform strategy lens.',
+      },
+      {
+        id: 'developer-experience',
+        tags: ['developer-experience'],
+        text: 'Generated developer experience lens.',
+      },
+    ])
+    expect(screen.getByText('Generated 2 profile lenses.')).toBeTruthy()
+    expect(screen.getByRole('button', { name: /generated platform strategy lens/i })).toBeTruthy()
+  })
+
+  it('generates profile lenses from the action list', async () => {
+    seed()
+    identityParameterMocks.generateIdentityProfilesFromIdentityMock.mockResolvedValueOnce([
+      {
+        id: 'platform-strategy',
+        tags: ['platform'],
+        text: 'Action-list generated profile lens.',
+      },
+    ])
+
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
+    fireEvent.click(screen.getByRole('button', { name: /run action: regenerate profiles/i }))
+
+    await waitFor(() => {
+      expect(identityParameterMocks.generateIdentityProfilesFromIdentityMock).toHaveBeenCalledTimes(1)
+    })
+    expect(useIdentityStore.getState().currentIdentity?.profiles).toEqual([
+      {
+        id: 'platform-strategy',
+        tags: ['platform'],
+        text: 'Action-list generated profile lens.',
+      },
+    ])
+  })
+
+  it('shows a configuration error when profile generation has no AI proxy', async () => {
+    seed()
+    facetEnvMock.facetClientEnv.anthropicProxyUrl = ''
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /^regenerate profiles$/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Connect the AI proxy before generating profile lenses.')).toBeTruthy()
+    })
+    expect(identityParameterMocks.generateIdentityProfilesFromIdentityMock).not.toHaveBeenCalled()
+    expect(consoleErrorSpy).not.toHaveBeenCalled()
+    consoleErrorSpy.mockRestore()
+  })
+
+  it('shows a generic error when profile generation fails', async () => {
+    seed()
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const generationError = new Error('proxy timeout')
+    identityParameterMocks.generateIdentityProfilesFromIdentityMock.mockRejectedValueOnce(
+      generationError,
+    )
+
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /^regenerate profiles$/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Unable to generate profile lenses.')).toBeTruthy()
+    })
+    expect(
+      screen.getByRole('button', { name: /^regenerate profiles$/i }).getAttribute('aria-busy'),
+    ).toBe('false')
+    expect(consoleErrorSpy).toHaveBeenCalledWith(generationError)
+    consoleErrorSpy.mockRestore()
+  })
+
+  it('keeps existing profiles when generated profile lenses are empty', async () => {
+    const existingProfiles = [
+      {
+        id: 'platform-profile',
+        tags: ['platform'],
+        text: 'I make infrastructure tradeoffs legible for product teams.',
+      },
+    ]
+    seed()
+    identityParameterMocks.generateIdentityProfilesFromIdentityMock.mockResolvedValueOnce([])
+
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /^regenerate profiles$/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText('The generated draft did not return profile lenses.')).toBeTruthy()
+    })
+    expect(useIdentityStore.getState().currentIdentity?.profiles).toEqual(existingProfiles)
+  })
+
+  it('auto-dismisses profile generation info messages', async () => {
+    vi.useFakeTimers()
+    seed()
+    identityParameterMocks.generateIdentityProfilesFromIdentityMock.mockResolvedValueOnce([
+      {
+        id: 'platform-strategy',
+        tags: ['platform'],
+        text: 'Generated platform strategy lens.',
+      },
+    ])
+
+    try {
+      render(<IdentityMapPage />)
+
+      fireEvent.click(screen.getByRole('button', { name: /^regenerate profiles$/i }))
+
+      await act(async () => {
+        await Promise.resolve()
+      })
+      expect(screen.getByText('Generated 1 profile lens.')).toBeTruthy()
+
+      act(() => {
+        vi.advanceTimersByTime(8000)
+      })
+
+      expect(screen.queryByText('Generated 1 profile lens.')).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not start duplicate profile generation while a request is running', async () => {
+    seed()
+    const deferred =
+      createDeferred<
+        Awaited<ReturnType<typeof identityParameterMocks.generateIdentityProfilesFromIdentityMock>>
+      >()
+    identityParameterMocks.generateIdentityProfilesFromIdentityMock.mockReturnValueOnce(
+      deferred.promise,
+    )
+
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /^regenerate profiles$/i }))
+    await waitFor(() => {
+      expect(identityParameterMocks.generateIdentityProfilesFromIdentityMock).toHaveBeenCalledTimes(1)
+    })
+    expect(screen.getByText('Generating profile lenses...')).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^generating\.\.\.$/i }).getAttribute('aria-busy')).toBe(
+      'true',
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
+    fireEvent.click(screen.getByRole('button', { name: /run action: regenerate profiles/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Profile generation is already running.')).toBeTruthy()
+    })
+    expect(identityParameterMocks.generateIdentityProfilesFromIdentityMock).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      deferred.resolve([])
+      await deferred.promise
+    })
+  })
+
+  it('discards generated profile lenses if identity changes during generation', async () => {
+    const originalProfiles = [
+      {
+        id: 'platform-profile',
+        tags: ['platform'],
+        text: 'I make infrastructure tradeoffs legible for product teams.',
+      },
+    ]
+    seed()
+    const deferred =
+      createDeferred<
+        Awaited<ReturnType<typeof identityParameterMocks.generateIdentityProfilesFromIdentityMock>>
+      >()
+    identityParameterMocks.generateIdentityProfilesFromIdentityMock.mockReturnValueOnce(
+      deferred.promise,
+    )
+
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /^regenerate profiles$/i }))
+    await waitFor(() => {
+      expect(identityParameterMocks.generateIdentityProfilesFromIdentityMock).toHaveBeenCalledTimes(1)
+    })
+
+    const nextIdentity = useIdentityStore.getState().currentIdentity!
+    useIdentityStore.setState({
+      currentIdentity: {
+        ...nextIdentity,
+        model_revision: nextIdentity.model_revision + 1,
+      },
+    })
+
+    await act(async () => {
+      deferred.resolve([
+        {
+          id: 'stale-profile',
+          tags: ['stale'],
+          text: 'Stale generated profile.',
+        },
+      ])
+      await deferred.promise
+    })
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Identity changed during generation; discarded the profile draft.'),
+      ).toBeTruthy()
+    })
+    expect(useIdentityStore.getState().currentIdentity?.profiles).toEqual(originalProfiles)
+  })
+
+  it('aborts profile generation on unmount without surfacing abort errors', async () => {
+    seed()
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const deferred =
+      createDeferred<
+        Awaited<ReturnType<typeof identityParameterMocks.generateIdentityProfilesFromIdentityMock>>
+      >()
+    identityParameterMocks.generateIdentityProfilesFromIdentityMock.mockReturnValueOnce(
+      deferred.promise,
+    )
+
+    const { unmount } = render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /^regenerate profiles$/i }))
+    await waitFor(() => {
+      expect(identityParameterMocks.generateIdentityProfilesFromIdentityMock).toHaveBeenCalledTimes(1)
+    })
+    const signal = identityParameterMocks.generateIdentityProfilesFromIdentityMock.mock
+      .calls[0]?.[2]?.signal
+
+    unmount()
+
+    expect(signal?.aborted).toBe(true)
+
+    await act(async () => {
+      const abortError = new Error('aborted')
+      abortError.name = 'AbortError'
+      deferred.reject(abortError)
+      await deferred.promise.catch(() => undefined)
+    })
+
+    expect(consoleErrorSpy).not.toHaveBeenCalled()
+    consoleErrorSpy.mockRestore()
   })
 
   it('refreshes strategic positioning into a reviewed draft before applying sections', async () => {
@@ -572,7 +937,7 @@ describe('Identity Map — match-rule add/remove', () => {
     const actionPanel = screen.getByRole('region', { name: 'Deepen skill evidence' })
     expect(
       within(actionPanel).getByText(
-        'Bullets → skills → thesis → chapters → self-knowledge → positioning → search',
+        'Bullets → skills → thesis → profiles → chapters → self-knowledge → positioning → search',
       ),
     ).toBeTruthy()
     expect(within(actionPanel).getByText('1 pending')).toBeTruthy()
@@ -582,11 +947,12 @@ describe('Identity Map — match-rule add/remove', () => {
     expect(within(actionDialog).getByText('1 Bullet evidence')).toBeTruthy()
     expect(within(actionDialog).getByText('2 Skill depth')).toBeTruthy()
     expect(within(actionDialog).getByText('3 Thesis')).toBeTruthy()
-    expect(within(actionDialog).getByText('4 Career chapters')).toBeTruthy()
-    expect(within(actionDialog).getByText('5 Self-knowledge')).toBeTruthy()
-    expect(within(actionDialog).getByText('6 Positioning')).toBeTruthy()
-    expect(within(actionDialog).getByText('7 Search parameters')).toBeTruthy()
-    expect(within(actionDialog).getByText('8 Review')).toBeTruthy()
+    expect(within(actionDialog).getByText('4 Profiles')).toBeTruthy()
+    expect(within(actionDialog).getByText('5 Career chapters')).toBeTruthy()
+    expect(within(actionDialog).getByText('6 Self-knowledge')).toBeTruthy()
+    expect(within(actionDialog).getByText('7 Positioning')).toBeTruthy()
+    expect(within(actionDialog).getByText('8 Search parameters')).toBeTruthy()
+    expect(within(actionDialog).getByText('9 Review')).toBeTruthy()
     fireEvent.click(within(actionDialog).getByRole('button', { name: 'Close' }))
 
     const deepenButton = within(actionPanel).getByRole('button', {
@@ -1656,6 +2022,84 @@ describe('Identity Map — match-rule add/remove', () => {
     }
   })
 
+  it('prompts for profile generation when thesis exists but profiles are empty', () => {
+    seed((id) => {
+      id.identity.thesis = 'I turn platform complexity into product leverage.'
+      id.profiles = []
+      id.roles = id.roles.map((role) => ({
+        ...role,
+        bullets: role.bullets.map((bullet, index) => ({
+          ...bullet,
+          problem: bullet.problem || `Problem ${index + 1}`,
+          action: bullet.action || `Action ${index + 1}`,
+          outcome: bullet.outcome || `Outcome ${index + 1}`,
+        })),
+      }))
+      id.skills.groups = id.skills.groups.map((group) => ({
+        ...group,
+        items: group.items.map((item) => ({
+          ...item,
+          depth: item.depth ?? 'strong',
+        })),
+      }))
+    })
+
+    render(<IdentityMapPage />)
+
+    const actionPanel = screen.getByRole('region', { name: 'Generate profile lenses' })
+    expect(within(actionPanel).getByText('Next')).toBeTruthy()
+    expect(
+      within(actionPanel).getByRole('button', {
+        name: /run next action: generate profiles/i,
+      }),
+    ).toBeTruthy()
+    expect(
+      screen.getByText(
+        'No profiles yet. Add positioning lenses that capture distinct ways to frame the durable identity.',
+      ),
+    ).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^generate profiles$/i })).toBeTruthy()
+  })
+
+  it('skips chapter drafting as the next action when there are no roles', () => {
+    seed((id) => {
+      id.identity.thesis = 'I turn platform complexity into product leverage.'
+      id.roles = []
+      id.self_model.arc = []
+      id.self_model.philosophy = []
+      id.self_model.interview_style = {
+        strengths: [],
+        weaknesses: [],
+        prep_strategy: '',
+      }
+      id.skills.groups = id.skills.groups.map((group) => ({
+        ...group,
+        items: group.items.map((item) => ({
+          ...item,
+          depth: item.depth ?? 'strong',
+        })),
+      }))
+    })
+
+    render(<IdentityMapPage />)
+
+    const actionPanel = screen.getByRole('region', {
+      name: 'Generate philosophy and interview self-knowledge',
+    })
+    expect(within(actionPanel).getByText('Next')).toBeTruthy()
+    expect(
+      within(actionPanel).getByRole('button', {
+        name: /run next action: generate self-knowledge/i,
+      }),
+    ).toBeTruthy()
+
+    fireEvent.click(within(actionPanel).getByRole('button', { name: 'View all actions' }))
+    const actionDialog = screen.getByRole('dialog', { name: 'Identity action items' })
+    expect(
+      within(actionDialog).getByRole('button', { name: /run action: draft chapters/i }),
+    ).toHaveProperty('disabled', true)
+  })
+
   it('advances the next action from positioning to strategy to review', () => {
     seed((id) => {
       id.self_model.arc = [{ company: 'Contoso Networks', chapter: 'Platform delivery chapter.' }]
@@ -2087,6 +2531,7 @@ describe('Identity Map — search-vector full-edit + add/remove', () => {
     identityParameterMocks.generateSearchVectorsFromIdentityMock.mockReset()
     identityParameterMocks.generateAwarenessFromIdentityMock.mockReset()
     identityParameterMocks.generateIdentityThesisFromIdentityMock.mockReset()
+    identityParameterMocks.generateIdentityProfilesFromIdentityMock.mockReset()
     identityParameterMocks.generateStrategicPositioningFromIdentityMock.mockReset()
   })
   afterEach(() => cleanup())
@@ -2938,6 +3383,7 @@ describe('Identity Map — awareness-question full-edit + add/remove', () => {
     identityParameterMocks.generateSearchVectorsFromIdentityMock.mockReset()
     identityParameterMocks.generateAwarenessFromIdentityMock.mockReset()
     identityParameterMocks.generateIdentityThesisFromIdentityMock.mockReset()
+    identityParameterMocks.generateIdentityProfilesFromIdentityMock.mockReset()
     identityParameterMocks.generateStrategicPositioningFromIdentityMock.mockReset()
   })
   afterEach(() => cleanup())
@@ -3260,6 +3706,7 @@ describe('Identity Map — skill inline editing', () => {
     identityParameterMocks.generateSearchVectorsFromIdentityMock.mockReset()
     identityParameterMocks.generateAwarenessFromIdentityMock.mockReset()
     identityParameterMocks.generateIdentityThesisFromIdentityMock.mockReset()
+    identityParameterMocks.generateIdentityProfilesFromIdentityMock.mockReset()
     identityParameterMocks.generateStrategicPositioningFromIdentityMock.mockReset()
   })
   afterEach(() => cleanup())
@@ -3531,6 +3978,7 @@ describe('Identity Map — sad-path editing coverage', () => {
     identityParameterMocks.generateSearchVectorsFromIdentityMock.mockReset()
     identityParameterMocks.generateAwarenessFromIdentityMock.mockReset()
     identityParameterMocks.generateIdentityThesisFromIdentityMock.mockReset()
+    identityParameterMocks.generateIdentityProfilesFromIdentityMock.mockReset()
     identityParameterMocks.generateStrategicPositioningFromIdentityMock.mockReset()
   })
   afterEach(() => cleanup())

@@ -944,6 +944,40 @@
 }
 
 /* ===== Profiles band ===== */
+.profile-generation-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-4);
+  align-items: start;
+  margin-bottom: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-inset);
+}
+
+.profile-generation-controls .arc-label {
+  color: var(--band-color);
+}
+
+.profile-generation-controls p {
+  margin: var(--space-1) 0 0;
+  color: var(--text-secondary);
+}
+
+.profile-generate[aria-busy='true'] {
+  cursor: progress;
+}
+
+.profile-generation-status {
+  grid-column: 1 / -1;
+}
+
+.profile-generation-status .strategy-generation-message.empty {
+  opacity: 0;
+  pointer-events: none;
+}
+
 .profiles-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -997,6 +1031,10 @@
   line-height: 1.55;
   color: var(--text-secondary);
   margin: 0;
+}
+.profile-action {
+  color: var(--band-color);
+  font-size: 10.5px;
 }
 
 /* ===== Roles band ===== */
@@ -1702,7 +1740,7 @@
   border-color: var(--accent-primary);
   color: var(--text-inverse);
 }
-.inspector-btn.primary:hover {
+.inspector-btn.primary:hover:not(:disabled):not([aria-disabled='true']) {
   background: var(--accent-primary-hover);
   border-color: var(--accent-primary-hover);
   color: var(--text-inverse);

@@ -21,6 +21,7 @@ export function ProfileInspector({
   const profile = identity.profiles.find((p) => p.id === profileId)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState({ text: '', tags: '' })
+  const canSave = draft.text.trim().length > 0
 
   if (!profile) return <NotFound label="profile" />
 
@@ -41,29 +42,52 @@ export function ProfileInspector({
 
   if (editing) {
     return (
-      <SlotShell eyebrow={`Profile · ${profile.id}`} title="Refine the variant">
+      <SlotShell eyebrow={`Profile · ${profile.id}`} title="Edit positioning lens">
         <label className="inspector-field">
-          <span className="inspector-field-label label-tracked">Text</span>
-          <textarea className="inspector-textarea" value={draft.text} onChange={(e) => setDraft({ ...draft, text: e.target.value })} rows={5} placeholder="What this profile says about you, framed for a specific audience." />
+          <span className="inspector-field-label label-tracked">Profile Text</span>
+          <textarea
+            className="inspector-textarea"
+            value={draft.text}
+            onChange={(event) => setDraft({ ...draft, text: event.target.value })}
+            rows={5}
+            placeholder="The identity framing this profile should preserve, in your own words."
+          />
         </label>
         <label className="inspector-field">
           <span className="inspector-field-label label-tracked">Tags (comma-separated)</span>
-          <input className="inspector-input" type="text" value={draft.tags} onChange={(e) => setDraft({ ...draft, tags: e.target.value })} placeholder="platform, infrastructure, automation" />
+          <input
+            className="inspector-input"
+            type="text"
+            value={draft.tags}
+            onChange={(event) => setDraft({ ...draft, tags: event.target.value })}
+            placeholder="platform, infrastructure, automation"
+          />
         </label>
         <Actions>
-          <button type="button" className="inspector-btn primary" onClick={handleSave}>Save</button>
-          <button type="button" className="inspector-btn" onClick={() => setEditing(false)}>Cancel</button>
+          <button
+            type="button"
+            className="inspector-btn primary"
+            onClick={handleSave}
+            disabled={!canSave}
+          >
+            Save
+          </button>
+          <button type="button" className="inspector-btn" onClick={() => setEditing(false)}>
+            Cancel
+          </button>
         </Actions>
       </SlotShell>
     )
   }
 
   return (
-    <SlotShell eyebrow="Profile · Variant" title={profile.id}>
+    <SlotShell eyebrow="Profile · Positioning Lens" title={profile.id}>
       <p className="inspector-body-text">{profile.text}</p>
       <MetaRows rows={[['Tags', profile.tags.join(' · ') || '—']]} />
       <Actions>
-        <button type="button" className="inspector-btn primary" onClick={startEditing}>Edit profile</button>
+        <button type="button" className="inspector-btn primary" onClick={startEditing}>
+          Edit profile
+        </button>
       </Actions>
     </SlotShell>
   )
