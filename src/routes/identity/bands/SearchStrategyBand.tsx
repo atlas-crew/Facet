@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Sparkles } from 'lucide-react'
+import { AiWorkingStatus } from '../../../components/AiWorkingStatus'
 import type {
   ProfessionalIdentityV3,
   ProfessionalOpenQuestion,
@@ -32,6 +33,27 @@ type StrategySelectionType = 'search-vector' | 'awareness-question'
 
 const ensureEndpoint = () => {
   return ensureIdentityInferenceEndpoint('Connect the AI proxy before generating search strategy.')
+}
+
+const STRATEGY_WORKING_COPY: Record<
+  StrategyGenerationKind,
+  { label: string; caption: string; expectedDurationMs: number }
+> = {
+  strategy: {
+    label: 'Generating search strategy',
+    caption: 'AI is combining positioning, search vectors, and open questions into a single strategy.',
+    expectedDurationMs: 90000,
+  },
+  vectors: {
+    label: 'Generating search vectors',
+    caption: 'AI is finding durable positioning angles from the current identity model.',
+    expectedDurationMs: 60000,
+  },
+  questions: {
+    label: 'Generating open questions',
+    caption: 'AI is identifying the unknowns that should guide search and research.',
+    expectedDurationMs: 60000,
+  },
 }
 
 const getIdentityGenerationKey = (identity: ProfessionalIdentityV3) =>
@@ -531,6 +553,12 @@ export function SearchStrategyBand({
         </button>
       </div>
       <div className="strategy-generation-stack">
+        <AiWorkingStatus
+          active={generating === 'strategy'}
+          label={STRATEGY_WORKING_COPY.strategy.label}
+          caption={STRATEGY_WORKING_COPY.strategy.caption}
+          expectedDurationMs={STRATEGY_WORKING_COPY.strategy.expectedDurationMs}
+        />
         <StrategyGenerationStatus message={strategyMessage} tone="info" />
         <StrategyGenerationStatus message={strategyMessage} tone="error" />
       </div>
@@ -588,6 +616,12 @@ export function SearchStrategyBand({
           </button>
         </div>
         <div className="strategy-generation-stack">
+          <AiWorkingStatus
+            active={generating === 'vectors'}
+            label={STRATEGY_WORKING_COPY.vectors.label}
+            caption={STRATEGY_WORKING_COPY.vectors.caption}
+            expectedDurationMs={STRATEGY_WORKING_COPY.vectors.expectedDurationMs}
+          />
           <StrategyGenerationStatus message={vectorMessage} tone="info" />
           <StrategyGenerationStatus message={vectorMessage} tone="error" />
         </div>
@@ -647,6 +681,12 @@ export function SearchStrategyBand({
           </button>
         </div>
         <div className="strategy-generation-stack">
+          <AiWorkingStatus
+            active={generating === 'questions'}
+            label={STRATEGY_WORKING_COPY.questions.label}
+            caption={STRATEGY_WORKING_COPY.questions.caption}
+            expectedDurationMs={STRATEGY_WORKING_COPY.questions.expectedDurationMs}
+          />
           <StrategyGenerationStatus message={questionMessage} tone="info" />
           <StrategyGenerationStatus message={questionMessage} tone="error" />
         </div>

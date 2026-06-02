@@ -43,7 +43,7 @@ describe('AiWorkingStatus', () => {
         label="Generating thesis"
         caption="Typical: 60s."
         expectedDurationMs={3000}
-        extendedWaitCaption="Still working — past the typical duration."
+        extendedWaitCaption="Still working past the typical duration."
       />,
     )
     expect(screen.getByText('Typical: 60s.')).toBeTruthy()
@@ -53,7 +53,27 @@ describe('AiWorkingStatus', () => {
     })
 
     expect(screen.queryByText('Typical: 60s.')).toBeNull()
-    expect(screen.getByText('Still working — past the typical duration.')).toBeTruthy()
+    expect(screen.getByText('Still working past the typical duration.')).toBeTruthy()
+  })
+
+  it('uses the default extended-wait caption when no override is provided', () => {
+    render(
+      <AiWorkingStatus
+        active={true}
+        label="Generating thesis"
+        expectedDurationMs={100}
+      />,
+    )
+
+    act(() => {
+      vi.advanceTimersByTime(1200)
+    })
+
+    expect(
+      screen.getByText(
+        'Still working past the typical duration. The model is taking longer than usual.',
+      ),
+    ).toBeTruthy()
   })
 
   it('exposes a polite live region so screen readers announce activity', () => {
@@ -68,6 +88,11 @@ describe('AiWorkingStatus', () => {
       <AiWorkingStatus active={true} label="Generating thesis" showBar={false} />,
     )
     expect(container.querySelector('.ai-working-status-bar')).toBeNull()
+  })
+
+  it('renders the indeterminate bar by default', () => {
+    const { container } = render(<AiWorkingStatus active={true} label="Generating thesis" />)
+    expect(container.querySelector('.ai-working-status-bar')).toBeTruthy()
   })
 
   it('updates the elapsed counter as time advances', () => {

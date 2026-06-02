@@ -18,15 +18,20 @@ export function AiActivityIndicator({
   ].filter(Boolean).join(' ')
 
   return (
-    <span className={classes} aria-live="polite" aria-atomic="true">
+    <span className={classes} role="status">
       {active ? (
         <>
-          <span className="ai-activity-indicator-orb" aria-hidden="true">
-            <span />
-            <span />
-            <span />
+          <span className="ai-activity-indicator-row">
+            <span className="ai-activity-indicator-orb" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </span>
+            <span className="ai-activity-indicator-label">{label}</span>
           </span>
-          <span className="ai-activity-indicator-label">{label}</span>
+          <span className="ai-activity-indicator-bar" aria-hidden="true">
+            <span className="ai-activity-indicator-bar-fill" />
+          </span>
         </>
       ) : null}
     </span>

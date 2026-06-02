@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Sparkles } from 'lucide-react'
+import { AiWorkingStatus } from '../../../components/AiWorkingStatus'
 import { useIdentityStore } from '../../../store/identityStore'
 import {
   describeThesisFillStrength,
@@ -271,6 +272,12 @@ export function ThesisBand({
         </button>
       </div>
       <div className="strategy-generation-stack">
+        <AiWorkingStatus
+          active={generating}
+          label="Generating identity thesis"
+          caption="AI is reviewing the current identity model and drafting a thesis for you to inspect."
+          expectedDurationMs={60000}
+        />
         <ThesisGenerationStatus message={message} tone="info" />
         <ThesisGenerationStatus message={message} tone="error" />
       </div>

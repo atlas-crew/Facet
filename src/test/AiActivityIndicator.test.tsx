@@ -16,11 +16,20 @@ describe('AiActivityIndicator', () => {
 
     expect(container.firstChild).not.toBeNull()
     expect(container.textContent).toBe('')
+    expect(container.querySelector('.ai-activity-indicator-bar')).toBeNull()
   })
 
   it('renders a live status message when active', () => {
-    render(<AiActivityIndicator active label="AI is working." />)
+    const { container } = render(<AiActivityIndicator active label="AI is working." />)
 
     expect(screen.getByText('AI is working.')).toBeTruthy()
+    expect(screen.getByRole('status')).toBeTruthy()
+    expect(
+      container.querySelector('.ai-activity-indicator-row .ai-activity-indicator-label')?.textContent,
+    ).toBe('AI is working.')
+    expect(container.querySelector('.ai-activity-indicator-bar')).toBeTruthy()
+    expect(
+      container.querySelector('.ai-activity-indicator-bar .ai-activity-indicator-bar-fill'),
+    ).toBeTruthy()
   })
 })

@@ -16,7 +16,7 @@ type AiWorkingStatusProps = {
   expectedDurationMs?: number
   /**
    * Copy used after `expectedDurationMs` is exceeded.
-   * Defaults to "Still working — past expected duration. The model is taking longer than usual."
+   * Defaults to "Still working past the typical duration. The model is taking longer than usual."
    */
   extendedWaitCaption?: string
   /** Show the indeterminate progress bar. Default true. */
@@ -25,7 +25,7 @@ type AiWorkingStatusProps = {
 }
 
 const DEFAULT_EXTENDED_WAIT_CAPTION =
-  'Still working — past the typical duration. The model is taking longer than usual.'
+  'Still working past the typical duration. The model is taking longer than usual.'
 
 /**
  * Card-level "AI is working" indicator. Combines a calm pulsing icon, a label,

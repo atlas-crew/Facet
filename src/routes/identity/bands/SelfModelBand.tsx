@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Sparkles } from 'lucide-react'
+import { AiWorkingStatus } from '../../../components/AiWorkingStatus'
 import type { ProfessionalIdentityArcEntry } from '../../../identity/schema'
 import { useIdentityStore } from '../../../store/identityStore'
 import { selfModelFillStrength } from '../../../utils/identityFillStrength'
@@ -511,6 +512,12 @@ export function SelfModelBand({
             {generatingSelfKnowledge ? 'Generating...' : 'Generate self-knowledge'}
           </button>
           <div className="strategy-generation-stack self-knowledge-status">
+            <AiWorkingStatus
+              active={generatingSelfKnowledge}
+              label="Generating self-knowledge"
+              caption="AI is drafting durable philosophy positions, interview strengths, weaknesses, and prep guidance."
+              expectedDurationMs={90000}
+            />
             <PositioningGenerationStatus message={selfKnowledgeMessage} tone="info" />
             <PositioningGenerationStatus message={selfKnowledgeMessage} tone="error" />
           </div>
@@ -606,6 +613,12 @@ export function SelfModelBand({
           </div>
           <div className="strategy-generation-stack self-positioning-status">
             {/* Keep both live regions mounted so polite and assertive updates are stable. */}
+            <AiWorkingStatus
+              active={generatingPositioning}
+              label="Refreshing strategic positioning"
+              caption="AI is reviewing the current identity model and preparing a positioning draft."
+              expectedDurationMs={90000}
+            />
             <PositioningGenerationStatus message={positioningMessage} tone="info" />
             <PositioningGenerationStatus message={positioningMessage} tone="error" />
           </div>

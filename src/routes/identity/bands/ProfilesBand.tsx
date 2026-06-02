@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Sparkles } from 'lucide-react'
+import { AiWorkingStatus } from '../../../components/AiWorkingStatus'
 import { useIdentityStore } from '../../../store/identityStore'
 import { profilesFillStrength } from '../../../utils/identityFillStrength'
 import { generateIdentityProfilesFromIdentity } from '../../../utils/identityParametersGeneration'
@@ -208,6 +209,12 @@ export function ProfilesBand({
               : 'Generate profiles'}
         </button>
         <div className="strategy-generation-stack profile-generation-status">
+          <AiWorkingStatus
+            active={generating}
+            label="Generating profile lenses"
+            caption="AI is comparing your thesis, self-model, roles, skills, and projects."
+            expectedDurationMs={60000}
+          />
           <ProfileGenerationStatus message={message} tone="info" />
           <ProfileGenerationStatus message={message} tone="error" />
         </div>

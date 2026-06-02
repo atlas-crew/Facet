@@ -3,8 +3,14 @@
   isolation: isolate;
 }
 
+.ai-working-button,
+.ai-activity-indicator,
+.ai-working-status {
+  --ai-working-easing: var(--easing, ease-in-out);
+}
+
 .ai-working-button[aria-busy='true'] {
-  animation: ai-working-breath 1.8s var(--easing, ease-in-out) infinite;
+  animation: ai-working-breath 1.8s var(--ai-working-easing, ease-in-out) infinite;
 }
 
 .ai-working-button[aria-busy='true']::after {
@@ -23,13 +29,13 @@
   opacity: 0.8;
   pointer-events: none;
   z-index: -1;
-  animation: ai-working-glow 1.8s var(--easing, ease-in-out) infinite;
+  animation: ai-working-glow 1.8s var(--ai-working-easing, ease-in-out) infinite;
 }
 
 .ai-activity-indicator {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.55rem;
+  display: inline-grid;
+  grid-template-rows: auto auto;
+  gap: 0.35rem;
   min-height: 2rem;
   padding: 0.42rem 0.7rem;
   border-radius: 999px;
@@ -37,7 +43,8 @@
   background: color-mix(in srgb, var(--ai-working-color, var(--accent-primary, #5b8cff)) 8%, var(--bg-surface, rgba(17, 24, 39, 0.96)));
   color: var(--text-secondary, #c8d1e0);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--ai-working-color, var(--accent-primary, #5b8cff)) 8%, transparent);
-  white-space: nowrap;
+  min-width: min(18rem, 100%);
+  max-width: 100%;
 }
 
 .ai-activity-indicator.is-idle {
@@ -48,6 +55,13 @@
   box-shadow: none;
   opacity: 0;
   overflow: hidden;
+}
+
+.ai-activity-indicator-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
 }
 
 .ai-activity-indicator-orb {
@@ -77,6 +91,88 @@
   font-size: 0.78rem;
   font-weight: 600;
   letter-spacing: 0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-activity-indicator-bar,
+.ai-working-status-bar {
+  position: relative;
+  overflow: hidden;
+  height: 3px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ai-working-color, var(--accent-primary, #5b8cff)) 16%, transparent);
+}
+
+.ai-activity-indicator-bar-fill,
+.ai-working-status-bar-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 42%;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--ai-working-color, var(--accent-primary, #5b8cff)) 82%, white),
+    transparent
+  );
+  animation: ai-working-progress 1.4s linear infinite;
+}
+
+.ai-working-status {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid color-mix(in srgb, var(--ai-working-color, var(--accent-primary, #5b8cff)) 28%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ai-working-color, var(--accent-primary, #5b8cff)) 8%, var(--bg-surface, rgba(17, 24, 39, 0.96)));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ai-working-color, var(--accent-primary, #5b8cff)) 8%, transparent);
+}
+
+.ai-working-status-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.ai-working-status-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  color: var(--ai-working-color, var(--accent-primary, #5b8cff));
+  background: color-mix(in srgb, var(--ai-working-color, var(--accent-primary, #5b8cff)) 12%, transparent);
+  animation: ai-working-glow 1.8s var(--ai-working-easing, ease-in-out) infinite;
+}
+
+.ai-working-status-label {
+  min-width: 0;
+  color: var(--text-primary, #f8fafc);
+  font-size: 0.84rem;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-working-status-elapsed {
+  color: var(--text-tertiary, #91a1b5);
+  font-weight: 600;
+}
+
+.ai-working-status-caption {
+  margin: 0;
+  color: var(--text-secondary, #c8d1e0);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.ai-working-status-caption-extended {
+  color: var(--warning-text, #f8c471);
 }
 
 @keyframes ai-working-breath {
@@ -116,10 +212,24 @@
   }
 }
 
+@keyframes ai-working-progress {
+  /* Fill is 42% wide; sweep starts off the left edge and ends off the right edge. */
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(240%);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ai-working-button[aria-busy='true'],
   .ai-working-button[aria-busy='true']::after,
-  .ai-activity-indicator-orb > span {
+  .ai-activity-indicator-orb > span,
+  .ai-activity-indicator-bar-fill,
+  .ai-working-status-icon,
+  .ai-working-status-bar-fill {
     animation: none;
   }
 }
