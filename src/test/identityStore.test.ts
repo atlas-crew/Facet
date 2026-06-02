@@ -165,6 +165,8 @@ const readPersistedIdentityState = async () => {
       sourceMaterial?: string
       correctionNotes?: string
       draft?: unknown
+      thesisDraft?: unknown
+      thesisDraftRevision?: unknown
       draftDocument?: string
       intakeSources?: IntakeSource[]
       warnings?: string[]
@@ -183,6 +185,8 @@ beforeEach(() => {
     currentIdentity: null,
     draft: null,
     draftDocument: '',
+    thesisDraft: null,
+    thesisDraftRevision: null,
     intakeSources: [],
     warnings: [],
     changelog: [],
@@ -999,7 +1003,59 @@ describe('identityStore non-scan field setters', () => {
       draft: null,
       draftDocument: '',
       lastError: null,
+      thesisDraft: null,
+      thesisDraftRevision: null,
     })
+  })
+
+  it('persists and rehydrates thesis generation drafts', async () => {
+    const identity = cloneIdentityFixture()
+    useIdentityStore.setState({
+      currentIdentity: identity,
+      thesisDraft: {
+        thesis: 'I connect platform and delivery for outcomes.',
+        title: 'Platform Strategy Lead',
+        origin: 'Repeated platform modernization work.',
+        elaboration: 'Evidence from migration-heavy roles and production systems.',
+      },
+      thesisDraftRevision: identity.model_revision ?? 0,
+      draftDocument: '',
+    })
+
+    const persistedEnvelope = await resolveStorage().getItem(IDENTITY_STORE_STORAGE_KEY)
+    const persistedState = persistedEnvelope ? JSON.parse(persistedEnvelope) : {}
+    expect(persistedState).toEqual(expect.any(Object))
+    expect((persistedState as { state?: { thesisDraft?: unknown } }).state?.thesisDraft).toMatchObject({
+      thesis: 'I connect platform and delivery for outcomes.',
+      title: 'Platform Strategy Lead',
+      origin: 'Repeated platform modernization work.',
+      elaboration: 'Evidence from migration-heavy roles and production systems.',
+    })
+    expect(
+      (persistedState as { state?: { thesisDraftRevision?: number } }).state?.thesisDraftRevision,
+    ).toBe(identity.model_revision)
+
+    useIdentityStore.setState({
+      currentIdentity: null,
+      draft: null,
+      draftDocument: '',
+      thesisDraft: null,
+      thesisDraftRevision: null,
+      intakeSources: [],
+      warnings: [],
+      lastError: null,
+    })
+    await resolveStorage().setItem(IDENTITY_STORE_STORAGE_KEY, persistedEnvelope ?? '')
+
+    await useIdentityStore.persist.rehydrate()
+
+    expect(useIdentityStore.getState().thesisDraft).toEqual({
+      thesis: 'I connect platform and delivery for outcomes.',
+      title: 'Platform Strategy Lead',
+      origin: 'Repeated platform modernization work.',
+      elaboration: 'Evidence from migration-heavy roles and production systems.',
+    })
+    expect(useIdentityStore.getState().thesisDraftRevision).toBe(identity.model_revision ?? 0)
   })
 })
 

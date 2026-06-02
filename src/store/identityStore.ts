@@ -18,6 +18,7 @@ import {
   type ProfessionalSkillEnrichedBy,
   type ProfessionalSkillGroup,
 } from '../identity/schema'
+import type { ProfessionalIdentityThesisInference } from '../utils/identityParametersGeneration'
 import type {
   IdentityApplyMode,
   IdentityApplyResult,
@@ -150,6 +151,10 @@ interface IdentityState {
   updateCurrentSearchVectors: (value: ProfessionalSearchVector[]) => void
   updateCurrentAwarenessQuestions: (value: ProfessionalOpenQuestion[]) => void
   updateCurrentAccuracyRules: (value: Record<string, string | string[]> | undefined) => void
+  thesisDraft: ProfessionalIdentityThesisInference | null
+  thesisDraftRevision: number | null
+  setThesisDraft: (draft: ProfessionalIdentityThesisInference | null, revision: number | null) => void
+  clearThesisDraft: () => void
   saveSkillEnrichment: (
     groupId: string,
     skillName: string,
@@ -784,6 +789,8 @@ export const useIdentityStore = create<IdentityState>()(
       currentIdentity: null,
       draft: null,
       draftDocument: '',
+      thesisDraft: null,
+      thesisDraftRevision: null,
       intakeSources: [],
       warnings: [],
       changelog: [],
@@ -864,6 +871,7 @@ export const useIdentityStore = create<IdentityState>()(
       setIntakeMode: (mode) => set({ intakeMode: mode }),
       setSourceMaterial: (value) => set({ sourceMaterial: value }),
       setCorrectionNotes: (value) => set({ correctionNotes: value }),
+      setThesisDraft: (draft, revision) => set({ thesisDraft: draft, thesisDraftRevision: revision }),
       setDraft: (draft) =>
         set((state) => {
           const identity = normalizeRuntimeProfessionalIdentity(draft.identity)
@@ -894,6 +902,7 @@ export const useIdentityStore = create<IdentityState>()(
           }
         }),
       setDraftDocument: (value) => set({ draftDocument: value }),
+      clearThesisDraft: () => set({ thesisDraft: null, thesisDraftRevision: null }),
       setScanResult: (scanResult) =>
         set(() => {
           if (!scanResult) {
@@ -1831,7 +1840,7 @@ export const useIdentityStore = create<IdentityState>()(
             },
           }
         }),
-      clearDraft: () => set({ draft: null, draftDocument: '', lastError: null }),
+      clearDraft: () => set({ draft: null, draftDocument: '', lastError: null, thesisDraft: null, thesisDraftRevision: null }),
       clearScanResult: () =>
         set({
           intakeSources: [],
@@ -1852,6 +1861,8 @@ export const useIdentityStore = create<IdentityState>()(
         set((state) => ({
           intakeMode: 'paste',
           draft: null,
+          thesisDraft: null,
+          thesisDraftRevision: null,
           intakeSources: [],
           currentIdentity: result.data,
           warnings: result.warnings,
@@ -1895,6 +1906,8 @@ export const useIdentityStore = create<IdentityState>()(
             : state.draft,
           currentIdentity: result.data,
           warnings: result.warnings,
+          thesisDraft: null,
+          thesisDraftRevision: null,
           draftDocument: formatIdentityDocument(result.data),
           lastError: null,
           changelog: appendChangelog(
@@ -1924,6 +1937,8 @@ export const useIdentityStore = create<IdentityState>()(
         correctionNotes: state.correctionNotes,
         currentIdentity: state.currentIdentity,
         draft: state.draft,
+        thesisDraft: state.thesisDraft,
+        thesisDraftRevision: state.thesisDraftRevision,
         draftDocument: state.draftDocument,
         intakeSources: state.intakeSources,
         warnings: state.warnings,

@@ -4,7 +4,6 @@ import { useIdentityStore } from '../../../store/identityStore'
 import { thesisFillStrength } from '../../../utils/identityFillStrength'
 import {
   generateIdentityThesisFromIdentity,
-  type ProfessionalIdentityThesisInference,
 } from '../../../utils/identityParametersGeneration'
 import { IdentityBand } from '../IdentityBand'
 import {
@@ -59,6 +58,9 @@ export function ThesisBand({
   const selection = useIdentityStore((s) => s.mapSelection)
   const setSelection = useIdentityStore((s) => s.setMapSelection)
   const updateCore = useIdentityStore((s) => s.updateCurrentIdentityCore)
+  const thesisDraft = useIdentityStore((s) => s.thesisDraft)
+  const thesisDraftRevision = useIdentityStore((s) => s.thesisDraftRevision)
+  const setThesisDraft = useIdentityStore((s) => s.setThesisDraft)
   const fill = thesisFillStrength(identity)
   const core = identity?.identity
   const generationRef = useRef(false)
@@ -72,8 +74,6 @@ export function ThesisBand({
   const elaboration = core?.elaboration?.trim() ?? ''
   const title = core?.title?.trim() ?? ''
   const [generating, setGenerating] = useState(false)
-  const [draft, setDraft] = useState<ProfessionalIdentityThesisInference | null>(null)
-  const [draftRevision, setDraftRevision] = useState<number | null>(null)
   const [message, setMessage] = useState<ThesisGenerationMessage | null>(null)
 
   useEffect(() => {
@@ -96,11 +96,10 @@ export function ThesisBand({
   }, [message])
 
   useEffect(() => {
-    if (draftRevision === null) return
-    if (identity?.model_revision === draftRevision) return
-    setDraft(null)
-    setDraftRevision(null)
-  }, [draftRevision, identity?.model_revision])
+    if (thesisDraftRevision === null) return
+    if (identity?.model_revision === thesisDraftRevision) return
+    setThesisDraft(null, null)
+  }, [thesisDraftRevision, identity?.model_revision, setThesisDraft])
 
   const showMessage = useCallback((next: Omit<ThesisGenerationMessage, 'id'>) => {
     messageIdRef.current += 1
@@ -117,8 +116,7 @@ export function ThesisBand({
     abortRef.current = abortController
     const generationRevision = currentIdentity.model_revision ?? 0
     setGenerating(true)
-    setDraft(null)
-    setDraftRevision(null)
+    setThesisDraft(null, null)
     showMessage({
       tone: 'info',
       text: 'Generating an identity thesis draft...',
@@ -139,8 +137,7 @@ export function ThesisBand({
         })
         return
       }
-      setDraft(generated)
-      setDraftRevision(generationRevision)
+      setThesisDraft(generated, generationRevision)
       showMessage({
         tone: 'info',
         text: 'Review the generated thesis before applying it.',
@@ -186,10 +183,12 @@ export function ThesisBand({
   })
 
   const applyDraft = () => {
-    if (!draft) return
-    if (draftRevision !== null && getThesisGenerationRevision() !== draftRevision) {
-      setDraft(null)
-      setDraftRevision(null)
+    if (!thesisDraft) return
+    if (
+      thesisDraftRevision !== null &&
+      getThesisGenerationRevision() !== thesisDraftRevision
+    ) {
+      setThesisDraft(null, null)
       showMessage({
         tone: 'info',
         text: 'Identity changed since this draft was generated; discarded the thesis draft.',
@@ -197,9 +196,8 @@ export function ThesisBand({
       })
       return
     }
-    updateCore(draft)
-    setDraft(null)
-    setDraftRevision(null)
+    updateCore(thesisDraft)
+    setThesisDraft(null, null)
     showMessage({
       tone: 'info',
       text: 'Applied generated identity thesis.',
@@ -259,18 +257,20 @@ export function ThesisBand({
         <ThesisGenerationStatus message={message} tone="info" />
         <ThesisGenerationStatus message={message} tone="error" />
       </div>
-      {draft ? (
+      {thesisDraft ? (
         <section className="self-strategy-draft thesis-generation-draft" aria-label="Generated thesis draft">
           <div className="self-strategy-draft-header">
             <div>
               <span className="label-tracked">Review Generated Thesis</span>
-              <h4>{draft.title ?? 'Identity thesis draft'}</h4>
+              <h4>{thesisDraft.title ?? 'Identity thesis draft'}</h4>
             </div>
           </div>
-          <p className="chapter-copy">{draft.thesis}</p>
-          {draft.elaboration ? <p className="chapter-copy">{draft.elaboration}</p> : null}
-          {draft.origin ? (
-            <p className="chapter-copy thesis-generation-origin">Origin: {draft.origin}</p>
+          <p className="chapter-copy">{thesisDraft.thesis}</p>
+          {thesisDraft.elaboration ? (
+            <p className="chapter-copy">{thesisDraft.elaboration}</p>
+          ) : null}
+          {thesisDraft.origin ? (
+            <p className="chapter-copy thesis-generation-origin">Origin: {thesisDraft.origin}</p>
           ) : null}
           <div className="self-strategy-draft-actions">
             <button type="button" className="inspector-btn primary" onClick={applyDraft}>
@@ -279,10 +279,7 @@ export function ThesisBand({
             <button
               type="button"
               className="inspector-btn"
-              onClick={() => {
-                setDraft(null)
-                setDraftRevision(null)
-              }}
+              onClick={() => setThesisDraft(null, null)}
             >
               Discard
             </button>
