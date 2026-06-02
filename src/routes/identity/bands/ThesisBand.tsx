@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Sparkles } from 'lucide-react'
 import { useIdentityStore } from '../../../store/identityStore'
-import { thesisFillStrength } from '../../../utils/identityFillStrength'
+import {
+  describeThesisFillStrength,
+  EMPTY_THESIS_FILL_DESCRIPTION,
+  thesisFillStrength,
+} from '../../../utils/identityFillStrength'
 import {
   generateIdentityThesisFromIdentity,
 } from '../../../utils/identityParametersGeneration'
@@ -20,6 +24,7 @@ type ThesisGenerationMessage = {
 }
 
 const THESIS_MESSAGE_DISMISS_MS = 8000
+const THESIS_STRENGTH_NOTE_ID = 'identity-thesis-strength-note'
 
 const ensureThesisEndpoint = () => {
   return ensureIdentityInferenceEndpoint('Connect the AI proxy before regenerating the identity thesis.')
@@ -70,6 +75,9 @@ export function ThesisBand({
 
   const isSelected = selection?.type === 'thesis'
   const text = core?.thesis?.trim() ?? ''
+  const fillExplanation = identity
+    ? describeThesisFillStrength(identity)
+    : EMPTY_THESIS_FILL_DESCRIPTION
   const origin = core?.origin?.trim() ?? ''
   const elaboration = core?.elaboration?.trim() ?? ''
   const title = core?.title?.trim() ?? ''
@@ -221,11 +229,14 @@ export function ThesisBand({
         className={`thesis-card${isSelected ? ' selected' : ''}`}
         onClick={() => setSelection({ type: 'thesis' })}
         aria-pressed={isSelected}
+        aria-describedby={text ? THESIS_STRENGTH_NOTE_ID : undefined}
       >
         {text ? (
           <p className="thesis-text chapter-copy">{text}</p>
         ) : (
-          <p className="thesis-text chapter-copy thesis-empty">No thesis yet — open the import flow to draft one.</p>
+          <p className="thesis-text chapter-copy thesis-empty">
+            {fillExplanation}
+          </p>
         )}
         {filledMeta.length > 0 ? (
           <div className="thesis-meta">
@@ -237,6 +248,12 @@ export function ThesisBand({
           </div>
         ) : null}
       </button>
+      <p
+        id={THESIS_STRENGTH_NOTE_ID}
+        className="thesis-strength-note chapter-copy"
+      >
+        {text ? fillExplanation : null}
+      </p>
       <div className="strategy-global-actions thesis-generation-actions">
         <button
           type="button"

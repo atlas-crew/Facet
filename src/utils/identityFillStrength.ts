@@ -9,14 +9,34 @@ export interface FillStrength {
   tone: FillStrengthTone
 }
 
+type ThesisFillLabel = 'Empty' | 'Draft' | 'Sparse' | 'Solid' | 'Strong'
+type DescribedThesisFillLabel = Exclude<ThesisFillLabel, 'Empty'>
+type ThesisFillStrength = FillStrength & { label: ThesisFillLabel }
+type DescribedThesisFillStrength = FillStrength & { label: DescribedThesisFillLabel }
+export const EMPTY_THESIS_FILL_DESCRIPTION =
+  'Empty: generate a thesis or add one before this section can be evaluated.'
+const THESIS_SCORE_THRESHOLDS = [
+  [80, 'Strong'],
+  [50, 'Solid'],
+  [20, 'Sparse'],
+] as const satisfies ReadonlyArray<readonly [number, ThesisFillLabel]>
+
 const clamp = (value: number, min = 0, max = 100): number =>
   Math.max(min, Math.min(max, value))
 
-const labelForPercent = (percent: number, thresholds: Array<[number, string]>, fallback: string): string => {
+const labelForPercent = <Label extends string>(
+  percent: number,
+  thresholds: ReadonlyArray<readonly [number, Label]>,
+  fallback: Label,
+): Label => {
   for (const [floor, label] of thresholds) {
     if (percent >= floor) return label
   }
   return fallback
+}
+
+const assertNever = (value: never): never => {
+  throw new Error(`Unhandled thesis fill label: ${String(value)}`)
 }
 
 // THEORY (TASK-194): Prose-only. The thesis is the load-bearing claim itself.
@@ -116,29 +136,86 @@ function countThesisSpecificity(text: string): number {
   return specific
 }
 
-export function thesisFillStrength(identity: ProfessionalIdentityV3 | null): FillStrength {
-  if (!identity) return { label: 'Empty', percent: 0, tone: 'warn' }
-  const text = (identity.identity?.thesis ?? '').trim()
-  const wordCount = text.split(/\s+/).filter((w) => w.length > 0).length
-  if (wordCount < 5) return { label: 'Empty', percent: 0, tone: 'warn' }
+interface ThesisSignals {
+  text: string
+  wordCount: number
+  sentences: number
+  specificityCount: number
+  lowSignalCount: number
+}
 
-  const sentences = countThesisSentences(text)
+function computeThesisSignals(text: string): ThesisSignals {
+  const trimmed = text.trim()
+  const lower = trimmed.toLowerCase()
+  return {
+    text: trimmed,
+    wordCount: trimmed.split(/\s+/).filter((w) => w.length > 0).length,
+    sentences: countThesisSentences(trimmed),
+    specificityCount: countThesisSpecificity(trimmed),
+    lowSignalCount:
+      countWordMatches(lower, THESIS_KILL_LIST_WORDS) +
+      countPhraseMatches(lower, THESIS_HEDGE_PHRASES),
+  }
+}
+
+function thesisFillStrengthFromSignals(signals: ThesisSignals): ThesisFillStrength {
+  if (!signals.text) return { label: 'Empty', percent: 0, tone: 'warn' }
+  if (signals.wordCount < 5) return { label: 'Draft', percent: 5, tone: 'warn' }
+
   // Sentence floor: 3+ sentences = full 50; 2 = 30; 1 = 10; 0 = 0
-  const sentenceScore = sentences >= 3 ? 50 : sentences === 2 ? 30 : sentences === 1 ? 10 : 0
-
-  const specificityCount = countThesisSpecificity(text)
-  const specificityScore = Math.min(specificityCount * 8, 40)
-
-  const lower = text.toLowerCase()
-  const killListCount =
-    countWordMatches(lower, THESIS_KILL_LIST_WORDS) + countPhraseMatches(lower, THESIS_HEDGE_PHRASES)
-  const killListPenalty = Math.min(killListCount * 5, 30)
+  const sentenceScore =
+    signals.sentences >= 3 ? 50 : signals.sentences === 2 ? 30 : signals.sentences === 1 ? 10 : 0
+  const specificityScore = Math.min(signals.specificityCount * 8, 40)
+  const killListPenalty = Math.min(signals.lowSignalCount * 5, 30)
 
   const percent = clamp(sentenceScore + specificityScore - killListPenalty)
   return {
-    label: labelForPercent(percent, [[80, 'Strong'], [50, 'Solid'], [20, 'Sparse']], 'Empty'),
+    label: labelForPercent(percent, THESIS_SCORE_THRESHOLDS, 'Draft'),
     percent,
     tone: percent < 20 ? 'warn' : 'ok',
+  }
+}
+
+function isDescribedThesisFillStrength(
+  fill: ThesisFillStrength,
+): fill is DescribedThesisFillStrength {
+  return fill.label !== 'Empty'
+}
+
+export function thesisFillStrength(identity: ProfessionalIdentityV3 | null): FillStrength {
+  if (!identity) return { label: 'Empty', percent: 0, tone: 'warn' }
+  return thesisFillStrengthFromSignals(computeThesisSignals(identity.identity?.thesis ?? ''))
+}
+
+export function describeThesisFillStrength(identity: ProfessionalIdentityV3): string {
+  const signals = computeThesisSignals(identity.identity?.thesis ?? '')
+  if (!signals.text) {
+    return EMPTY_THESIS_FILL_DESCRIPTION
+  }
+
+  if (signals.wordCount < 5) {
+    return `Draft: thesis text exists, but it is very short at ${signals.wordCount} word${signals.wordCount === 1 ? '' : 's'}. Add concrete examples, named technologies, or organizations to strengthen it.`
+  }
+
+  const fill = thesisFillStrengthFromSignals(signals)
+  if (!isDescribedThesisFillStrength(fill)) {
+    return EMPTY_THESIS_FILL_DESCRIPTION
+  }
+  const sentenceCopy = `${signals.sentences} sentence${signals.sentences === 1 ? '' : 's'}`
+  const specificityCopy = `${signals.specificityCount} specific signal${signals.specificityCount === 1 ? '' : 's'}`
+  const lowSignalCopy = `${signals.lowSignalCount} generic or hedging signal${signals.lowSignalCount === 1 ? '' : 's'}`
+
+  switch (fill.label) {
+    case 'Strong':
+      return `Strong: the thesis has enough structure and specificity, with ${sentenceCopy}, ${specificityCopy}, and ${lowSignalCopy}.`
+    case 'Solid':
+      return `Solid: the thesis is usable and has some evidence signal, with ${sentenceCopy}, ${specificityCopy}, and ${lowSignalCopy}.`
+    case 'Sparse':
+      return `Sparse: the thesis is present, but it needs more concrete evidence or named systems. Current signals: ${sentenceCopy}, ${specificityCopy}, and ${lowSignalCopy}.`
+    case 'Draft':
+      return `Draft: thesis text exists, but it needs more concrete examples, named technologies, or organizations. Current signals: ${sentenceCopy}, ${specificityCopy}, and ${lowSignalCopy}.`
+    default:
+      return assertNever(fill.label)
   }
 }
 

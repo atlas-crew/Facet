@@ -501,6 +501,15 @@
   font-size: 12px;
   font-style: italic;
 }
+.thesis-strength-note {
+  margin: var(--space-3) 0 0;
+  color: var(--text-tertiary);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.thesis-strength-note:empty {
+  margin: 0;
+}
 
 /* ===== Self Model band ===== */
 .self-grid {

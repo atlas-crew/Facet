@@ -70,6 +70,8 @@ const seed = (modifier?: (id: ReturnType<typeof cloneIdentityFixture>) => void) 
     currentIdentity: identity,
     draft: null,
     draftDocument: '',
+    thesisDraft: null,
+    thesisDraftRevision: null,
     intakeSources: [],
     warnings: [],
     changelog: [],
@@ -119,7 +121,10 @@ describe('Identity Map — match-rule add/remove', () => {
 
   it('renders thesis metadata fields on the thesis card', () => {
     seed((id) => {
-      id.identity.thesis = 'I turn platform complexity into product leverage.'
+      id.identity.thesis =
+        'I build security platforms that ship eBPF agents on AWS at scale. ' +
+        'At A10 I owned WAF sensor lifecycle across 400+ deployments. ' +
+        'Now I want platform leadership where the substrate is the product.'
       id.identity.title = 'Platform Systems Lead'
       id.identity.origin = 'Repeated migration work'
       id.identity.elaboration = 'Grounded in deployment architecture and product judgment.'
@@ -133,6 +138,56 @@ describe('Identity Map — match-rule add/remove', () => {
     expect(thesisMeta?.textContent).toContain(
       'Grounded in deployment architecture and product judgment.',
     )
+    const note = within(container.querySelector('[data-layer="thesis"]') as HTMLElement).getByText(
+      'Strong: the thesis has enough structure and specificity, with 3 sentences, 4 specific signals, and 0 generic or hedging signals.',
+    )
+    expect(note).toBeTruthy()
+    expect(
+      within(container.querySelector('[data-layer="thesis"]') as HTMLElement)
+        .getByRole('button', { name: /I build security platforms/i })
+        .getAttribute('aria-describedby'),
+    ).toBe(note.id)
+  })
+
+  it('renders an intermediate thesis strength explanation on the thesis band', () => {
+    seed((id) => {
+      id.identity.thesis =
+        'I help teams do better work in complicated situations. ' +
+        'I make complex tradeoffs easier for product teams.'
+    })
+
+    const { container } = render(<IdentityMapPage />)
+    const thesisBand = container.querySelector('[data-layer="thesis"]')
+    expect(thesisBand).toBeTruthy()
+    const note = within(thesisBand as HTMLElement).getByText(
+      'Sparse: the thesis is present, but it needs more concrete evidence or named systems. Current signals: 2 sentences, 0 specific signals, and 0 generic or hedging signals.',
+    )
+    expect(
+      within(thesisBand as HTMLElement)
+        .getByRole('button', { name: /I help teams do better work/i })
+        .getAttribute('aria-describedby'),
+    ).toBe(note.id)
+  })
+
+  it('explains an empty thesis status on the thesis band', () => {
+    seed((id) => {
+      id.identity.thesis = ''
+    })
+
+    const { container } = render(<IdentityMapPage />)
+    const thesisBand = container.querySelector('[data-layer="thesis"]')
+    expect(thesisBand).toBeTruthy()
+    expect(
+      within(thesisBand as HTMLElement).getByText(
+        'Empty: generate a thesis or add one before this section can be evaluated.',
+      ),
+    ).toBeTruthy()
+    expect(thesisBand?.querySelector('.thesis-strength-note')?.textContent).toBe('')
+    expect(
+      within(thesisBand as HTMLElement)
+        .getByRole('button', { name: /Empty: generate a thesis or add one/i })
+        .getAttribute('aria-describedby'),
+    ).toBeNull()
   })
 
 
@@ -1006,7 +1061,7 @@ describe('Identity Map — match-rule add/remove', () => {
       elaboration: 'The strongest evidence sits in Kubernetes delivery and product judgment.',
     })
 
-    render(<IdentityMapPage />)
+    const { container } = render(<IdentityMapPage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
     fireEvent.click(screen.getByRole('button', { name: /run action: regenerate thesis/i }))
@@ -1028,6 +1083,26 @@ describe('Identity Map — match-rule add/remove', () => {
       origin: 'Repeated platform migration work.',
       elaboration: 'The strongest evidence sits in Kubernetes delivery and product judgment.',
     })
+    expect(
+      screen.queryByText(
+        'Empty: generate or add a thesis sentence before this section can be evaluated.',
+      ),
+    ).toBeNull()
+    const thesisBand = container.querySelector('[data-layer="thesis"]')
+    expect(thesisBand).toBeTruthy()
+    expect(within(thesisBand as HTMLElement).queryByText(/^Empty$/)).toBeNull()
+    expect(within(thesisBand as HTMLElement).getByText(/^Draft$/)).toBeTruthy()
+    expect(
+      within(thesisBand as HTMLElement).getByText(
+        /Draft: thesis text exists, but it needs more concrete examples, named technologies, or organizations/i,
+      ),
+    ).toBeTruthy()
+    const note = within(thesisBand as HTMLElement).getByText(/Draft: thesis text exists/i)
+    expect(
+      within(thesisBand as HTMLElement)
+        .getByRole('button', { name: /I turn platform complexity/i })
+        .getAttribute('aria-describedby'),
+    ).toBe(note.id)
   })
 
   it('generates philosophy and interview self-knowledge from the action list', async () => {
@@ -2436,9 +2511,15 @@ describe('Identity Map — match-rule add/remove', () => {
       mapSelection: null,
     })
 
-    render(<IdentityMapPage />)
+    const { container } = render(<IdentityMapPage />)
 
     expect(screen.getByText('No identity yet')).toBeTruthy()
+    expect(container.querySelector('.thesis-strength-note')?.textContent).toBe('')
+    expect(
+      within(container.querySelector('[data-layer="thesis"]') as HTMLElement).getByText(
+        'Empty: generate a thesis or add one before this section can be evaluated.',
+      ),
+    ).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Start from a resume' })).toBeTruthy()
     expect(screen.queryByText('Edit the durable identity here.')).toBeNull()
     expect(screen.queryByText('Deepen evidence before generating strategy.')).toBeNull()
