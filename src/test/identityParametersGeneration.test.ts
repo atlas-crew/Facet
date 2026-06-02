@@ -425,8 +425,13 @@ describe('identityParametersGeneration', () => {
                 philosophy: [
                   {
                     id: ' platform-judgment ',
-                    text: 'Favor platform moves — only when they unlock product access.',
-                    tags: [' platform — product ', ''],
+                    text: 'Favor platform moves \u2014 only when they unlock product access.',
+                    tags: [' platform \u2014 product ', ''],
+                  },
+                  {
+                    id: 'platform-product',
+                    text: 'Favor platform moves only when they unlock product access.',
+                    tags: ['product'],
                   },
                   { text: '' },
                 ],
@@ -451,13 +456,154 @@ describe('identityParametersGeneration', () => {
       {
         id: 'platform-judgment',
         text: 'Favor platform moves, only when they unlock product access.',
-        tags: ['platform, product'],
+        tags: ['platform, product', 'product'],
       },
     ])
     expect(selfKnowledge.interview_style).toEqual({
       strengths: ['Turns ambiguity, into execution'],
       weaknesses: ['Can over-index, on systems depth'],
       prep_strategy: 'Anchor answers in proof, then explain tradeoffs.',
+    })
+  })
+
+  it('dedupes generated philosophy entries that repeat the same position', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                philosophy: [
+                  {
+                    id: 'platform-judgment',
+                    text: 'Favor platform moves when they unlock product access.',
+                    tags: ['platform'],
+                  },
+                  {
+                    id: 'platform-product',
+                    text: 'Favor platform moves only when they unlock access for product teams.',
+                    tags: ['product'],
+                  },
+                  {
+                    id: 'market-access',
+                    text: 'Treat deployment architecture as market access.',
+                    tags: ['deployment'],
+                  },
+                ],
+                interview_style: {
+                  strengths: [],
+                  weaknesses: [],
+                  prep_strategy: '',
+                },
+              }),
+            },
+          },
+        ],
+      }),
+    } as Response)
+
+    const selfKnowledge = await generateSelfKnowledgeFromIdentity(
+      cloneIdentityFixture(),
+      'https://ai.example/proxy',
+    )
+
+    expect(selfKnowledge.philosophy).toEqual([
+      {
+        id: 'platform-product',
+        text: 'Favor platform moves only when they unlock access for product teams.',
+        tags: ['platform', 'product'],
+      },
+      {
+        id: 'market-access',
+        text: 'Treat deployment architecture as market access.',
+        tags: ['deployment'],
+      },
+    ])
+  })
+
+  it('keeps the strongest generated philosophy entry across duplicate clusters', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                philosophy: [
+                  {
+                    id: 'platform-product',
+                    text: 'Favor platform moves only when they unlock access for product teams.',
+                    tags: ['product'],
+                  },
+                  {
+                    id: 'platform-judgment',
+                    text: 'Favor platform moves when they unlock product access.',
+                    tags: ['platform'],
+                  },
+                  {
+                    id: 'platform-access',
+                    text: 'Favor platform moves when product teams get access.',
+                    tags: ['access'],
+                  },
+                ],
+                interview_style: {
+                  strengths: [],
+                  weaknesses: [],
+                  prep_strategy: '',
+                },
+              }),
+            },
+          },
+        ],
+      }),
+    } as Response)
+
+    const selfKnowledge = await generateSelfKnowledgeFromIdentity(
+      cloneIdentityFixture(),
+      'https://ai.example/proxy',
+    )
+
+    expect(selfKnowledge.philosophy).toEqual([
+      {
+        id: 'platform-product',
+        text: 'Favor platform moves only when they unlock access for product teams.',
+        tags: ['product', 'platform', 'access'],
+      },
+    ])
+  })
+
+  it('returns an empty generated philosophy list when all entries are invalid', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                philosophy: [{ text: '' }, null],
+                interview_style: {
+                  strengths: ['Uses evidence carefully.'],
+                  weaknesses: [],
+                  prep_strategy: 'Anchor claims in proof.',
+                },
+              }),
+            },
+          },
+        ],
+      }),
+    } as Response)
+
+    const selfKnowledge = await generateSelfKnowledgeFromIdentity(
+      cloneIdentityFixture(),
+      'https://ai.example/proxy',
+    )
+
+    expect(selfKnowledge.philosophy).toEqual([])
+    expect(selfKnowledge.interview_style).toEqual({
+      strengths: ['Uses evidence carefully.'],
+      weaknesses: [],
+      prep_strategy: 'Anchor claims in proof.',
     })
   })
 

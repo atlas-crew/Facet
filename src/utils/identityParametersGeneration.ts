@@ -12,6 +12,7 @@ import type {
 import { createId, slugify } from './idUtils'
 import { parseJsonWithRepair } from './jsonParsing'
 import { callLlmProxy, extractJsonBlock, JsonExtractionError, isString } from './llmProxy'
+import { dedupePhilosophyEntries } from './philosophyDedupe'
 import { RESEARCH_PROFILE_INFERENCE_TIMEOUT_MS } from './researchProfileInferenceConfig'
 
 const GENERATION_MODEL = 'opus'
@@ -215,25 +216,27 @@ const normalizeGeneratedSelfKnowledge = (payload: unknown): ProfessionalSelfKnow
       ? (record.interview_style as Record<string, unknown>)
       : {}
 
+  const normalizedPhilosophy = philosophy.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return []
+
+    const philosophyEntry = entry as Record<string, unknown>
+    const text = normalizeOptionalString(philosophyEntry.text)
+    if (!text) return []
+
+    return [
+      {
+        id:
+          isString(philosophyEntry.id) && philosophyEntry.id.trim()
+            ? philosophyEntry.id.trim()
+            : createId('phil'),
+        text: removeVoiceTells(text),
+        tags: normalizeStringArray(philosophyEntry.tags).map(removeVoiceTells),
+      } satisfies ProfessionalPhilosophyEntry,
+    ]
+  })
+
   return {
-    philosophy: philosophy.flatMap((entry) => {
-      if (!entry || typeof entry !== 'object') return []
-
-      const philosophyEntry = entry as Record<string, unknown>
-      const text = normalizeOptionalString(philosophyEntry.text)
-      if (!text) return []
-
-      return [
-        {
-          id:
-            isString(philosophyEntry.id) && philosophyEntry.id.trim()
-              ? philosophyEntry.id.trim()
-              : createId('phil'),
-          text: removeVoiceTells(text),
-          tags: normalizeStringArray(philosophyEntry.tags).map(removeVoiceTells),
-        } satisfies ProfessionalPhilosophyEntry,
-      ]
-    }),
+    philosophy: dedupePhilosophyEntries(normalizedPhilosophy),
     interview_style: {
       strengths: normalizeStringArray(interviewRecord.strengths).map(removeVoiceTells),
       weaknesses: normalizeStringArray(interviewRecord.weaknesses).map(removeVoiceTells),
@@ -387,6 +390,7 @@ Respect generator_rules.accuracy as hard truth constraints. Do not invent candid
 
 Reasoning requirements:
 - Philosophy entries should capture durable operating principles, engineering taste, leadership beliefs, and market-facing judgment.
+- Do not emit duplicate philosophy entries. If two positions express the same belief with different wording, keep the stronger one and merge their tags.
 - Interview strengths should be specific patterns the candidate can credibly prove.
 - Interview weaknesses should be honest, non-damaging calibration points that can guide preparation.
 - Prep strategy should tell the candidate how to use their evidence in interviews, not generic advice.
