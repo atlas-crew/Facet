@@ -257,7 +257,13 @@ describe('identityParametersGeneration', () => {
             message: {
               content: JSON.stringify({
                 competitive_moat: ' Platform plus product strategy ',
-                unfair_advantages: [' Product judgment ', '', 'Deployment architecture'],
+                unfair_advantages: [
+                  ' Product judgment ',
+                  '',
+                  'Platform infrastructure depth plus product judgment',
+                  'Product-aware platform infrastructure depth',
+                  'Deployment architecture',
+                ],
                 search_vectors: [
                   {
                     title: 'Platform Strategy',
@@ -291,7 +297,11 @@ describe('identityParametersGeneration', () => {
     )
 
     expect(strategy.competitive_moat).toBe('Platform plus product strategy')
-    expect(strategy.unfair_advantages).toEqual(['Product judgment', 'Deployment architecture'])
+    expect(strategy.unfair_advantages).toEqual([
+      'Product judgment',
+      'Platform infrastructure depth plus product judgment',
+      'Deployment architecture',
+    ])
     expect(strategy.search_vectors).toHaveLength(1)
     expect(strategy.search_vectors[0]).toMatchObject({
       title: 'Platform Strategy',

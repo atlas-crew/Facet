@@ -2719,6 +2719,7 @@ describe('Identity Map — search-vector full-edit + add/remove', () => {
         'Platform strategy grounded in customer deployment constraints and product tradeoffs.',
       unfair_advantages: [
         'Platform infrastructure depth plus product judgment',
+        'Product-aware platform infrastructure depth',
         'Customer deployment architecture evidence',
       ],
       search_vectors: [

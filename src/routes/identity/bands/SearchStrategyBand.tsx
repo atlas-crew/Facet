@@ -20,6 +20,7 @@ import {
   IdentityInferenceConfigError,
 } from '../identityInferenceRuntime'
 import { useInferenceRequest } from '../useInferenceRequest'
+import { getUniqueUnfairAdvantages } from '../../../utils/unfairAdvantagesDedupe'
 
 type StrategyGenerationKind = 'strategy' | 'vectors' | 'questions'
 type StrategyGenerationMessage = {
@@ -98,19 +99,6 @@ const uniquifyGeneratedItems = <Item extends { id: string }>({
     if (signatures.has(signature)) return []
     signatures.add(signature)
     return [{ ...item, id: createId(idPrefix) }]
-  })
-}
-
-const getUniqueGeneratedAdvantages = (existing: string[], generated: string[]) => {
-  const signatures = new Set(existing.map(normalizeGenerationSignature).filter(Boolean))
-
-  return generated.flatMap((advantage) => {
-    const trimmed = advantage.trim()
-    const signature = normalizeGenerationSignature(trimmed)
-    if (!signature) return []
-    if (signatures.has(signature)) return []
-    signatures.add(signature)
-    return [trimmed]
   })
 }
 
@@ -374,7 +362,7 @@ export function SearchStrategyBand({
       const existingMoat = latestIdentity.self_model?.competitive_moat?.trim() ?? ''
       const addedMoat = !existingMoat && Boolean(generated.competitive_moat)
       const existingAdvantages = latestIdentity.self_model?.unfair_advantages ?? []
-      const nextAdvantages = getUniqueGeneratedAdvantages(
+      const nextAdvantages = getUniqueUnfairAdvantages(
         existingAdvantages,
         generated.unfair_advantages,
       )

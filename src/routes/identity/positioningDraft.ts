@@ -5,6 +5,7 @@ import type {
 } from '../../identity/schema'
 import type { ProfessionalStrategicInference } from '../../utils/identityParametersGeneration'
 import { createId } from '../../utils/idUtils'
+import { getUniqueUnfairAdvantages } from '../../utils/unfairAdvantagesDedupe'
 
 const normalizeGenerationSignature = (value: string | null | undefined) =>
   (value ?? '').trim().replace(/\s+/g, ' ').toLowerCase()
@@ -60,19 +61,6 @@ export const uniquifyGeneratedItems = <Item extends { id: string }>({
   })
 }
 
-export const getUniqueGeneratedAdvantages = (existing: string[], generated: string[]) => {
-  const signatures = new Set(existing.map(normalizeGenerationSignature).filter(Boolean))
-
-  return generated.flatMap((advantage) => {
-    const trimmed = advantage.trim()
-    const signature = normalizeGenerationSignature(trimmed)
-    if (!signature) return []
-    if (signatures.has(signature)) return []
-    signatures.add(signature)
-    return [trimmed]
-  })
-}
-
 export const formatPositioningApplyMessage = ({
   replacedMoat,
   advantageCount,
@@ -121,7 +109,7 @@ export const computePositioningDraftApplication = ({
   const shouldReplaceMoat = Boolean(sections.moat && draftMoat && draftMoat !== existingMoat)
   const existingAdvantages = identity.self_model?.unfair_advantages ?? []
   const nextAdvantages = sections.advantages
-    ? getUniqueGeneratedAdvantages(existingAdvantages, draft.unfair_advantages)
+    ? getUniqueUnfairAdvantages(existingAdvantages, draft.unfair_advantages)
     : []
   const existingVectors = identity.search_vectors ?? []
   const nextVectors = sections.vectors

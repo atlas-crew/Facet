@@ -14,6 +14,7 @@ import { parseJsonWithRepair } from './jsonParsing'
 import { callLlmProxy, extractJsonBlock, JsonExtractionError, isString } from './llmProxy'
 import { dedupePhilosophyEntries } from './philosophyDedupe'
 import { RESEARCH_PROFILE_INFERENCE_TIMEOUT_MS } from './researchProfileInferenceConfig'
+import { dedupeUnfairAdvantages } from './unfairAdvantagesDedupe'
 
 const GENERATION_MODEL = 'opus'
 const VECTOR_PRIORITY_VALUES = new Set<ProfessionalSearchVectorPriority>(['high', 'medium', 'low'])
@@ -183,7 +184,9 @@ const normalizeGeneratedStrategy = (payload: unknown): ProfessionalStrategicInfe
 
   return {
     ...(competitiveMoat ? { competitive_moat: competitiveMoat } : {}),
-    unfair_advantages: normalizeStringArray(record.unfair_advantages),
+    unfair_advantages: dedupeUnfairAdvantages(
+      normalizeStringArray(record.unfair_advantages).map((text) => removeVoiceTells(text)),
+    ),
     search_vectors: normalizeGeneratedVectors(record),
     open_questions: normalizeGeneratedAwareness(openQuestionsPayload),
   }
@@ -457,6 +460,7 @@ Strategic reasoning requirements:
 - Prefer precise, searchable lanes that map to target roles and company signals.
 - Include evidence strings for every proposed vector and open question.
 - Do not repeat existing search vectors, unfair advantages, or awareness items unless the supplied identity supports a stronger, more actionable framing.
+- Do not emit duplicate unfair_advantages. If two advantages express the same evidence-backed edge with different wording, keep the sharper one.
 - ${moatInstruction}
 
 Response schema:

@@ -4,10 +4,10 @@ import {
   formatPositioningApplyMessage,
   getPositioningGenerationKey,
   getResidualPositioningDraft,
-  getUniqueGeneratedAdvantages,
   hasPositioningDraftSections,
   uniquifyGeneratedItems,
 } from '../routes/identity/positioningDraft'
+import { getUniqueUnfairAdvantages } from '../utils/unfairAdvantagesDedupe'
 import { cloneIdentityFixture } from './fixtures/identityFixture'
 
 describe('positioningDraft helpers', () => {
@@ -41,7 +41,7 @@ describe('positioningDraft helpers', () => {
 
   it('deduplicates generated unfair advantages by normalized text', () => {
     expect(
-      getUniqueGeneratedAdvantages(['Existing advantage'], [
+      getUniqueUnfairAdvantages(['Existing advantage'], [
         ' existing   advantage ',
         'Platform plus product judgment',
         '',
