@@ -5,6 +5,7 @@ import type {
   ProfessionalSkillItem,
 } from '../identity/schema'
 import type { MapSelection } from '../types/identity'
+import type { SkillEnrichmentSuggestion } from './skillEnrichment'
 import type {
   IdentityEnrichmentProgress,
   IdentityEnrichmentSkillRef,
@@ -111,6 +112,31 @@ export const applySkillDepthEdit = (
         }),
     ...(skill.context?.trim() ? { context_stale: true } : {}),
     ...(skill.positioning?.trim() ? { positioning_stale: true } : {}),
+  }
+}
+
+export const applySkillEnrichmentSuggestion = (
+  skill: ProfessionalSkillItem,
+  suggestion: Required<Pick<SkillEnrichmentSuggestion, 'depth'>> &
+    Pick<SkillEnrichmentSuggestion, 'depthConfidence' | 'context' | 'positioning'>,
+  editedAt = new Date().toISOString(),
+): ProfessionalSkillItem => {
+  const nextContext = suggestion.context?.trim() ?? ''
+  const nextPositioning = suggestion.positioning?.trim() ?? ''
+
+  return {
+    ...applySkillDepthEdit(skill, suggestion.depth, editedAt),
+    depthSource: 'corrected',
+    depthConfidence:
+      suggestion.depthConfidence ??
+      (suggestion.depth === skill.depth ? skill.depthConfidence : undefined),
+    context: nextContext || undefined,
+    context_stale: undefined,
+    positioning: nextPositioning || undefined,
+    positioning_stale: undefined,
+    enriched_at: editedAt,
+    enriched_by: 'llm-accepted',
+    skipped_at: undefined,
   }
 }
 

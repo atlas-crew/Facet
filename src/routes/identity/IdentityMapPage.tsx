@@ -289,6 +289,7 @@ export function IdentityMapPage() {
   const [selfKnowledgeRequestId, setSelfKnowledgeRequestId] = useState(0)
   const [positioningRequestId, setPositioningRequestId] = useState(0)
   const [strategyRequestId, setStrategyRequestId] = useState(0)
+  const [skillBulkRequestId, setSkillBulkRequestId] = useState(0)
   const honoredSelRef = useRef<string | null>(null)
   const honoredFocusRef = useRef<string | null>(null)
   const actionHighlightTimeoutRef = useRef<number | null>(null)
@@ -409,7 +410,7 @@ export function IdentityMapPage() {
   )
   const skillInferenceLabel =
     enrichmentProgress && enrichmentProgress.pending > 0
-      ? `Deepen skills (${enrichmentProgress.pending})`
+      ? `Deepen all skills (${enrichmentProgress.pending})`
       : 'Review skill depth'
   const skillPendingCount = enrichmentProgress?.pending ?? 0
   const hasSkillDepthToReview = Boolean(enrichmentProgress && enrichmentProgress.total > 0)
@@ -457,8 +458,17 @@ export function IdentityMapPage() {
   const goToSkillEnrichment = () => {
     if (!identity) return
     const target = resolveIdentityMapSkillDraftSelection(identity)
-    if (!target) return
-    setMapSelection(target)
+    const fallbackGroup = identity.skills.groups[0]
+    if (target) {
+      setMapSelection(target)
+    } else if (fallbackGroup) {
+      setMapSelection({ type: 'skill-group', id: fallbackGroup.id })
+    }
+    scrollToLayer('skills', { highlight: true, focus: true })
+  }
+
+  const deepenAllSkills = () => {
+    setSkillBulkRequestId((requestId) => requestId + 1)
     scrollToLayer('skills', { highlight: true, focus: true })
   }
 
@@ -647,7 +657,11 @@ export function IdentityMapPage() {
         goToBulletDepth()
         break
       case 'skills':
-        goToSkillEnrichment()
+        if (hasPendingSkillDepth) {
+          deepenAllSkills()
+        } else {
+          goToSkillEnrichment()
+        }
         break
       case 'thesis':
         generateThesis()
@@ -892,7 +906,7 @@ export function IdentityMapPage() {
         />
         <ProfilesBand profileRequestId={profileRequestId} />
         <RolesBand />
-        <SkillsBand />
+        <SkillsBand bulkRequestId={skillBulkRequestId} />
         <PreferencesBand />
         <SearchStrategyBand strategyRequestId={strategyRequestId} />
 

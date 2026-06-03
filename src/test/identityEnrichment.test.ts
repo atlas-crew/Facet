@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { cloneIdentityFixture } from './fixtures/identityFixture'
 import {
+  applySkillEnrichmentSuggestion,
   findNextPendingIdentitySkill,
   getIdentityEnrichmentProgress,
   getSkillEnrichmentStatus,
@@ -91,6 +92,145 @@ describe('identityEnrichment helpers', () => {
         skipped_at: '',
       }),
     ).toBe(false)
+  })
+
+  it('applies accepted AI skill enrichment suggestions as reviewed identity data', () => {
+    expect(
+      applySkillEnrichmentSuggestion(
+        {
+          name: 'Ansible',
+          tags: ['automation', 'ansible'],
+          depth: 'working',
+          depthConfidence: 'low',
+          context: 'Existing context.',
+          context_stale: true,
+          positioning: 'Existing positioning.',
+          positioning_stale: true,
+          skipped_at: '2026-04-08T00:00:00.000Z',
+        },
+        {
+          depth: 'expert',
+          depthConfidence: 'medium',
+          context: '  Authors custom modules and plugins in Python.  ',
+          positioning: '  Lead with it when automation depth matters.  ',
+        },
+        '2026-06-02T12:00:00.000Z',
+      ),
+    ).toMatchObject({
+      name: 'Ansible',
+      depth: 'expert',
+      depthSource: 'corrected',
+      depthConfidence: 'medium',
+      context: 'Authors custom modules and plugins in Python.',
+      context_stale: undefined,
+      positioning: 'Lead with it when automation depth matters.',
+      positioning_stale: undefined,
+      enriched_at: '2026-06-02T12:00:00.000Z',
+      enriched_by: 'llm-accepted',
+      skipped_at: undefined,
+    })
+  })
+
+  it('preserves existing confidence only when an accepted suggestion keeps the same depth', () => {
+    const sameDepth = applySkillEnrichmentSuggestion(
+      {
+        name: 'Kubernetes',
+        tags: ['platform', 'kubernetes'],
+        depth: 'strong',
+        depthConfidence: 'high',
+      },
+      {
+        depth: 'strong',
+        context: 'Uses Kubernetes for embedded delivery.',
+        positioning: 'Mention when relevant.',
+      },
+      '2026-06-02T12:00:00.000Z',
+    )
+
+    expect(sameDepth).toMatchObject({
+      depth: 'strong',
+      depthConfidence: 'high',
+      context: 'Uses Kubernetes for embedded delivery.',
+      positioning: 'Mention when relevant.',
+      enriched_at: '2026-06-02T12:00:00.000Z',
+      enriched_by: 'llm-accepted',
+    })
+    expect(sameDepth.depthSource).toBe('corrected')
+
+    expect(
+      applySkillEnrichmentSuggestion(
+        {
+          name: 'Terraform',
+          tags: ['platform', 'iac'],
+          depth: 'working',
+          depthConfidence: 'high',
+        },
+        {
+          depth: 'strong',
+          context: 'Owns infrastructure-as-code delivery.',
+          positioning: 'Mention for platform roles.',
+        },
+        '2026-06-02T12:00:00.000Z',
+      ).depthConfidence,
+    ).toBeUndefined()
+  })
+
+  it('removes blank accepted context and positioning suggestions', () => {
+    const next = applySkillEnrichmentSuggestion(
+      {
+        name: 'TypeScript',
+        tags: ['backend', 'typescript'],
+        context: 'Existing context.',
+        positioning: 'Existing positioning.',
+      },
+      {
+        depth: 'strong',
+        context: '   ',
+        positioning: '',
+      },
+      '2026-06-02T12:00:00.000Z',
+    )
+
+    expect(next.context).toBeUndefined()
+    expect(next.positioning).toBeUndefined()
+    expect(next.enriched_by).toBe('llm-accepted')
+  })
+
+  it('uses a generated timestamp when accepted AI skill enrichment omits editedAt', () => {
+    const next = applySkillEnrichmentSuggestion(
+      {
+        name: 'Python',
+        tags: ['backend', 'python'],
+      },
+      {
+        depth: 'strong',
+        context: 'Builds Python services.',
+        positioning: 'Mention for backend roles.',
+      },
+    )
+
+    expect(next.enriched_at).toEqual(expect.any(String))
+    expect(Number.isNaN(Date.parse(next.enriched_at ?? ''))).toBe(false)
+  })
+
+  it('handles accepted AI skill enrichment suggestions with only a depth', () => {
+    const next = applySkillEnrichmentSuggestion(
+      {
+        name: 'Go',
+        tags: ['backend', 'go'],
+        context: 'Existing context.',
+        positioning: 'Existing positioning.',
+      },
+      {
+        depth: 'working',
+      },
+      '2026-06-02T12:00:00.000Z',
+    )
+
+    expect(next.depth).toBe('working')
+    expect(next.depthConfidence).toBeUndefined()
+    expect(next.context).toBeUndefined()
+    expect(next.positioning).toBeUndefined()
   })
 
   it('computes progress counts from the current identity', () => {

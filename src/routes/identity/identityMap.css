@@ -1355,6 +1355,13 @@
 .skills-enrichment-action {
   white-space: nowrap;
 }
+.skills-enrichment-status {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
 .skill-group {
   display: flex;
   flex-direction: column;
@@ -1423,6 +1430,9 @@
 .skill-chip.selected {
   border-color: var(--band-color);
   color: var(--text-primary);
+}
+.skill-chip.complete {
+  border-color: color-mix(in srgb, var(--success) 35%, var(--border-subtle));
 }
 .skill-chip.untagged {
   border-color: color-mix(in srgb, var(--warning) 30%, transparent);

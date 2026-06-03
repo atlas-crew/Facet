@@ -9,6 +9,7 @@ import { useIdentityStore } from '../../../store/identityStore'
 import { facetClientEnv } from '../../../utils/facetEnv'
 import { sanitizeEndpointUrl } from '../../../utils/idUtils'
 import {
+  applySkillEnrichmentSuggestion,
   applySkillDepthEdit,
   hasSkillEnrichmentData,
   skillNamesMatch,
@@ -263,21 +264,9 @@ export function SkillItemInspector({
 
     const suggestionDepth = suggestion.depth
     const editedAt = new Date().toISOString()
-    const nextContext = suggestion.context?.trim() ?? ''
-    const nextPositioning = suggestion.positioning?.trim() ?? ''
-    const nextIdentity = updateIdentityEnrichmentSkill(identity, groupId, itemName, (skill) => ({
-      ...applySkillDepthEdit(skill, suggestionDepth, editedAt),
-      depthConfidence:
-        suggestion.depthConfidence ??
-        (suggestionDepth === skill.depth ? skill.depthConfidence : undefined),
-      context: nextContext || undefined,
-      context_stale: undefined,
-      positioning: nextPositioning || undefined,
-      positioning_stale: undefined,
-      enriched_at: editedAt,
-      enriched_by: 'llm-accepted',
-      skipped_at: undefined,
-    }))
+    const nextIdentity = updateIdentityEnrichmentSkill(identity, groupId, itemName, (skill) =>
+      applySkillEnrichmentSuggestion(skill, { ...suggestion, depth: suggestionDepth }, editedAt),
+    )
     updateGroups(nextIdentity.skills.groups)
     setSuggestion(null)
     setSuggestionNotice('Applied skill draft.')
@@ -411,7 +400,6 @@ export function SkillItemInspector({
                   value={draftPositioning}
                   onChange={(e) => {
                     setDraftPositioning(e.target.value)
-                    setDraftPositioningSelection(CUSTOM_POSITIONING_VALUE)
                   }}
                 />
                 <details className="identity-field-examples">
@@ -515,7 +503,10 @@ export function SkillItemInspector({
         <button
           type="button"
           className={item.depth ? 'inspector-btn' : 'inspector-btn primary'}
-          onClick={() => void handleGenerateDraft()}
+          onClick={() => {
+            if (isGenerating) return
+            void handleGenerateDraft()
+          }}
           aria-disabled={isGenerating || undefined}
           aria-busy={isGenerating || undefined}
         >

@@ -3,6 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { IdentityMapPage } from '../routes/identity/IdentityMapPage'
+import { SkillsBand } from '../routes/identity/bands/SkillsBand'
 import { SelfModelBand } from '../routes/identity/bands/SelfModelBand'
 import { useIdentityStore } from '../store/identityStore'
 import { resolveStorage } from '../store/storage'
@@ -888,7 +889,7 @@ describe('Identity Map — match-rule add/remove', () => {
     expect(screen.queryByLabelText('Generated positioning draft')).toBeNull()
   })
 
-  it('explains the map as the editing surface and drafts skill deepening from Skills', async () => {
+  it('explains the map as the editing surface and deepens pending skills from Skills', async () => {
     seed((id) => {
       id.skills.groups[0]!.items = [
         {
@@ -932,9 +933,8 @@ describe('Identity Map — match-rule add/remove', () => {
       within(panel).getByText((_, element) => element?.textContent === '1 skipped'),
     ).toBeTruthy()
 
-    fireEvent.click(within(panel).getByRole('button', { name: 'Deepen skills' }))
+    fireEvent.click(within(panel).getByRole('button', { name: 'Deepen all skills' }))
 
-    expect(screen.getByRole('heading', { name: 'TypeScript' })).toBeTruthy()
     await waitFor(() => {
       expect(skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -944,21 +944,529 @@ describe('Identity Map — match-rule add/remove', () => {
         }),
       )
     })
-    expect(useIdentityStore.getState().mapSelection).toEqual({
-      type: 'skill-item',
-      groupId: 'platform',
-      itemId: 'TypeScript',
+    await waitFor(() => {
+      expect(screen.getByText('Deepened 1 skill(s).')).toBeTruthy()
     })
+    expect(
+      useIdentityStore
+        .getState()
+        .currentIdentity!.skills.groups[0]!.items.find((skill) => skill.name === 'TypeScript'),
+    ).toMatchObject({
+      depth: 'strong',
+      enriched_by: 'llm-accepted',
+    })
+  })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
-    fireEvent.click(within(panel).getByRole('button', { name: 'Deepen skills' }))
+  it('deepens all pending skills with evidence from the Skills band', async () => {
+    seed((id) => {
+      id.skills.groups[0]!.items = [
+        {
+          name: 'TypeScript',
+          tags: ['backend', 'typescript'],
+        },
+        {
+          name: 'Ansible',
+          tags: [],
+        },
+        {
+          name: 'Elixir',
+          tags: ['language'],
+        },
+      ]
+      id.roles[0]!.bullets[0]!.technologies.push('TypeScript', 'Ansible')
+    })
+    skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock
+      .mockResolvedValueOnce({
+        depth: 'strong',
+        depthConfidence: 'high',
+        context: 'Builds TypeScript services and UI surfaces.',
+        positioning: 'Strong supporting signal. Mention early.',
+      })
+      .mockResolvedValueOnce({
+        depth: 'expert',
+        depthConfidence: 'medium',
+        context: 'Authors Ansible automation and understands module conventions.',
+        positioning: 'Lead with it when relevant.',
+      })
+    render(<IdentityMapPage />)
+
+    const panel = screen.getByText('Skill depth').closest('.skills-enrichment-panel') as HTMLElement
+    fireEvent.click(within(panel).getByRole('button', { name: 'Deepen all skills' }))
 
     await waitFor(() => {
       expect(skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock).toHaveBeenCalledTimes(2)
     })
+    await waitFor(() => {
+      expect(
+        screen.getByText('Deepened 2 skill(s); 1 skipped for missing or insufficient evidence.'),
+      ).toBeTruthy()
+    })
+
+    const skills = useIdentityStore.getState().currentIdentity!.skills.groups[0]!.items
+    expect(skills.find((skill) => skill.name === 'TypeScript')).toMatchObject({
+      depth: 'strong',
+      depthConfidence: 'high',
+      enriched_by: 'llm-accepted',
+    })
+    expect(skills.find((skill) => skill.name === 'Ansible')).toMatchObject({
+      depth: 'expert',
+      depthConfidence: 'medium',
+      enriched_by: 'llm-accepted',
+    })
+    const elixir = skills.find((skill) => skill.name === 'Elixir')
+    expect(elixir?.depth).toBeUndefined()
+    expect(elixir?.skipped_at).toEqual(expect.any(String))
+    expect(screen.getByRole('button', { name: 'Ansible' }).className).toContain('complete')
+    expect(screen.getByRole('button', { name: 'Ansible' }).className).not.toContain('untagged')
   })
 
-  it('keeps skill-depth review on the map when no skills are pending', () => {
+  it('surfaces disabled AI proxy configuration for bulk skill deepening', () => {
+    facetEnvMock.facetClientEnv.anthropicProxyUrl = ''
+    seed((id) => {
+      id.skills.groups[0]!.items = [
+        {
+          name: 'TypeScript',
+          tags: ['backend', 'typescript'],
+        },
+      ]
+      id.roles[0]!.bullets[0]!.technologies.push('TypeScript')
+    })
+    render(<IdentityMapPage />)
+
+    const panel = screen.getByText('Skill depth').closest('.skills-enrichment-panel') as HTMLElement
+    fireEvent.click(within(panel).getByRole('button', { name: 'Deepen all skills' }))
+
+    expect(
+      screen.getByText('AI suggestions are disabled. Configure VITE_ANTHROPIC_PROXY_URL.'),
+    ).toBeTruthy()
+    expect(skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock).not.toHaveBeenCalled()
+  })
+
+  it('skips bulk skill suggestions that do not infer a depth', async () => {
+    seed((id) => {
+      id.skills.groups[0]!.items = [
+        {
+          name: 'TypeScript',
+          tags: ['backend', 'typescript'],
+        },
+      ]
+      id.roles[0]!.bullets[0]!.technologies.push('TypeScript')
+    })
+    skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock.mockResolvedValueOnce({
+      context: 'Context without depth.',
+      positioning: 'Positioning without depth.',
+    })
+    render(<IdentityMapPage />)
+
+    const panel = screen.getByText('Skill depth').closest('.skills-enrichment-panel') as HTMLElement
+    fireEvent.click(within(panel).getByRole('button', { name: 'Deepen all skills' }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('No skills deepened; 1 skipped for missing or insufficient evidence.'),
+      ).toBeTruthy()
+    })
+    const skill = useIdentityStore.getState().currentIdentity!.skills.groups[0]!.items[0]!
+    expect(skill.depth).toBeUndefined()
+    expect(skill.skipped_at).toEqual(expect.any(String))
+  })
+
+  it('continues bulk skill deepening after one suggestion fails', async () => {
+    seed((id) => {
+      id.skills.groups[0]!.items = [
+        {
+          name: 'TypeScript',
+          tags: ['backend', 'typescript'],
+        },
+        {
+          name: 'Ansible',
+          tags: ['automation', 'ansible'],
+        },
+      ]
+      id.roles[0]!.bullets[0]!.technologies.push('TypeScript', 'Ansible')
+    })
+    skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock
+      .mockRejectedValueOnce(new Error('network down'))
+      .mockResolvedValueOnce({
+        depth: 'expert',
+        depthConfidence: 'medium',
+        context: 'Authors Ansible roles and modules.',
+        positioning: 'Lead with it when relevant.',
+      })
+    render(<IdentityMapPage />)
+
+    const panel = screen.getByText('Skill depth').closest('.skills-enrichment-panel') as HTMLElement
+    fireEvent.click(within(panel).getByRole('button', { name: 'Deepen all skills' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Deepened 1 skill(s); 1 failed.')).toBeTruthy()
+    })
+    const skills = useIdentityStore.getState().currentIdentity!.skills.groups[0]!.items
+    expect(skills.find((skill) => skill.name === 'TypeScript')?.depth).toBeUndefined()
+    expect(skills.find((skill) => skill.name === 'Ansible')).toMatchObject({
+      depth: 'expert',
+      enriched_by: 'llm-accepted',
+    })
+  })
+
+  it('prevents duplicate bulk skill deepening requests while one is running', async () => {
+    const deferred = createDeferred<{
+      depth: 'strong'
+      depthConfidence: 'high'
+      context: string
+      positioning: string
+    }>()
+    seed((id) => {
+      id.skills.groups[0]!.items = [
+        {
+          name: 'TypeScript',
+          tags: ['backend', 'typescript'],
+        },
+      ]
+      id.roles[0]!.bullets[0]!.technologies.push('TypeScript')
+    })
+    skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock.mockReturnValueOnce(deferred.promise)
+    render(<IdentityMapPage />)
+
+    const panel = screen.getByText('Skill depth').closest('.skills-enrichment-panel') as HTMLElement
+    const button = within(panel).getByRole('button', { name: 'Deepen all skills' })
+    fireEvent.click(button)
+    fireEvent.click(button)
+
+    await waitFor(() => {
+      expect(skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock).toHaveBeenCalledTimes(1)
+    })
+    const busyButton = within(panel).getByRole('button', { name: 'Deepening...' })
+    expect(busyButton.getAttribute('aria-busy')).toBe('true')
+    expect(busyButton.getAttribute('aria-disabled')).toBe('true')
+
+    await act(async () => {
+      deferred.resolve({
+        depth: 'strong',
+        depthConfidence: 'high',
+        context: 'Builds TypeScript services.',
+        positioning: 'Mention for backend UI roles.',
+      })
+      await deferred.promise
+    })
+    await waitFor(() => {
+      expect(screen.getByText('Deepened 1 skill(s).')).toBeTruthy()
+    })
+  })
+
+  it('shows intermediate progress while bulk skill deepening continues', async () => {
+    const firstDeferred = createDeferred<{
+      depth: 'strong'
+      depthConfidence: 'high'
+      context: string
+      positioning: string
+    }>()
+    const secondDeferred = createDeferred<{
+      depth: 'expert'
+      depthConfidence: 'medium'
+      context: string
+      positioning: string
+    }>()
+    seed((id) => {
+      id.skills.groups[0]!.items = [
+        {
+          name: 'TypeScript',
+          tags: ['backend', 'typescript'],
+        },
+        {
+          name: 'Ansible',
+          tags: ['automation', 'ansible'],
+        },
+      ]
+      id.roles[0]!.bullets[0]!.technologies.push('TypeScript', 'Ansible')
+    })
+    skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock
+      .mockReturnValueOnce(firstDeferred.promise)
+      .mockReturnValueOnce(secondDeferred.promise)
+    render(<IdentityMapPage />)
+
+    const panel = screen.getByText('Skill depth').closest('.skills-enrichment-panel') as HTMLElement
+    fireEvent.click(within(panel).getByRole('button', { name: 'Deepen all skills' }))
+
+    await waitFor(() => {
+      expect(skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock).toHaveBeenCalledTimes(1)
+    })
+    await act(async () => {
+      firstDeferred.resolve({
+        depth: 'strong',
+        depthConfidence: 'high',
+        context: 'Builds TypeScript services.',
+        positioning: 'Mention for backend UI roles.',
+      })
+      await firstDeferred.promise
+    })
+
+    await waitFor(() => {
+      expect(skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock).toHaveBeenCalledTimes(2)
+      expect(within(panel).getByRole('status').textContent).toBe(
+        'Processed 1 of 2 skill(s)...',
+      )
+    })
+
+    await act(async () => {
+      secondDeferred.resolve({
+        depth: 'expert',
+        depthConfidence: 'medium',
+        context: 'Authors Ansible roles and modules.',
+        positioning: 'Lead with it when relevant.',
+      })
+      await secondDeferred.promise
+    })
+    await waitFor(() => {
+      expect(screen.getByText('Deepened 2 skill(s).')).toBeTruthy()
+    })
+  })
+
+  it('aborts in-flight bulk skill deepening when the Skills band unmounts', async () => {
+    const deferred = createDeferred<{
+      depth: 'strong'
+      depthConfidence: 'high'
+      context: string
+      positioning: string
+    }>()
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    seed((id) => {
+      id.skills.groups[0]!.items = [
+        {
+          name: 'TypeScript',
+          tags: ['backend', 'typescript'],
+        },
+      ]
+      id.roles[0]!.bullets[0]!.technologies.push('TypeScript')
+    })
+    skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock.mockReturnValueOnce(deferred.promise)
+    const view = render(<IdentityMapPage />)
+
+    const panel = screen.getByText('Skill depth').closest('.skills-enrichment-panel') as HTMLElement
+    fireEvent.click(within(panel).getByRole('button', { name: 'Deepen all skills' }))
+
+    await waitFor(() => {
+      expect(skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock).toHaveBeenCalledTimes(1)
+    })
+    const signal = skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock.mock.calls[0]?.[0]
+      ?.signal as AbortSignal
+
+    view.unmount()
+    await act(async () => {
+      deferred.resolve({
+        depth: 'strong',
+        depthConfidence: 'high',
+        context: 'Stale TypeScript suggestion.',
+        positioning: 'Stale positioning.',
+      })
+      await deferred.promise
+    })
+
+    expect(signal.aborted).toBe(true)
+    expect(useIdentityStore.getState().currentIdentity!.skills.groups[0]!.items[0]!.depth).toBeUndefined()
+    expect(consoleError).not.toHaveBeenCalled()
+    consoleError.mockRestore()
+  })
+
+  it('preserves a manual skill edit when a stale bulk suggestion resolves later', async () => {
+    const deferred = createDeferred<{
+      depth: 'strong'
+      depthConfidence: 'high'
+      context: string
+      positioning: string
+    }>()
+    seed((id) => {
+      id.skills.groups[0]!.items = [
+        {
+          name: 'TypeScript',
+          tags: ['backend', 'typescript'],
+        },
+      ]
+      id.roles[0]!.bullets[0]!.technologies.push('TypeScript')
+    })
+    skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock.mockReturnValueOnce(deferred.promise)
+    render(<IdentityMapPage />)
+
+    const panel = screen.getByText('Skill depth').closest('.skills-enrichment-panel') as HTMLElement
+    fireEvent.click(within(panel).getByRole('button', { name: 'Deepen all skills' }))
+
+    await waitFor(() => {
+      expect(skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock).toHaveBeenCalledTimes(1)
+    })
+
+    await act(async () => {
+      const current = useIdentityStore.getState().currentIdentity!
+      useIdentityStore.getState().updateCurrentSkillGroups(
+        current.skills.groups.map((group) =>
+          group.id === 'platform'
+            ? {
+                ...group,
+                items: group.items.map((skill) =>
+                  skill.name === 'TypeScript'
+                    ? {
+                        ...skill,
+                        depth: 'expert',
+                        context: 'Manual TypeScript context.',
+                        enriched_by: 'user',
+                      }
+                    : skill,
+                ),
+              }
+            : group,
+        ),
+      )
+    })
+
+    await act(async () => {
+      deferred.resolve({
+        depth: 'strong',
+        depthConfidence: 'high',
+        context: 'Stale AI TypeScript context.',
+        positioning: 'Stale AI positioning.',
+      })
+      await deferred.promise
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('No skills deepened.')).toBeTruthy()
+    })
+    expect(useIdentityStore.getState().currentIdentity!.skills.groups[0]!.items[0]).toMatchObject({
+      depth: 'expert',
+      context: 'Manual TypeScript context.',
+      enriched_by: 'user',
+    })
+  })
+
+  it('continues when a queued skill is removed during bulk deepening', async () => {
+    const deferred = createDeferred<{
+      depth: 'strong'
+      depthConfidence: 'high'
+      context: string
+      positioning: string
+    }>()
+    seed((id) => {
+      id.skills.groups[0]!.items = [
+        {
+          name: 'TypeScript',
+          tags: ['backend', 'typescript'],
+        },
+        {
+          name: 'Ansible',
+          tags: ['automation', 'ansible'],
+        },
+      ]
+      id.roles[0]!.bullets[0]!.technologies.push('TypeScript', 'Ansible')
+    })
+    skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock.mockReturnValueOnce(deferred.promise)
+    render(<IdentityMapPage />)
+
+    const panel = screen.getByText('Skill depth').closest('.skills-enrichment-panel') as HTMLElement
+    fireEvent.click(within(panel).getByRole('button', { name: 'Deepen all skills' }))
+
+    await waitFor(() => {
+      expect(skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock).toHaveBeenCalledTimes(1)
+    })
+
+    await act(async () => {
+      const current = useIdentityStore.getState().currentIdentity!
+      useIdentityStore.getState().updateCurrentSkillGroups(
+        current.skills.groups.map((group) =>
+          group.id === 'platform'
+            ? {
+                ...group,
+                items: group.items.filter((skill) => skill.name !== 'Ansible'),
+              }
+            : group,
+        ),
+      )
+    })
+
+    await act(async () => {
+      deferred.resolve({
+        depth: 'strong',
+        depthConfidence: 'high',
+        context: 'Builds TypeScript services.',
+        positioning: 'Mention for backend UI roles.',
+      })
+      await deferred.promise
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('Deepened 1 skill(s); 1 failed.')).toBeTruthy()
+    })
+    expect(skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock).toHaveBeenCalledTimes(1)
+    expect(
+      useIdentityStore
+        .getState()
+        .currentIdentity!.skills.groups[0]!.items.find((skill) => skill.name === 'TypeScript'),
+    ).toMatchObject({
+      depth: 'strong',
+      enriched_by: 'llm-accepted',
+    })
+    expect(
+      useIdentityStore
+        .getState()
+        .currentIdentity!.skills.groups[0]!.items.find((skill) => skill.name === 'Ansible'),
+    ).toBeUndefined()
+  })
+
+  it('reports when a prop-triggered bulk skill request has no pending targets', async () => {
+    seed((id) => {
+      id.skills.groups[0]!.items = [
+        {
+          name: 'Kubernetes',
+          tags: ['platform', 'kubernetes'],
+          depth: 'strong',
+        },
+      ]
+    })
+    render(<SkillsBand bulkRequestId={1} />)
+
+    await waitFor(() => {
+      expect(screen.getByText('No pending skills to deepen.')).toBeTruthy()
+    })
+    expect(skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock).not.toHaveBeenCalled()
+  })
+
+  it('only keeps the untagged skill-chip warning on pending untagged skills', () => {
+    seed((id) => {
+      id.skills.groups[0]!.items = [
+        {
+          name: 'Pending untagged',
+          tags: [],
+        },
+        {
+          name: 'Complete untagged',
+          tags: [],
+          depth: 'strong',
+        },
+        {
+          name: 'Pending tagged',
+          tags: ['backend'],
+        },
+      ]
+    })
+    render(<SkillsBand />)
+
+    expect(screen.getByRole('button', { name: 'Pending untagged' }).className).toContain(
+      'untagged',
+    )
+    expect(screen.getByRole('button', { name: 'Pending untagged' }).className).toContain(
+      'pending',
+    )
+    expect(screen.getByRole('button', { name: 'Complete untagged' }).className).toContain(
+      'complete',
+    )
+    expect(screen.getByRole('button', { name: 'Complete untagged' }).className).not.toContain(
+      'untagged',
+    )
+    expect(screen.getByRole('button', { name: 'Pending tagged' }).className).toContain('pending')
+    expect(screen.getByRole('button', { name: 'Pending tagged' }).className).not.toContain(
+      'untagged',
+    )
+  })
+
+  it('keeps skill-depth review on the map when no skills are pending', async () => {
     seed((id) => {
       id.skills.groups[0]!.items = [
         {
@@ -985,7 +1493,19 @@ describe('Identity Map — match-rule add/remove', () => {
         name: /run action: review skill depth/i,
       }).textContent,
     ).toContain('Review skill depth')
-    fireEvent.click(within(actionDialog).getByRole('button', { name: 'Close' }))
+    fireEvent.click(
+      within(actionDialog).getByRole('button', {
+        name: /run action: review skill depth/i,
+      }),
+    )
+
+    await waitFor(() => {
+      expect(useIdentityStore.getState().mapSelection).toMatchObject({
+        type: 'skill-item',
+        groupId: 'platform',
+        itemId: 'Kubernetes',
+      })
+    })
 
     const panel = screen.getByText('Skill depth').closest('.skills-enrichment-panel') as HTMLElement
     expect(within(panel).getByRole('button', { name: 'Review skill depth' })).toBeTruthy()
@@ -1055,18 +1575,25 @@ describe('Identity Map — match-rule add/remove', () => {
     fireEvent.click(within(actionDialog).getByRole('button', { name: 'Close' }))
 
     const deepenButton = within(actionPanel).getByRole('button', {
-      name: /run next action: deepen skills \(1\)/i,
+      name: /run next action: deepen all skills \(1\)/i,
     })
-    expect(deepenButton.textContent).toContain('Deepen skills (1)')
+    expect(deepenButton.textContent).toContain('Deepen all skills (1)')
 
     fireEvent.click(deepenButton)
-    expect(screen.getByRole('heading', { name: 'TypeScript' })).toBeTruthy()
     await waitFor(() => {
-      expect(useIdentityStore.getState().mapSelection).toEqual({
-        type: 'skill-item',
-        groupId: 'platform',
-        itemId: 'TypeScript',
-      })
+      expect(document.querySelector('[data-layer="skills"]')?.className).toContain(
+        'action-highlight',
+      )
+    })
+    await waitFor(() => {
+      expect(skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          skill: expect.objectContaining({ name: 'TypeScript' }),
+        }),
+      )
+    })
+    await waitFor(() => {
+      expect(screen.getByText('Deepened 1 skill(s).')).toBeTruthy()
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
