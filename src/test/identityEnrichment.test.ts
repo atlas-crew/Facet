@@ -7,6 +7,7 @@ import {
   hasSkillEnrichmentData,
   listIdentityEnrichmentSkills,
   resolveIdentityEnrichmentSkill,
+  resolveIdentityMapSkillDraftSelection,
 } from '../utils/identityEnrichment'
 
 const createIdentity = () => {
@@ -99,6 +100,42 @@ describe('identityEnrichment helpers', () => {
       pending: 1,
       skipped: 1,
       complete: 1,
+    })
+  })
+
+  it('returns null for map skill draft selection when the identity has no skills', () => {
+    const identity = cloneIdentityFixture()
+    identity.skills.groups = []
+
+    expect(resolveIdentityMapSkillDraftSelection(identity)).toBeNull()
+  })
+
+  it('returns the next pending skill as a draft map selection', () => {
+    expect(resolveIdentityMapSkillDraftSelection(createIdentity())).toEqual({
+      type: 'skill-item',
+      groupId: 'backend',
+      itemId: 'TypeScript',
+      draft: true,
+    })
+  })
+
+  it('falls back to the first skill without drafting when every skill is complete', () => {
+    const identity = createIdentity()
+    identity.skills.groups[0]!.items[1] = {
+      ...identity.skills.groups[0]!.items[1]!,
+      depth: 'working',
+      skipped_at: undefined,
+    }
+    identity.skills.groups[1]!.items[0] = {
+      ...identity.skills.groups[1]!.items[0]!,
+      depth: 'strong',
+    }
+
+    expect(resolveIdentityMapSkillDraftSelection(identity)).toEqual({
+      type: 'skill-item',
+      groupId: 'platform',
+      itemId: 'Kubernetes',
+      draft: false,
     })
   })
 

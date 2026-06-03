@@ -1,4 +1,3 @@
-import { useNavigate } from '@tanstack/react-router'
 import type { ProfessionalIdentityV3 } from '../../identity/schema'
 import { useIdentityStore } from '../../store/identityStore'
 import type { MapSelection } from '../../types/identity'
@@ -18,7 +17,6 @@ import { SkillItemInspector } from './inspectorSlots/SkillItemInspector'
 import { ThesisInspector } from './inspectorSlots/ThesisInspector'
 
 interface InspectorHandlers {
-  goToSkillWizard: (groupId: string, skillName: string) => void
   selectRoleByCompany: (company: string) => void
 }
 
@@ -32,15 +30,8 @@ export function IdentityInspector() {
   const selection = useIdentityStore((s) => s.mapSelection)
   const identity = useIdentityStore((s) => s.currentIdentity)
   const setSelection = useIdentityStore((s) => s.setMapSelection)
-  const navigate = useNavigate()
 
   const handlers: InspectorHandlers = {
-    goToSkillWizard: (groupId, skillName) => {
-      void navigate({
-        to: '/identity/enrich/$groupId/$skillName',
-        params: { groupId, skillName },
-      })
-    },
     selectRoleByCompany: (company) => {
       const role = identity?.roles.find((r) => r.company === company)
       if (role) setSelection({ type: 'role', id: role.id })
@@ -107,7 +98,7 @@ function InspectorBody({
           identity={identity}
           groupId={selection.groupId}
           itemName={selection.itemId}
-          onGoToSkillWizard={() => handlers.goToSkillWizard(selection.groupId, selection.itemId)}
+          autoDraft={Boolean(selection.draft)}
         />
       )
     case 'pref-field':

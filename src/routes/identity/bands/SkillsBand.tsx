@@ -1,21 +1,19 @@
 import { useMemo } from 'react'
-import { useNavigate } from '@tanstack/react-router'
 import { useIdentityStore } from '../../../store/identityStore'
 import { skillsFillStrength } from '../../../utils/identityFillStrength'
 import {
   displaySkillGroupLabel,
   getIdentityEnrichmentProgress,
   isGenericSkillGroupLabel,
+  resolveIdentityMapSkillDraftSelection,
   skillNamesMatch,
 } from '../../../utils/identityEnrichment'
 import { IdentityBand } from '../IdentityBand'
-import { resolveIdentityEnrichmentNavTarget } from '../identityNavigation'
 
 export function SkillsBand() {
   const identity = useIdentityStore((s) => s.currentIdentity)
   const selection = useIdentityStore((s) => s.mapSelection)
   const setSelection = useIdentityStore((s) => s.setMapSelection)
-  const navigate = useNavigate()
   const fill = skillsFillStrength(identity)
   const groups = identity?.skills?.groups ?? []
   const enrichmentProgress = useMemo(
@@ -27,7 +25,10 @@ export function SkillsBand() {
   const isDuplicate = (name: string): boolean =>
     allItems.filter((entry) => skillNamesMatch(entry.item.name, name)).length > 1
   const handleOpenSkillEnrichment = () => {
-    void navigate(resolveIdentityEnrichmentNavTarget(identity))
+    if (!identity) return
+    const target = resolveIdentityMapSkillDraftSelection(identity)
+    if (!target) return
+    setSelection(target)
   }
 
   return (

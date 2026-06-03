@@ -1,9 +1,11 @@
 import type {
   ProfessionalIdentityV3,
   ProfessionalSkillDepth,
+  ProfessionalSkillDepthConfidence,
   ProfessionalSkillGroup,
   ProfessionalSkillItem,
 } from '../identity/schema'
+import { DEPTH_CONFIDENCE_VALUES } from '../identity/schema'
 import { callLlmProxy, extractJsonBlock, JsonExtractionError, isString } from './llmProxy'
 
 const SKILL_ENRICHMENT_MODEL = 'haiku'
@@ -13,6 +15,7 @@ export { JsonExtractionError }
 
 export interface SkillEnrichmentSuggestion {
   depth?: ProfessionalSkillDepth
+  depthConfidence?: ProfessionalSkillDepthConfidence
   context?: string
   positioning?: string
 }
@@ -211,6 +214,11 @@ const buildPrompt = (
 const normalizeSuggestion = (payload: unknown): SkillEnrichmentSuggestion => {
   const record = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {}
   const rawDepth = isString(record.depth) ? record.depth.trim().toLowerCase() : ''
+  const rawDepthConfidence = isString(record.depthConfidence)
+    ? record.depthConfidence.trim().toLowerCase()
+    : isString(record.depth_confidence)
+      ? record.depth_confidence.trim().toLowerCase()
+      : ''
   const hasContext = Object.hasOwn(record, 'context')
   const hasPositioning =
     Object.hasOwn(record, 'positioning') ||
@@ -223,9 +231,20 @@ const normalizeSuggestion = (payload: unknown): SkillEnrichmentSuggestion => {
   if (rawDepth && !AI_DEPTH_VALUES.has(rawDepth as ProfessionalSkillDepth)) {
     throw new Error(`Invalid AI-inferred skill depth in enrichment suggestion: "${rawDepth}".`)
   }
+  if (
+    rawDepthConfidence &&
+    !DEPTH_CONFIDENCE_VALUES.has(rawDepthConfidence as ProfessionalSkillDepthConfidence)
+  ) {
+    throw new Error(
+      `Invalid AI-inferred skill depth confidence in enrichment suggestion: "${rawDepthConfidence}".`,
+    )
+  }
 
   return {
     ...(rawDepth ? { depth: rawDepth as ProfessionalSkillDepth } : {}),
+    ...(rawDepth && rawDepthConfidence
+      ? { depthConfidence: rawDepthConfidence as ProfessionalSkillDepthConfidence }
+      : {}),
     ...(hasContext ? { context } : {}),
     ...(hasPositioning ? { positioning } : {}),
   }
@@ -250,12 +269,22 @@ Depth rules:
 - If bulletEvidence is empty, return null for depth.
 - If skill.preserveDepth is true, return null for depth and use skill.chosenDepth when writing context and positioning.
 - If you do infer depth, choose only from expert, strong, working, or basic.
+- Depth and positioning are separate: expert depth can still be a secondary or relevance-gated signal.
+- Treat "expert" as author-level or deep implementation capability, not just frequent usage.
+- Treat "strong" as real delivery fluency without claiming deep operator/admin/internals ownership.
+
+Depth confidence rules:
+- Return "high" when direct evidence clearly supports the chosen depth.
+- Return "medium" when evidence supports the skill but depth requires interpretation.
+- Return "low" when evidence is thin, indirect, old, or mostly comes from tags/group context.
+- If depth is null, depthConfidence must be null.
 
 Context rules:
 - Describe in one or two sentences how this person uses the skill in practice.
-- Focus on shape of engagement: domain, patterns, or what is unusual.
+- Focus on shape of engagement, evidence, limits, or depth claims.
+- Context is not a resume bullet. It can describe how the skill was used, or qualify depth.
 - Do not restate accomplishments from bullets.
-- Do not use first-person narrative.
+- Use concise first-person only when it captures the candidate's claim precisely.
 - If there is nothing distinctive to say beyond generic usage, return an empty string.
 
 Examples of good context:
@@ -266,8 +295,9 @@ Examples of good context:
 
 Positioning rules:
 - Write a short positioning directive for downstream generators.
-- One sentence, maximum 15 words.
+- One sentence, maximum 24 words.
 - Consider the chosen depth, context, and whether the skill is differentiating, expected, or ramping.
+- Say whether to lead with it, mention when relevant, treat as table stakes, or avoid over-leading.
 - If the skill does not need special positioning, return an empty string.
 
 Examples of good positioning:
@@ -282,6 +312,7 @@ Examples of good positioning:
 Response schema:
 {
   "depth": "expert|strong|working|basic" | null,
+  "depthConfidence": "high|medium|low" | null,
   "context": "string",
   "positioning": "string"
 }`
@@ -291,10 +322,10 @@ Response schema:
     systemPrompt,
     buildPrompt(identity, group, skill, draftDepth, preserveDepth),
     {
-    feature: 'identity.extract',
-    model: SKILL_ENRICHMENT_MODEL,
-    timeoutMs: 45000,
-    signal,
+      feature: 'identity.extract',
+      model: SKILL_ENRICHMENT_MODEL,
+      timeoutMs: 45000,
+      signal,
     },
   )
 

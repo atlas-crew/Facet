@@ -1174,6 +1174,38 @@ describe('professional identity schema', () => {
     expect(items[1].depthSource).toBe('inferred')
   })
 
+  it('preserves valid depthConfidence on skill items with depth', () => {
+    const enriched = clone(baseIdentityFixture)
+    enriched.skills.groups[0].items = [
+      {
+        name: 'Python',
+        depth: 'expert',
+        depthConfidence: 'high',
+        tags: ['backend'],
+      },
+    ]
+
+    const { data: parsed } = importProfessionalIdentity(enriched)
+
+    expect(parsed.skills.groups[0].items[0]?.depthConfidence).toBe('high')
+  })
+
+  it('drops depthConfidence on skill items without depth', () => {
+    const enriched = clone(baseIdentityFixture)
+    enriched.skills.groups[0].items = [
+      {
+        name: 'Python',
+        depthConfidence: 'high',
+        tags: ['backend'],
+      },
+    ]
+
+    const { data: parsed } = importProfessionalIdentity(enriched)
+
+    expect(parsed.skills.groups[0].items[0]?.depth).toBeUndefined()
+    expect(parsed.skills.groups[0].items[0]?.depthConfidence).toBeUndefined()
+  })
+
   it('rejects unknown depthSource values', () => {
     const invalid = clone(baseIdentityFixture)
     invalid.skills.groups[0].items = [
@@ -1181,5 +1213,19 @@ describe('professional identity schema', () => {
     ]
 
     expect(() => importProfessionalIdentity(invalid)).toThrow(/depthSource/i)
+  })
+
+  it('rejects unknown depthConfidence values', () => {
+    const invalid = clone(baseIdentityFixture)
+    invalid.skills.groups[0].items = [
+      {
+        name: 'Python',
+        depth: 'expert',
+        depthConfidence: 'certain',
+        tags: ['backend'],
+      } as never,
+    ]
+
+    expect(() => importProfessionalIdentity(invalid)).toThrow(/depthConfidence/i)
   })
 })

@@ -18,6 +18,8 @@ export type ProfessionalSkillEnrichedBy = 'user' | 'user-edited-llm' | 'llm-acce
 
 export type ProfessionalSkillDepthSource = 'inferred' | 'corrected'
 
+export type ProfessionalSkillDepthConfidence = 'high' | 'medium' | 'low'
+
 export type ProfessionalAwarenessSeverity = 'high' | 'medium' | 'low'
 
 export type ProfessionalMatchingWeight = 'high' | 'medium' | 'low'
@@ -168,6 +170,7 @@ export interface ProfessionalSkillItem {
    * overwrite `depth`. When `'inferred'` or absent, inference/heuristics may replace the value.
    */
   depthSource?: ProfessionalSkillDepthSource
+  depthConfidence?: ProfessionalSkillDepthConfidence
   context?: string
   context_stale?: boolean
   positioning?: string
@@ -317,6 +320,11 @@ const ENRICHED_BY_VALUES = new Set<ProfessionalSkillEnrichedBy>([
   'llm-accepted',
 ])
 const DEPTH_SOURCE_VALUES = new Set<ProfessionalSkillDepthSource>(['inferred', 'corrected'])
+export const DEPTH_CONFIDENCE_VALUES = new Set<ProfessionalSkillDepthConfidence>([
+  'high',
+  'medium',
+  'low',
+])
 export const MATCHING_WEIGHT_VALUES = new Set<ProfessionalMatchingWeight>(['high', 'medium', 'low'])
 export const MATCHING_SEVERITY_VALUES = new Set<ProfessionalMatchingSeverity>([
   'hard',
@@ -862,12 +870,23 @@ const parseSkillItem = (
           // future regeneration flows can re-derive; corrections must be marked explicitly.
           ('inferred' as ProfessionalSkillDepthSource)
         : undefined
+  const depthConfidenceValue =
+    item.depthConfidence !== undefined
+      ? assertOptionalEnumString(
+          item.depthConfidence,
+          DEPTH_CONFIDENCE_VALUES,
+          `${context}.depthConfidence`,
+        )
+      : undefined
 
   return {
     name: assertString(item.name, `${context}.name`),
     ...(item.depth !== undefined ? { depth: depthValue } : {}),
     ...(item.depthSource !== undefined || depthSourceValue !== undefined
       ? { depthSource: depthSourceValue }
+      : {}),
+    ...(item.depthConfidence !== undefined && depthValue !== undefined
+      ? { depthConfidence: depthConfidenceValue }
       : {}),
     ...(item.context !== undefined
       ? { context: assertOptionalString(item.context, `${context}.context`) }

@@ -1866,6 +1866,51 @@
   min-height: 88px;
   font-family: var(--font-sans);
 }
+.skill-draft-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: var(--space-4) 0;
+  padding: var(--space-3);
+  border: 1px solid var(--border-default);
+  border-left: 3px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--bg-surface);
+}
+.skill-draft-card.confidence-high {
+  border-left-color: var(--success);
+}
+.skill-draft-card.confidence-medium {
+  border-left-color: var(--accent-primary);
+}
+.skill-draft-card.confidence-low,
+.skill-draft-card.confidence-unknown {
+  border-left-color: var(--warning);
+}
+.skill-draft-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+.skill-draft-confidence {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.inspector-status-message,
+.inspector-error-message {
+  margin: var(--space-3) 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.inspector-status-message {
+  color: var(--text-secondary);
+}
+.inspector-error-message {
+  color: var(--error);
+}
 .inspector-meta-row:last-child {
   border-bottom: none;
 }

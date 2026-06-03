@@ -19,7 +19,10 @@ import {
   validateReturnUrl,
   getReturnOriginName,
 } from '../../utils/mapSelectionUrl'
-import { getIdentityEnrichmentProgress } from '../../utils/identityEnrichment'
+import {
+  getIdentityEnrichmentProgress,
+  resolveIdentityMapSkillDraftSelection,
+} from '../../utils/identityEnrichment'
 import { IdentityInspector } from './IdentityInspector'
 import type { BandLayer } from './IdentityBand'
 import { getIdentityBandSelector } from './identityBandLayers'
@@ -30,7 +33,6 @@ import { RolesBand } from './bands/RolesBand'
 import { SkillsBand } from './bands/SkillsBand'
 import { PreferencesBand } from './bands/PreferencesBand'
 import { SearchStrategyBand } from './bands/SearchStrategyBand'
-import { resolveIdentityEnrichmentNavTarget } from './identityNavigation'
 import './identityMap.css'
 
 type IdentityActionId =
@@ -454,7 +456,10 @@ export function IdentityMapPage() {
 
   const goToSkillEnrichment = () => {
     if (!identity) return
-    void navigate(resolveIdentityEnrichmentNavTarget(identity))
+    const target = resolveIdentityMapSkillDraftSelection(identity)
+    if (!target) return
+    setMapSelection(target)
+    scrollToLayer('skills', { highlight: true, focus: true })
   }
 
   useEffect(() => {

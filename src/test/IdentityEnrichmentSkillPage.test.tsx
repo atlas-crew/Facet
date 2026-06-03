@@ -74,6 +74,7 @@ describe('IdentityEnrichmentSkillPage', () => {
     skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock.mockReset()
     skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock.mockResolvedValue({
       depth: 'strong',
+      depthConfidence: 'high',
       context: 'Used for customer-hosted and internal platform delivery.',
       positioning: 'Platform modernization and Kubernetes operations.',
     })
@@ -482,6 +483,7 @@ describe('IdentityEnrichmentSkillPage', () => {
     })
     expect(useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items[0]).toMatchObject({
       depth: 'strong',
+      depthConfidence: 'high',
       context: 'Used for customer-hosted and internal platform delivery.',
       positioning: 'Platform modernization and Kubernetes operations.',
       enriched_by: 'llm-accepted',
@@ -511,6 +513,88 @@ describe('IdentityEnrichmentSkillPage', () => {
       enriched_by: 'user-edited-llm',
       context: 'Edited after AI suggestion.',
     })
+  })
+
+  it('preserves existing confidence when saving manual text edits with unchanged depth', async () => {
+    const { IdentityEnrichmentSkillPage } =
+      await import('../routes/identity/IdentityEnrichmentSkillPage')
+    const identity = createIdentity()
+    identity.skills.groups[0]!.items[0]!.depthConfidence = 'high'
+    useIdentityStore.setState({ currentIdentity: identity })
+    render(<IdentityEnrichmentSkillPage />)
+
+    fireEvent.change(screen.getByLabelText('Context'), {
+      target: { value: 'Edited manually without changing depth.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save and exit' }))
+
+    expect(useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items[0]).toMatchObject({
+      depth: 'strong',
+      depthConfidence: 'high',
+      context: 'Edited manually without changing depth.',
+      enriched_by: 'user',
+    })
+  })
+
+  it('preserves existing confidence when AI refresh preserves the current depth', async () => {
+    const { IdentityEnrichmentSkillPage } =
+      await import('../routes/identity/IdentityEnrichmentSkillPage')
+    const identity = createIdentity()
+    identity.skills.groups[0]!.items[0]!.depthConfidence = 'high'
+    useIdentityStore.setState({ currentIdentity: identity })
+    skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock.mockResolvedValueOnce({
+      context: 'Refreshed context with the same depth.',
+      positioning: 'Refreshed positioning for the same depth.',
+    })
+    render(<IdentityEnrichmentSkillPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Draft with AI' }))
+
+    await waitFor(() => {
+      expect(skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          draftDepth: 'strong',
+          preserveDepth: true,
+        }),
+      )
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save and exit' }))
+
+    expect(useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items[0]).toMatchObject({
+      depth: 'strong',
+      depthConfidence: 'high',
+      context: 'Refreshed context with the same depth.',
+      positioning: 'Refreshed positioning for the same depth.',
+      enriched_by: 'user-edited-llm',
+    })
+  })
+
+  it('drops AI depth confidence when the suggested depth is changed before save', async () => {
+    const { IdentityEnrichmentSkillPage } =
+      await import('../routes/identity/IdentityEnrichmentSkillPage')
+    useIdentityStore.setState({
+      currentIdentity: createIdentity(),
+    })
+    render(<IdentityEnrichmentSkillPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Draft with AI' }))
+
+    await waitFor(() => {
+      expect(skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock).toHaveBeenCalledTimes(1)
+    })
+    fireEvent.change(screen.getByRole('combobox', { name: 'Depth' }), {
+      target: { value: 'expert' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save and exit' }))
+
+    const skill = useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items[0]
+    expect(skill).toMatchObject({
+      depth: 'expert',
+      context: 'Used for customer-hosted and internal platform delivery.',
+      positioning: 'Platform modernization and Kubernetes operations.',
+      enriched_by: 'user-edited-llm',
+    })
+    expect(skill?.depthConfidence).toBeUndefined()
   })
 
   it('marks context and positioning stale when depth changes and clears stale on manual edit', async () => {

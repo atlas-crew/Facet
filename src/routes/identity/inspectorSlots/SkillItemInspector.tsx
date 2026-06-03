@@ -1,16 +1,24 @@
-import { type FormEvent, useId, useRef, useState } from 'react'
+import { type FormEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type {
   ProfessionalIdentityV3,
   ProfessionalSkillDepth,
+  ProfessionalSkillDepthConfidence,
   ProfessionalSkillItem,
 } from '../../../identity/schema'
 import { useIdentityStore } from '../../../store/identityStore'
+import { facetClientEnv } from '../../../utils/facetEnv'
+import { sanitizeEndpointUrl } from '../../../utils/idUtils'
 import {
   applySkillDepthEdit,
   hasSkillEnrichmentData,
   skillNamesMatch,
   updateIdentityEnrichmentSkill,
 } from '../../../utils/identityEnrichment'
+import {
+  type SkillEnrichmentSuggestion,
+  generateSkillEnrichmentSuggestion,
+  hasSkillEnrichmentBulletEvidence,
+} from '../../../utils/skillEnrichment'
 import {
   Actions,
   MetaRows,
@@ -22,6 +30,7 @@ import {
 } from './slotPrimitives'
 
 type EditableSkillDepth = ProfessionalSkillDepth | ''
+type EditableDepthConfidence = ProfessionalSkillDepthConfidence | ''
 
 const DEPTH_OPTIONS: Array<{ value: ProfessionalSkillDepth; label: string }> = [
   { value: 'expert', label: 'Expert' },
@@ -34,16 +43,32 @@ const DEPTH_OPTIONS: Array<{ value: ProfessionalSkillDepth; label: string }> = [
   { value: 'avoid', label: 'Avoid' },
 ]
 
+const computeStaleFlag = ({
+  text,
+  textChanged,
+  depthChanged,
+  wasStale,
+}: {
+  text: string
+  textChanged: boolean
+  depthChanged: boolean
+  wasStale?: boolean
+}): boolean | undefined => {
+  if (!text) return undefined
+  if (textChanged) return undefined
+  return depthChanged || wasStale ? true : undefined
+}
+
 export function SkillItemInspector({
   identity,
   groupId,
   itemName,
-  onGoToSkillWizard,
+  autoDraft,
 }: {
   identity: ProfessionalIdentityV3
   groupId: string
   itemName: string
-  onGoToSkillWizard: () => void
+  autoDraft?: boolean
 }) {
   const updateGroups = useIdentityStore((s) => s.updateCurrentSkillGroups)
   const removeSkill = useIdentityStore((s) => s.removeSkillFromCurrentIdentity)
@@ -55,26 +80,78 @@ export function SkillItemInspector({
   const [editing, setEditing] = useState(false)
   const [removePending, setRemovePending] = useState(false)
   const [draftDepth, setDraftDepth] = useState<EditableSkillDepth>('')
+  const [draftConfidence, setDraftConfidence] = useState<EditableDepthConfidence>('')
+  const [draftContext, setDraftContext] = useState('')
+  const [draftPositioning, setDraftPositioning] = useState('')
   const [draftTags, setDraftTags] = useState('')
+  const [suggestion, setSuggestion] = useState<SkillEnrichmentSuggestion | null>(null)
+  const [suggestionNotice, setSuggestionNotice] = useState<string | null>(null)
+  const [suggestionError, setSuggestionError] = useState<string | null>(null)
+  const [isGenerating, setIsGenerating] = useState(false)
   const confirmCopyId = useId()
   const confirmRowId = useId()
   const removeButtonRef = useRef<HTMLButtonElement>(null)
+  const suggestAbortRef = useRef<AbortController | null>(null)
+  const autoDraftKeyRef = useRef<string | null>(null)
+  const aiEndpoint = useMemo(() => sanitizeEndpointUrl(facetClientEnv.anthropicProxyUrl), [])
 
-  if (!group || !item) return <NotFound label="skill" />
+  const hasBulletEvidence =
+    group && item ? hasSkillEnrichmentBulletEvidence(identity, group, item) : false
+  const confidence = item?.depthConfidence
+  const confidenceLabel = confidence ? `${confidence} confidence` : '—'
 
   const startEditing = () => {
+    if (!item) return
     setRemovePending(false)
     setDraftDepth(item.depth ?? '')
+    setDraftConfidence(item.depthConfidence ?? '')
+    setDraftContext(item.context ?? '')
+    setDraftPositioning(item.positioning ?? '')
     setDraftTags(tagsToInput(item.tags))
     setEditing(true)
   }
 
   const handleSave = () => {
+    if (!item) return
     const editedAt = new Date().toISOString()
-    const nextIdentity = updateIdentityEnrichmentSkill(identity, groupId, itemName, (skill) => ({
-      ...applySkillDepthEdit(skill, draftDepth, editedAt),
-      tags: inputToTags(draftTags),
-    }))
+    const nextContext = draftContext.trim()
+    const nextPositioning = draftPositioning.trim()
+    const nextIdentity = updateIdentityEnrichmentSkill(identity, groupId, itemName, (skill) => {
+      const depthChanged = draftDepth !== (skill.depth ?? '')
+      const contextChanged = nextContext !== (skill.context ?? '')
+      const positioningChanged = nextPositioning !== (skill.positioning ?? '')
+      const enrichmentChanged =
+        depthChanged ||
+        draftConfidence !== (skill.depthConfidence ?? '') ||
+        contextChanged ||
+        positioningChanged
+      return {
+        ...applySkillDepthEdit(skill, draftDepth, editedAt),
+        depthConfidence: draftDepth ? draftConfidence || undefined : undefined,
+        context: nextContext || undefined,
+        context_stale: computeStaleFlag({
+          text: nextContext,
+          textChanged: contextChanged,
+          depthChanged,
+          wasStale: skill.context_stale,
+        }),
+        positioning: nextPositioning || undefined,
+        positioning_stale: computeStaleFlag({
+          text: nextPositioning,
+          textChanged: positioningChanged,
+          depthChanged,
+          wasStale: skill.positioning_stale,
+        }),
+        ...(enrichmentChanged
+          ? {
+              enriched_at: editedAt,
+              enriched_by: 'user' as const,
+              skipped_at: undefined,
+            }
+          : {}),
+        tags: inputToTags(draftTags),
+      }
+    })
     updateGroups(nextIdentity.skills.groups)
     setEditing(false)
   }
@@ -85,6 +162,7 @@ export function SkillItemInspector({
   }
 
   const handleRemove = () => {
+    if (!item) return
     removeSkill(groupId, item.name)
     setSelection({ type: 'skill-group', id: groupId })
   }
@@ -93,6 +171,132 @@ export function SkillItemInspector({
     setRemovePending(false)
     removeButtonRef.current?.focus()
   }
+
+  const handleGenerateDraft = useCallback(async () => {
+    if (!group || !item) return
+    if (isGenerating) return
+    if (!hasBulletEvidence && !item.depth) {
+      setSuggestionError('No bullet evidence matched this skill. Set the depth manually.')
+      setSuggestionNotice(null)
+      return
+    }
+    if (!aiEndpoint) {
+      setSuggestionError('AI suggestions are disabled. Configure VITE_ANTHROPIC_PROXY_URL.')
+      setSuggestionNotice(null)
+      return
+    }
+
+    suggestAbortRef.current?.abort()
+    const controller = new AbortController()
+    suggestAbortRef.current = controller
+
+    try {
+      setIsGenerating(true)
+      setSuggestionError(null)
+      setSuggestionNotice(null)
+      const preserveCurrentDepth = Boolean(item.depth)
+      const nextSuggestion = await generateSkillEnrichmentSuggestion({
+        endpoint: aiEndpoint,
+        identity,
+        group,
+        skill: item,
+        draftDepth: item.depth,
+        preserveDepth: preserveCurrentDepth,
+        signal: controller.signal,
+      })
+
+      if (controller.signal.aborted) return
+
+      const normalizedSuggestion = {
+        ...nextSuggestion,
+        ...(preserveCurrentDepth
+          ? {
+              depth: item.depth,
+              depthConfidence: nextSuggestion.depthConfidence ?? item.depthConfidence,
+            }
+          : {}),
+        context: nextSuggestion.context?.trim() ? nextSuggestion.context : (item.context ?? ''),
+        positioning: nextSuggestion.positioning?.trim()
+          ? nextSuggestion.positioning
+          : (item.positioning ?? ''),
+      }
+      setSuggestion(normalizedSuggestion)
+      setSuggestionNotice('Draft ready. Review the depth, context, and positioning before applying.')
+    } catch (caughtError) {
+      if (controller.signal.aborted) return
+      setSuggestionError(
+        caughtError instanceof Error ? caughtError.message : 'Failed to generate skill draft.',
+      )
+      setSuggestionNotice(null)
+    } finally {
+      if (suggestAbortRef.current === controller) {
+        suggestAbortRef.current = null
+        setIsGenerating(false)
+      }
+    }
+  }, [aiEndpoint, group, hasBulletEvidence, identity, isGenerating, item])
+
+  const handleApplyDraft = () => {
+    if (!item) return
+    if (!suggestion?.depth) {
+      setSuggestionError('The draft did not include a depth. Set this skill manually.')
+      setSuggestionNotice(null)
+      return
+    }
+
+    const editedAt = new Date().toISOString()
+    const nextContext = suggestion.context?.trim() ?? ''
+    const nextPositioning = suggestion.positioning?.trim() ?? ''
+    const nextIdentity = updateIdentityEnrichmentSkill(identity, groupId, itemName, (skill) => ({
+      ...skill,
+      depth: suggestion.depth,
+      depthSource: 'corrected',
+      depthConfidence:
+        suggestion.depthConfidence ??
+        (suggestion.depth === skill.depth ? skill.depthConfidence : undefined),
+      context: nextContext || undefined,
+      context_stale: undefined,
+      positioning: nextPositioning || undefined,
+      positioning_stale: undefined,
+      enriched_at: editedAt,
+      enriched_by: 'llm-accepted',
+      skipped_at: undefined,
+    }))
+    updateGroups(nextIdentity.skills.groups)
+    setSuggestion(null)
+    setSuggestionNotice('Applied skill draft.')
+    setSuggestionError(null)
+  }
+
+  useEffect(() => {
+    return () => {
+      suggestAbortRef.current?.abort()
+    }
+  }, [])
+
+  useEffect(() => {
+    suggestAbortRef.current?.abort()
+    setSuggestion(null)
+    setSuggestionNotice(null)
+    setSuggestionError(null)
+    setEditing(false)
+    setRemovePending(false)
+  }, [groupId, itemName])
+
+  useEffect(() => {
+    if (!autoDraft) {
+      autoDraftKeyRef.current = null
+      return
+    }
+    if (!group || !item) return
+    const key = `${groupId}:${itemName}`
+    if (autoDraftKeyRef.current === key) return
+    autoDraftKeyRef.current = key
+    setSelection({ type: 'skill-item', groupId, itemId: itemName })
+    void handleGenerateDraft()
+  }, [autoDraft, group, groupId, handleGenerateDraft, item, itemName, setSelection])
+
+  if (!group || !item) return <NotFound label="skill" />
 
   if (editing) {
     return (
@@ -103,7 +307,10 @@ export function SkillItemInspector({
             <select
               className="inspector-input"
               value={draftDepth}
-              onChange={(e) => setDraftDepth(e.target.value as EditableSkillDepth)}
+              onChange={(e) => {
+                setDraftDepth(e.target.value as EditableSkillDepth)
+                setDraftConfidence('')
+              }}
               autoFocus
             >
               <option value="">Not set</option>
@@ -113,6 +320,36 @@ export function SkillItemInspector({
                 </option>
               ))}
             </select>
+          </label>
+          <label className="inspector-field">
+            <span className="inspector-field-label label-tracked">Depth confidence</span>
+            <select
+              className="inspector-input"
+              value={draftConfidence}
+              onChange={(e) => setDraftConfidence(e.target.value as EditableDepthConfidence)}
+              disabled={!draftDepth}
+            >
+              <option value="">Not set</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+          </label>
+          <label className="inspector-field">
+            <span className="inspector-field-label label-tracked">Context</span>
+            <textarea
+              className="inspector-textarea"
+              value={draftContext}
+              onChange={(e) => setDraftContext(e.target.value)}
+            />
+          </label>
+          <label className="inspector-field">
+            <span className="inspector-field-label label-tracked">Positioning</span>
+            <textarea
+              className="inspector-textarea"
+              value={draftPositioning}
+              onChange={(e) => setDraftPositioning(e.target.value)}
+            />
           </label>
           <label className="inspector-field">
             <span className="inspector-field-label label-tracked">Tags (comma-separated)</span>
@@ -141,6 +378,7 @@ export function SkillItemInspector({
       <MetaRows
         rows={[
           ['Depth', item.depth ?? '—'],
+          ['Confidence', confidenceLabel],
           ['Context', item.context?.trim() || '—'],
           ['Positioning', item.positioning?.trim() || '—'],
           ['Tags', item.tags?.join(' · ') || '—'],
@@ -149,15 +387,72 @@ export function SkillItemInspector({
       {!item.depth ? (
         <Prompt
           label="Cleanup"
-          text="Depth is missing. Context and positioning can still be refined in the wizard."
+          text="Depth is missing. Draft depth, context, and positioning here before using this skill downstream."
         />
       ) : null}
+      {!hasBulletEvidence ? (
+        <Prompt
+          label="Review"
+          text="No direct bullet evidence matched this skill. Confirm the depth before relying on it."
+        />
+      ) : null}
+      {confidence === 'low' ? (
+        <Prompt
+          label="Confirm"
+          text="The depth inference is low confidence. Review it before treating this as a strong signal."
+        />
+      ) : null}
+      {suggestion ? (
+        <div className={`skill-draft-card confidence-${suggestion.depthConfidence ?? 'unknown'}`}>
+          <div className="skill-draft-card-head">
+            <span className="label-tracked">AI draft</span>
+            <span className="skill-draft-confidence label-tracked">
+              {suggestion.depthConfidence ? `${suggestion.depthConfidence} confidence` : 'no confidence'}
+            </span>
+          </div>
+          <MetaRows
+            rows={[
+              ['Depth', suggestion.depth ?? '—'],
+              ['Context', suggestion.context?.trim() || '—'],
+              ['Positioning', suggestion.positioning?.trim() || '—'],
+            ]}
+          />
+          <Actions>
+            <button type="button" className="inspector-btn primary" onClick={handleApplyDraft}>
+              Apply draft
+            </button>
+            <button type="button" className="inspector-btn" onClick={() => setSuggestion(null)}>
+              Discard
+            </button>
+          </Actions>
+        </div>
+      ) : null}
+      {suggestionNotice ? (
+        <p className="inspector-status-message" role="status">
+          {suggestionNotice}
+        </p>
+      ) : null}
+      {suggestionError ? (
+        <p className="inspector-error-message" role="alert">
+          {suggestionError}
+        </p>
+      ) : null}
       <Actions>
-        <button type="button" className="inspector-btn primary" onClick={startEditing}>
-          Edit skill
+        <button
+          type="button"
+          className={item.depth ? 'inspector-btn' : 'inspector-btn primary'}
+          onClick={() => void handleGenerateDraft()}
+          disabled={isGenerating}
+          aria-busy={isGenerating || undefined}
+        >
+          {isGenerating ? 'Drafting...' : item.depth ? 'Re-draft skill' : 'Draft skill'}
         </button>
-        <button type="button" className="inspector-btn" onClick={onGoToSkillWizard}>
-          Open Skill Wizard
+        <button
+          type="button"
+          className={item.depth ? 'inspector-btn primary' : 'inspector-btn'}
+          onClick={startEditing}
+        >
+          Edit skill
         </button>
         <button
           ref={removeButtonRef}

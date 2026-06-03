@@ -66,8 +66,10 @@ const toSuggestion = (
   depth: EditableSkillDepth,
   context: string,
   positioning: string,
+  depthConfidence?: SkillEnrichmentSuggestion['depthConfidence'],
 ): SkillEnrichmentSuggestion => ({
   ...(depth ? { depth } : {}),
+  ...(depthConfidence ? { depthConfidence } : {}),
   context: context.trim(),
   positioning: positioning.trim(),
 })
@@ -79,6 +81,7 @@ const areSuggestionsEqual = (
   Boolean(
     left &&
       (left.depth ?? '') === (right.depth ?? '') &&
+      (left.depthConfidence ?? '') === (right.depthConfidence ?? '') &&
       left.context === right.context &&
       left.positioning === right.positioning,
   )
@@ -345,6 +348,7 @@ export function IdentityEnrichmentSkillPage() {
         preserveCurrentDepth ? depth : suggestion.depth || '',
         nextContext,
         nextPositioning,
+        suggestion.depthConfidence,
       )
       if (!preserveCurrentDepth && suggestion.depth) {
         setDepth(suggestion.depth)
@@ -379,7 +383,15 @@ export function IdentityEnrichmentSkillPage() {
 
     const nextContext = context.trim()
     const nextPositioning = positioning.trim()
-    const suggestion = toSuggestion(depth, nextContext, nextPositioning)
+    const existingDepthConfidence =
+      resolved.skill.depth && depth === resolved.skill.depth
+        ? resolved.skill.depthConfidence
+        : undefined
+    const savedDepthConfidence =
+      lastSuggestion && depth === (lastSuggestion.depth ?? '')
+        ? (lastSuggestion.depthConfidence ?? existingDepthConfidence)
+        : existingDepthConfidence
+    const suggestion = toSuggestion(depth, nextContext, nextPositioning, savedDepthConfidence)
     const enrichedBy = !lastSuggestion
       ? 'user'
       : areSuggestionsEqual(lastSuggestion, suggestion)
@@ -391,6 +403,7 @@ export function IdentityEnrichmentSkillPage() {
       skillName,
       {
         depth,
+        depthConfidence: savedDepthConfidence,
         context: nextContext,
         positioning: nextPositioning,
         contextStale,

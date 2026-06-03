@@ -4,6 +4,7 @@ import type {
   ProfessionalSkillGroup,
   ProfessionalSkillItem,
 } from '../identity/schema'
+import type { MapSelection } from '../types/identity'
 import type {
   IdentityEnrichmentProgress,
   IdentityEnrichmentSkillRef,
@@ -238,6 +239,28 @@ export const findNextPendingIdentitySkill = (
   }
 
   return pending[0] ?? null
+}
+
+export const resolveIdentityMapSkillDraftSelection = (
+  identity: ProfessionalIdentityV3,
+): MapSelection | null => {
+  const pendingSkill = findNextPendingIdentitySkill(identity)
+  const target =
+    pendingSkill ??
+    identity.skills.groups.flatMap((group) =>
+      group.items.map((item) => ({ groupId: group.id, skillName: item.name })),
+    )[0]
+
+  if (!target) {
+    return null
+  }
+
+  return {
+    type: 'skill-item',
+    groupId: target.groupId,
+    itemId: target.skillName,
+    draft: Boolean(pendingSkill),
+  }
 }
 
 export const findAdjacentIdentityEnrichmentSkills = (

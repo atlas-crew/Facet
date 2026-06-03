@@ -295,7 +295,7 @@ export type MapSelection =
   | { type: 'bullet'; roleId: string; bulletId: string }
   | { type: 'project'; id: string }
   | { type: 'skill-group'; id: string }
-  | { type: 'skill-item'; groupId: string; itemId: string }
+  | { type: 'skill-item'; groupId: string; itemId: string; draft?: boolean }
   | { type: 'pref-field'; field: PreferenceFieldKey }
   | { type: 'match-rule'; kind: 'prioritize' | 'avoid'; id: string; justAdded?: boolean }
   | { type: 'search-vector'; id: string; justAdded?: boolean }

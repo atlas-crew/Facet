@@ -17,6 +17,7 @@ import {
   type ProfessionalSkillDepth,
   type ProfessionalSkillEnrichedBy,
   type ProfessionalSkillGroup,
+  type ProfessionalSkillItem,
 } from '../identity/schema'
 import type { ProfessionalIdentityThesisInference } from '../utils/identityParametersGeneration'
 import type {
@@ -162,6 +163,7 @@ interface IdentityState {
       depth: ProfessionalSkillDepth
       context: string
       positioning: string
+      depthConfidence?: ProfessionalSkillItem['depthConfidence']
       contextStale?: boolean
       positioningStale?: boolean
     },
@@ -1618,6 +1620,7 @@ export const useIdentityStore = create<IdentityState>()(
               return {
                 ...skill,
                 depth: updates.depth,
+                depthConfidence: updates.depthConfidence,
                 // Any save through this path is a user-affirmed depth. Mark as corrected so
                 // downstream regeneration (resume re-scan, identity re-extract) preserves it.
                 depthSource: 'corrected',

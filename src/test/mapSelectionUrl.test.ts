@@ -51,6 +51,18 @@ describe('serializeMapSelection / parseMapSelection round-trip', () => {
     expect(parsed).not.toHaveProperty('justAdded')
   })
 
+  it('strips draft? on serialize (it is a one-shot AI action marker, not a stable identity reference)', () => {
+    const withDraft: MapSelection = {
+      type: 'skill-item',
+      groupId: 'platform',
+      itemId: 'TypeScript',
+      draft: true,
+    }
+    const parsed = parseMapSelection(serializeMapSelection(withDraft))
+    expect(parsed).toEqual({ type: 'skill-item', groupId: 'platform', itemId: 'TypeScript' })
+    expect(parsed).not.toHaveProperty('draft')
+  })
+
   it('preserves ids that contain colons via percent-encoding', () => {
     const sel: MapSelection = { type: 'arc-stop', id: 'Some:Company:With:Colons' }
     const serialized = serializeMapSelection(sel)
