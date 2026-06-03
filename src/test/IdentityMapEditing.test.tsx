@@ -3900,6 +3900,96 @@ describe('Identity Map — skill inline editing', () => {
     expect(skill.depthConfidence).toBeUndefined()
   })
 
+  it('marks manual edits after an accepted AI draft as user-edited LLM', () => {
+    seed((id) => {
+      const skill = id.skills.groups[0]!.items[0]!
+      skill.enriched_by = 'llm-accepted'
+      skill.context = 'AI accepted context.'
+    })
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Kubernetes' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit skill' }))
+    fireEvent.change(screen.getByLabelText('Context'), {
+      target: { value: 'User refined the AI accepted context.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save skill' }))
+
+    expect(useIdentityStore.getState().currentIdentity!.skills.groups[0]!.items[0]).toMatchObject({
+      context: 'User refined the AI accepted context.',
+      enriched_by: 'user-edited-llm',
+    })
+  })
+
+  it('preserves skipped status during tag-only inline edits', () => {
+    seed((id) => {
+      const skill = id.skills.groups[0]!.items[0]!
+      skill.depth = undefined
+      skill.context = undefined
+      skill.positioning = undefined
+      skill.skipped_at = '2026-04-08T00:00:00.000Z'
+    })
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Kubernetes' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit skill' }))
+    fireEvent.change(screen.getByLabelText('Tags (comma-separated)'), {
+      target: { value: 'platform, orchestration' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save skill' }))
+
+    expect(useIdentityStore.getState().currentIdentity!.skills.groups[0]!.items[0]).toMatchObject({
+      tags: ['platform', 'orchestration'],
+      skipped_at: '2026-04-08T00:00:00.000Z',
+    })
+  })
+
+  it('edits skill positioning from a preset dropdown inline', () => {
+    seed((id) => {
+      id.skills.groups[0]!.items[0]!.positioning = undefined
+    })
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Kubernetes' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit skill' }))
+    expect(screen.queryByLabelText('Custom positioning')).toBeNull()
+
+    fireEvent.change(screen.getByLabelText('Positioning'), {
+      target: { value: 'Strong match signal. Lead with it.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save skill' }))
+
+    expect(useIdentityStore.getState().currentIdentity!.skills.groups[0]!.items[0]).toMatchObject({
+      positioning: 'Strong match signal. Lead with it.',
+      positioning_stale: undefined,
+      enriched_by: 'user',
+    })
+  })
+
+  it('edits custom skill positioning inline from the dropdown custom option', () => {
+    seed((id) => {
+      id.skills.groups[0]!.items[0]!.positioning = 'Lead with platform modernization work.'
+    })
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Kubernetes' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit skill' }))
+    expect((screen.getByLabelText('Positioning') as HTMLSelectElement).value).toBe('__custom__')
+    expect((screen.getByLabelText('Custom positioning') as HTMLTextAreaElement).value).toBe(
+      'Lead with platform modernization work.',
+    )
+
+    fireEvent.change(screen.getByLabelText('Custom positioning'), {
+      target: { value: 'Mention Kubernetes only when embedded delivery matters.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save skill' }))
+
+    expect(useIdentityStore.getState().currentIdentity!.skills.groups[0]!.items[0]).toMatchObject({
+      positioning: 'Mention Kubernetes only when embedded delivery matters.',
+      enriched_by: 'user',
+    })
+  })
+
   it('clears stale flags when depth and context are edited together', () => {
     seed()
     render(<IdentityMapPage />)
@@ -3917,6 +4007,30 @@ describe('Identity Map — skill inline editing', () => {
     expect(skill.context).toBe('Updated Kubernetes context for embedded deployments.')
     expect(skill.context_stale).toBeUndefined()
     expect(skill.positioning_stale).toBe(true)
+  })
+
+  it('clears stale flags when inline text is removed during a depth edit', () => {
+    seed((id) => {
+      const skill = id.skills.groups[0]!.items[0]!
+      skill.context = 'Existing context.'
+      skill.context_stale = true
+      skill.positioning = 'Existing positioning.'
+      skill.positioning_stale = true
+    })
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Kubernetes' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit skill' }))
+    fireEvent.change(screen.getByLabelText('Depth'), { target: { value: 'expert' } })
+    fireEvent.change(screen.getByLabelText('Context'), { target: { value: '' } })
+    fireEvent.change(screen.getByLabelText('Positioning'), { target: { value: '' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save skill' }))
+
+    const skill = useIdentityStore.getState().currentIdentity!.skills.groups[0]!.items[0]!
+    expect(skill.context).toBeUndefined()
+    expect(skill.context_stale).toBeUndefined()
+    expect(skill.positioning).toBeUndefined()
+    expect(skill.positioning_stale).toBeUndefined()
   })
 
   it('blocks AI drafting when a depthless skill has no matching bullet evidence', () => {
@@ -4062,6 +4176,39 @@ describe('Identity Map — skill inline editing', () => {
     })
   })
 
+  it('falls back to existing context and positioning when an AI skill draft omits them', async () => {
+    seed((id) => {
+      const skill = id.skills.groups[0]!.items[0]!
+      skill.depth = 'strong'
+      skill.depthConfidence = 'high'
+      skill.context = 'Existing Kubernetes context.'
+      skill.positioning = 'Existing Kubernetes positioning.'
+    })
+    skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock.mockResolvedValueOnce({
+      context: '',
+      positioning: '   ',
+    })
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Kubernetes' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Re-draft skill' }))
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Existing Kubernetes context.').length).toBeGreaterThan(0)
+    })
+    expect(screen.getAllByText('Existing Kubernetes positioning.').length).toBeGreaterThan(0)
+    fireEvent.click(screen.getByRole('button', { name: 'Apply draft' }))
+
+    expect(useIdentityStore.getState().currentIdentity!.skills.groups[0]!.items[0]).toMatchObject({
+      depth: 'strong',
+      depthConfidence: 'high',
+      context: 'Existing Kubernetes context.',
+      positioning: 'Existing Kubernetes positioning.',
+      enriched_by: 'llm-accepted',
+    })
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Edit skill' }))
+  })
+
   it('drops stale confidence when an AI draft changes the skill depth without confidence', async () => {
     seed((id) => {
       id.skills.groups[0]!.items.push({
@@ -4135,6 +4282,43 @@ describe('Identity Map — skill inline editing', () => {
     await Promise.resolve()
     expect(screen.getByRole('heading', { name: 'Kubernetes' })).toBeTruthy()
     expect(screen.queryByText('Stale Ansible draft.')).toBeNull()
+  })
+
+  it('aborts an in-flight skill draft when the inspector unmounts', async () => {
+    const deferred = createDeferred<{
+      depth: 'expert'
+      depthConfidence: 'high'
+      context: string
+      positioning: string
+    }>()
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    seed((id) => {
+      id.skills.groups[0]!.items.push({
+        name: 'Ansible',
+        tags: ['automation', 'ansible'],
+      })
+      id.roles[0]!.bullets[0]!.technologies.push('Ansible')
+    })
+    skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock.mockReturnValueOnce(deferred.promise)
+    const view = render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ansible' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Draft skill' }))
+
+    await waitFor(() => {
+      expect(skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock).toHaveBeenCalledTimes(1)
+    })
+    const signal = skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock.mock.calls[0]?.[0]
+      ?.signal as AbortSignal
+    view.unmount()
+    deferred.reject(new DOMException('Aborted', 'AbortError'))
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(signal.aborted).toBe(true)
+    expect(consoleError).not.toHaveBeenCalled()
+    consoleError.mockRestore()
   })
 
   it('surfaces AI draft generation failures inline', async () => {
@@ -4300,6 +4484,7 @@ describe('Identity Map — skill inline editing', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Kubernetes' }))
     fireEvent.click(screen.getByRole('button', { name: 'Edit skill' }))
     fireEvent.change(screen.getByLabelText('Depth'), { target: { value: '' } })
+    expect(screen.getByLabelText('Depth confidence')).toHaveProperty('disabled', true)
     fireEvent.click(screen.getByRole('button', { name: 'Save skill' }))
 
     const skill = useIdentityStore.getState().currentIdentity!.skills.groups[0]!.items[0]!

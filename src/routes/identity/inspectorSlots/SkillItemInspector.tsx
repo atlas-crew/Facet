@@ -20,6 +20,13 @@ import {
   hasSkillEnrichmentBulletEvidence,
 } from '../../../utils/skillEnrichment'
 import {
+  CUSTOM_POSITIONING_EXAMPLES,
+  CUSTOM_POSITIONING_VALUE,
+  POSITIONING_EXAMPLES,
+  type PositioningSelection,
+  resolvePositioningSelection,
+} from '../../../utils/skillPositioning'
+import {
   Actions,
   MetaRows,
   NotFound,
@@ -83,6 +90,8 @@ export function SkillItemInspector({
   const [draftConfidence, setDraftConfidence] = useState<EditableDepthConfidence>('')
   const [draftContext, setDraftContext] = useState('')
   const [draftPositioning, setDraftPositioning] = useState('')
+  const [draftPositioningSelection, setDraftPositioningSelection] =
+    useState<PositioningSelection>('')
   const [draftTags, setDraftTags] = useState('')
   const [suggestion, setSuggestion] = useState<SkillEnrichmentSuggestion | null>(null)
   const [suggestionNotice, setSuggestionNotice] = useState<string | null>(null)
@@ -90,7 +99,10 @@ export function SkillItemInspector({
   const [isGenerating, setIsGenerating] = useState(false)
   const confirmCopyId = useId()
   const confirmRowId = useId()
+  const positioningFieldId = useId()
+  const customPositioningFieldId = useId()
   const removeButtonRef = useRef<HTMLButtonElement>(null)
+  const editButtonRef = useRef<HTMLButtonElement>(null)
   const suggestAbortRef = useRef<AbortController | null>(null)
   const autoDraftKeyRef = useRef<string | null>(null)
   const aiEndpoint = useMemo(() => sanitizeEndpointUrl(facetClientEnv.anthropicProxyUrl), [])
@@ -107,6 +119,7 @@ export function SkillItemInspector({
     setDraftConfidence(item.depthConfidence ?? '')
     setDraftContext(item.context ?? '')
     setDraftPositioning(item.positioning ?? '')
+    setDraftPositioningSelection(resolvePositioningSelection(item.positioning ?? ''))
     setDraftTags(tagsToInput(item.tags))
     setEditing(true)
   }
@@ -125,6 +138,10 @@ export function SkillItemInspector({
         draftConfidence !== (skill.depthConfidence ?? '') ||
         contextChanged ||
         positioningChanged
+      const enrichedBy =
+        skill.enriched_by === 'llm-accepted' || skill.enriched_by === 'user-edited-llm'
+          ? 'user-edited-llm'
+          : 'user'
       return {
         ...applySkillDepthEdit(skill, draftDepth, editedAt),
         depthConfidence: draftDepth ? draftConfidence || undefined : undefined,
@@ -145,7 +162,7 @@ export function SkillItemInspector({
         ...(enrichmentChanged
           ? {
               enriched_at: editedAt,
-              enriched_by: 'user' as const,
+              enriched_by: enrichedBy,
               skipped_at: undefined,
             }
           : {}),
@@ -244,16 +261,15 @@ export function SkillItemInspector({
       return
     }
 
+    const suggestionDepth = suggestion.depth
     const editedAt = new Date().toISOString()
     const nextContext = suggestion.context?.trim() ?? ''
     const nextPositioning = suggestion.positioning?.trim() ?? ''
     const nextIdentity = updateIdentityEnrichmentSkill(identity, groupId, itemName, (skill) => ({
-      ...skill,
-      depth: suggestion.depth,
-      depthSource: 'corrected',
+      ...applySkillDepthEdit(skill, suggestionDepth, editedAt),
       depthConfidence:
         suggestion.depthConfidence ??
-        (suggestion.depth === skill.depth ? skill.depthConfidence : undefined),
+        (suggestionDepth === skill.depth ? skill.depthConfidence : undefined),
       context: nextContext || undefined,
       context_stale: undefined,
       positioning: nextPositioning || undefined,
@@ -266,6 +282,12 @@ export function SkillItemInspector({
     setSuggestion(null)
     setSuggestionNotice('Applied skill draft.')
     setSuggestionError(null)
+    editButtonRef.current?.focus()
+  }
+
+  const handleDiscardDraft = () => {
+    setSuggestion(null)
+    editButtonRef.current?.focus()
   }
 
   useEffect(() => {
@@ -282,6 +304,18 @@ export function SkillItemInspector({
     setEditing(false)
     setRemovePending(false)
   }, [groupId, itemName])
+
+  const applyDraftPositioningSelection = (nextSelection: PositioningSelection) => {
+    setDraftPositioningSelection(nextSelection)
+    if (!nextSelection) {
+      setDraftPositioning('')
+      return
+    }
+    if (nextSelection === CUSTOM_POSITIONING_VALUE) {
+      return
+    }
+    setDraftPositioning(nextSelection)
+  }
 
   useEffect(() => {
     if (!autoDraft) {
@@ -343,14 +377,54 @@ export function SkillItemInspector({
               onChange={(e) => setDraftContext(e.target.value)}
             />
           </label>
-          <label className="inspector-field">
-            <span className="inspector-field-label label-tracked">Positioning</span>
-            <textarea
-              className="inspector-textarea"
-              value={draftPositioning}
-              onChange={(e) => setDraftPositioning(e.target.value)}
-            />
-          </label>
+          <div className="inspector-field">
+            <label className="inspector-field-label label-tracked" htmlFor={positioningFieldId}>
+              Positioning
+            </label>
+            <select
+              id={positioningFieldId}
+              className="inspector-input"
+              value={draftPositioningSelection}
+              onChange={(e) =>
+                applyDraftPositioningSelection(e.target.value as PositioningSelection)
+              }
+            >
+              <option value="">Not set</option>
+              {POSITIONING_EXAMPLES.map((example) => (
+                <option key={example} value={example}>
+                  {example}
+                </option>
+              ))}
+              <option value={CUSTOM_POSITIONING_VALUE}>Custom...</option>
+            </select>
+            {draftPositioningSelection === CUSTOM_POSITIONING_VALUE ? (
+              <>
+                <label
+                  className="inspector-field-label label-tracked"
+                  htmlFor={customPositioningFieldId}
+                >
+                  Custom positioning
+                </label>
+                <textarea
+                  id={customPositioningFieldId}
+                  className="inspector-textarea"
+                  value={draftPositioning}
+                  onChange={(e) => {
+                    setDraftPositioning(e.target.value)
+                    setDraftPositioningSelection(CUSTOM_POSITIONING_VALUE)
+                  }}
+                />
+                <details className="identity-field-examples">
+                  <summary>Example custom positioning directives</summary>
+                  <ul className="identity-example-list">
+                    {CUSTOM_POSITIONING_EXAMPLES.map((example) => (
+                      <li key={example}>{example}</li>
+                    ))}
+                  </ul>
+                </details>
+              </>
+            ) : null}
+          </div>
           <label className="inspector-field">
             <span className="inspector-field-label label-tracked">Tags (comma-separated)</span>
             <input
@@ -421,7 +495,7 @@ export function SkillItemInspector({
             <button type="button" className="inspector-btn primary" onClick={handleApplyDraft}>
               Apply draft
             </button>
-            <button type="button" className="inspector-btn" onClick={() => setSuggestion(null)}>
+            <button type="button" className="inspector-btn" onClick={handleDiscardDraft}>
               Discard
             </button>
           </Actions>
@@ -442,12 +516,13 @@ export function SkillItemInspector({
           type="button"
           className={item.depth ? 'inspector-btn' : 'inspector-btn primary'}
           onClick={() => void handleGenerateDraft()}
-          disabled={isGenerating}
+          aria-disabled={isGenerating || undefined}
           aria-busy={isGenerating || undefined}
         >
           {isGenerating ? 'Drafting...' : item.depth ? 'Re-draft skill' : 'Draft skill'}
         </button>
         <button
+          ref={editButtonRef}
           type="button"
           className={item.depth ? 'inspector-btn primary' : 'inspector-btn'}
           onClick={startEditing}
