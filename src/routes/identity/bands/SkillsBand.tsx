@@ -9,7 +9,6 @@ import {
   getIdentityEnrichmentProgress,
   getSkillEnrichmentStatus,
   isGenericSkillGroupLabel,
-  resolveIdentityMapSkillDraftSelection,
   skillNamesMatch,
   updateIdentityEnrichmentSkill,
 } from '../../../utils/identityEnrichment'
@@ -22,7 +21,7 @@ import { IdentityBand } from '../IdentityBand'
 export function SkillsBand({ bulkRequestId = 0 }: { bulkRequestId?: number }) {
   const identity = useIdentityStore((s) => s.currentIdentity)
   const selection = useIdentityStore((s) => s.mapSelection)
-  const setSelection = useIdentityStore((s) => s.setMapSelection)
+  const setMapSelection = useIdentityStore((s) => s.setMapSelection)
   const updateGroups = useIdentityStore((s) => s.updateCurrentSkillGroups)
   const [isDeepeningAll, setIsDeepeningAll] = useState(false)
   const [bulkMessage, setBulkMessage] = useState<string | null>(null)
@@ -36,6 +35,11 @@ export function SkillsBand({ bulkRequestId = 0 }: { bulkRequestId?: number }) {
     () => (identity ? getIdentityEnrichmentProgress(identity) : null),
     [identity],
   )
+  const visibleBulkMessage =
+    bulkMessage ??
+    (enrichmentProgress && enrichmentProgress.pending === 0
+      ? 'No pending skills to deepen.'
+      : null)
 
   const duplicateSkillNames = useMemo(() => {
     const counts = new Map<string, number>()
@@ -53,16 +57,6 @@ export function SkillsBand({ bulkRequestId = 0 }: { bulkRequestId?: number }) {
   }, [groups])
   const isDuplicate = (name: string): boolean =>
     duplicateSkillNames.has(name.trim().toLocaleLowerCase())
-  const handleOpenSkillEnrichment = () => {
-    if (!identity) return
-    const target = resolveIdentityMapSkillDraftSelection(identity)
-    const fallbackGroup = identity.skills.groups[0]
-    if (target) {
-      setSelection(target)
-    } else if (fallbackGroup) {
-      setSelection({ type: 'skill-group', id: fallbackGroup.id })
-    }
-  }
   const handleDeepenAllSkills = useCallback(async () => {
     if (!identity || bulkRunningRef.current) return
     if (!aiEndpoint) {
@@ -270,25 +264,15 @@ export function SkillsBand({ bulkRequestId = 0 }: { bulkRequestId?: number }) {
               <button
                 type="button"
                 className="inspector-btn primary skills-enrichment-action"
-                onClick={
-                  enrichmentProgress.pending > 0
-                    ? () => void handleDeepenAllSkills()
-                    : handleOpenSkillEnrichment
-                }
-                aria-disabled={
-                  enrichmentProgress.pending > 0 && isDeepeningAll ? true : undefined
-                }
-                aria-busy={enrichmentProgress.pending > 0 && isDeepeningAll ? true : undefined}
+                onClick={() => void handleDeepenAllSkills()}
+                disabled={isDeepeningAll || enrichmentProgress.pending === 0}
+                aria-busy={isDeepeningAll ? true : undefined}
               >
-                {enrichmentProgress.pending > 0
-                  ? isDeepeningAll
-                    ? 'Deepening...'
-                    : 'Deepen all skills'
-                  : 'Review skill depth'}
+                {isDeepeningAll ? 'Deepening...' : 'Deepen all skills'}
               </button>
-              {bulkMessage ? (
+              {visibleBulkMessage ? (
                 <p className="skills-enrichment-status" role="status">
-                  {bulkMessage}
+                  {visibleBulkMessage}
                 </p>
               ) : null}
             </section>
@@ -303,7 +287,7 @@ export function SkillsBand({ bulkRequestId = 0 }: { bulkRequestId?: number }) {
                   <button
                     type="button"
                     className={`skill-group-label label-tracked${isGroupSelected ? ' selected' : ''}`}
-                    onClick={() => setSelection({ type: 'skill-group', id: group.id })}
+                    onClick={() => setMapSelection({ type: 'skill-group', id: group.id })}
                     aria-pressed={isGroupSelected}
                     title={isProblematic ? `Source label: "${group.label}" — auto-generated, needs renaming` : undefined}
                   >
@@ -336,7 +320,13 @@ export function SkillsBand({ bulkRequestId = 0 }: { bulkRequestId?: number }) {
                         key={item.name}
                         type="button"
                         className={className}
-                        onClick={() => setSelection({ type: 'skill-item', groupId: group.id, itemId: item.name })}
+                        onClick={() =>
+                          setMapSelection({
+                            type: 'skill-item',
+                            groupId: group.id,
+                            itemId: item.name,
+                          })
+                        }
                         aria-pressed={isItemSelected}
                       >
                         {item.name}

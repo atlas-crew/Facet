@@ -1138,7 +1138,7 @@ describe('Identity Map — match-rule add/remove', () => {
     })
     const busyButton = within(panel).getByRole('button', { name: 'Deepening...' })
     expect(busyButton.getAttribute('aria-busy')).toBe('true')
-    expect(busyButton.getAttribute('aria-disabled')).toBe('true')
+    expect(busyButton).toHaveProperty('disabled', true)
 
     await act(async () => {
       deferred.resolve({
@@ -1466,7 +1466,7 @@ describe('Identity Map — match-rule add/remove', () => {
     )
   })
 
-  it('keeps skill-depth review on the map when no skills are pending', async () => {
+  it('keeps bulk skill deepening visible when no skills are pending', async () => {
     seed((id) => {
       id.skills.groups[0]!.items = [
         {
@@ -1508,16 +1508,13 @@ describe('Identity Map — match-rule add/remove', () => {
     })
 
     const panel = screen.getByText('Skill depth').closest('.skills-enrichment-panel') as HTMLElement
-    expect(within(panel).getByRole('button', { name: 'Review skill depth' })).toBeTruthy()
-    expect(within(panel).queryByRole('button', { name: 'Deepen skills' })).toBeNull()
-
-    fireEvent.click(within(panel).getByRole('button', { name: 'Review skill depth' }))
-
-    expect(useIdentityStore.getState().mapSelection).toMatchObject({
-      type: 'skill-item',
-      groupId: 'platform',
-      itemId: 'Kubernetes',
-    })
+    expect(within(panel).getByRole('button', { name: 'Deepen all skills' })).toHaveProperty(
+      'disabled',
+      true,
+    )
+    expect(within(panel).queryByRole('button', { name: 'Review skill depth' })).toBeNull()
+    expect(within(panel).getByText('No pending skills to deepen.')).toBeTruthy()
+    expect(skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock).not.toHaveBeenCalled()
   })
 
   it('routes action controls to skill depth, positioning, and strategy generation', async () => {
