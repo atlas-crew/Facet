@@ -4,9 +4,11 @@ title: Document and monitor Playwright preview server constraints
 status: To Do
 assignee: []
 created_date: '2026-04-07 02:07'
+updated_date: '2026-06-07 02:44'
 labels:
   - testing
   - playwright
+milestone: m-37
 dependencies: []
 references:
   - ./.agents/reviews/review-20260407-020352.md
