@@ -3612,6 +3612,34 @@ describe('ResearchPage', () => {
     expect(mockFetchResearchUsage).toHaveBeenCalledWith('https://ai.example/proxy')
   })
 
+  it('keeps the header research budget badge dev-only', async () => {
+    const { shouldShowResearchBudgetBadge } =
+      await import('../routes/research/researchBudgetVisibility')
+
+    expect(shouldShowResearchBudgetBadge({ DEV: true })).toBe(true)
+    expect(shouldShowResearchBudgetBadge({ DEV: false })).toBe(false)
+    expect(shouldShowResearchBudgetBadge()).toBe(import.meta.env.DEV)
+  })
+
+  it('omits the header research budget badge when the dev-only gate is off', async () => {
+    vi.resetModules()
+    vi.doMock('../routes/research/researchBudgetVisibility', () => ({
+      shouldShowResearchBudgetBadge: () => false,
+    }))
+    const { ResearchPage } = await import('../routes/research/ResearchPage')
+
+    render(<ResearchPage />)
+
+    await waitFor(() => {
+      expect(mockFetchResearchUsage).toHaveBeenCalledWith('https://ai.example/proxy')
+    })
+    expect(screen.queryByText('Budget near limit')).toBeNull()
+    expect(screen.queryByText('$3.82 left')).toBeNull()
+
+    vi.doUnmock('../routes/research/researchBudgetVisibility')
+    vi.resetModules()
+  })
+
   it('renders stream events and hydrates completed jobs from the complete event', async () => {
     const thesisSnapshot = buildTestThesis({ id: 'thesis-stream' })
     let streamHandlers: DeepResearchStreamHandlers | undefined

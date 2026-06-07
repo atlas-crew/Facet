@@ -78,6 +78,7 @@ import {
 } from '../../utils/searchProfileInference'
 import { adaptIdentityToSearchProfile } from '../../utils/identitySearchProfile'
 import { skillNamesMatch } from '../../utils/identityEnrichment'
+import { shouldShowResearchBudgetBadge } from './researchBudgetVisibility'
 import {
   buildRequestDraft,
   createPipelineEntryDraft,
@@ -1020,6 +1021,7 @@ export function ResearchPage() {
   })
   const primaryActionBusy = isSearching
   const budgetBadgeCopy = useMemo(() => getBudgetBadgeCopy(researchUsage), [researchUsage])
+  const showBudgetBadge = shouldShowResearchBudgetBadge()
   const runRefreshProgressAnnouncement = useMemo(() => {
     if (!refreshingStalenessArtifactKey || !stalenessReviewImpact) return ''
     const refreshingRun = stalenessReviewImpact.artifactsAffected.find(
@@ -3066,12 +3068,14 @@ export function ResearchPage() {
           </p>
         </div>
         <div className="research-header-actions">
-          <div
-            className={`research-budget-badge research-budget-${researchUsage?.budget.status ?? 'loading'}`}
-          >
-            <span>{budgetBadgeCopy.label}</span>
-            <strong>{budgetBadgeCopy.detail}</strong>
-          </div>
+          {showBudgetBadge ? (
+            <div
+              className={`research-budget-badge research-budget-${researchUsage?.budget.status ?? 'loading'}`}
+            >
+              <span>{budgetBadgeCopy.label}</span>
+              <strong>{budgetBadgeCopy.detail}</strong>
+            </div>
+          ) : null}
           <button
             type="button"
             className="research-btn research-btn-primary"
