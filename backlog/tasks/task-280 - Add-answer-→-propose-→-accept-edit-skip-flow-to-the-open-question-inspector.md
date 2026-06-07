@@ -1,10 +1,10 @@
 ---
 id: TASK-280
 title: Add answer → propose → accept/edit/skip flow to the open-question inspector
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-06-05 17:15'
-updated_date: '2026-06-07 01:37'
+updated_date: '2026-06-07 04:52'
 labels: []
 milestone: m-34
 dependencies:
@@ -18,6 +18,10 @@ documentation:
   - >-
     specs/answerable-identity-open-questions/doc-45 -
     Answerable-Identity-Open-Questions-—-Design.md
+modified_files:
+  - src/routes/identity/inspectorSlots/AwarenessQuestionInspector.tsx
+  - src/routes/identity/identityMap.css
+  - src/test/AwarenessQuestionInspectorAnswerFlow.test.tsx
 priority: medium
 ordinal: 36000
 ---
@@ -34,15 +38,15 @@ Key file: src/routes/identity/inspectorSlots/AwarenessQuestionInspector.tsx (cur
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 The inspector shows an answer textarea and a Propose update action for an unresolved question
-- [ ] #2 Submitting an answer calls proposeAnswerPatch and shows a working/loading state while the proposal is generated
-- [ ] #3 The returned proposal renders as a human-readable card describing the target (e.g. 'Add bullet to <role>') with Accept, Edit, and Skip controls
-- [ ] #4 Accept applies the patch via the store action and marks the question resolved; the question then renders in a resolved state showing the recorded answer
-- [ ] #5 Edit lets the user adjust the proposed text before accepting; Skip discards the proposal without mutating the identity and leaves the question unresolved
-- [ ] #6 A generator/proxy error is surfaced inline without losing the user's typed answer
-- [ ] #7 After a successful apply, downstream impact is surfaced (describeImpact) or an explicit decision to omit it is documented
-- [ ] #8 The flow is keyboard-accessible and labeled for screen readers; styling uses existing design tokens and route-scoped CSS
-- [ ] #9 Tests cover the happy path (answer→propose→accept→resolved), the skip path, the error path, and resolved-state rendering
+- [x] #1 The inspector shows an answer textarea and a Propose update action for an unresolved question
+- [x] #2 Submitting an answer calls proposeAnswerPatch and shows a working/loading state while the proposal is generated
+- [x] #3 The returned proposal renders as a human-readable card describing the target (e.g. 'Add bullet to <role>') with Accept, Edit, and Skip controls
+- [x] #4 Accept applies the patch via the store action and marks the question resolved; the question then renders in a resolved state showing the recorded answer
+- [x] #5 Edit lets the user adjust the proposed text before accepting; Skip discards the proposal without mutating the identity and leaves the question unresolved
+- [x] #6 A generator/proxy error is surfaced inline without losing the user's typed answer
+- [x] #7 After a successful apply, downstream impact is surfaced (describeImpact) or an explicit decision to omit it is documented
+- [x] #8 The flow is keyboard-accessible and labeled for screen readers; styling uses existing design tokens and route-scoped CSS
+- [x] #9 Tests cover the happy path (answer→propose→accept→resolved), the skip path, the error path, and resolved-state rendering
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -116,12 +120,54 @@ Extend/add an inspector test (co-locate in src/test/; see existing inspector/Ide
 Presentation only. Consume 278/279 exports; do not modify the generator or store beyond wiring. If new store/generator capability is needed, STOP and raise a scope-change per the execution guide rather than expanding silently.
 <!-- SECTION:PLAN:END -->
 
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+## Implementation
+
+Added the full answer → propose → accept/edit/skip flow to `AwarenessQuestionInspector.tsx`.
+
+### New state (ephemeral, per doc-45)
+- `answer: string` — textarea value for the user's response to the question
+- `answerPhase: 'idle' | 'proposing' | 'review' | 'editing'` — AI answer flow phase
+- `proposal: AnswerPatch | null` — AI-proposed patch (never persisted)
+- `answerError: string | null` — inline error message
+- `editDraft: ProposalEditDraft | null` — editable slice of proposal during edit phase
+
+### New sub-components (file-scoped)
+- `ProposalCard` — renders a human-readable description of the AnswerPatch (keyed on `kind`), with Accept / Edit / Skip actions
+- `ProposalEditForm` — controlled edit form for the editable fields of each patch kind (role-bullet: problem/action/outcome; skill: skillName; self-model-arc: chapter; competitive-moat: text; unfair-advantage: items textarea)
+
+### Error handling
+Mirrors `SearchStrategyBand`: `IdentityInferenceConfigError` messages surface verbatim; other errors show "Couldn't propose an update — try again." Both preserve the typed answer in state.
+
+### Resolved state
+When `question.resolved`, the read view shows a `inspector-resolved-badge` ("Resolved") and the recorded `question.answer` (read-only). Hides the answer textarea and Propose button. Edit question / Remove remain available.
+
+### describeImpact (AC#7)
+Omitted in v1. No generic `collectIdentityImpactArtifacts` helper exists today; `ResearchPage` assembles impact inline with skill-depth-specific context that can't be reused here without extraction. A follow-up task should factor this out before wiring it to the answer-flow accept path.
+
+### CSS additions (identityMap.css)
+Added `.inspector-answer-section`, `.inspector-resolved-section`, `.inspector-resolved-badge`, `.inspector-resolved-answer`, `.inspector-resolved-answer-text`, `.inspector-proposal-card`, `.inspector-proposal-header`, `.inspector-proposal-kind`, `.inspector-proposal-items`.
+
+### Tests (17 tests, all green)
+- Unresolved state: textarea visible, propose button disabled when empty, enabled when text entered
+- Happy path: propose → review card renders → accept → store updated (resolved + bullet appended) → resolved badge in UI
+- Loading state: button shows "Proposing…" while in-flight
+- Skip: proposal discarded, store unchanged, answer text retained
+- Error (generic): error alert shown, typed answer preserved, no store mutation
+- Error (config): IdentityInferenceConfigError message shown verbatim
+- Edit flow: opens edit form with pre-filled fields → back returns to review → accept with edited text applies edited patch
+- Resolved rendering: badge + answer shown, propose button hidden, Edit question + Remove still present
+- Resolved with no answer: badge shown, no answer field rendered
+<!-- SECTION:FINAL_SUMMARY:END -->
+
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
-- [ ] #3 Automatic formatting was applied to touched files
-- [ ] #4 Regression tests pass (scoped to touched files)
-- [ ] #5 Linters report no warnings or errors in touched files
-- [ ] #6 Relevant documentation updates landed or tasks created
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
+- [x] #3 Automatic formatting was applied to touched files
+- [x] #4 Regression tests pass (scoped to touched files)
+- [x] #5 Linters report no warnings or errors in touched files
+- [x] #6 Relevant documentation updates landed or tasks created
 <!-- DOD:END -->
