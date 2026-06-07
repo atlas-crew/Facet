@@ -1,11 +1,11 @@
 ---
 id: TASK-292
 title: Add a fill-strength legend help chip explaining the label vocabulary
-status: In Progress
+status: Done
 assignee:
   - codex
 created_date: '2026-06-07 20:28'
-updated_date: '2026-06-07 21:10'
+updated_date: '2026-06-07 21:30'
 labels:
   - identity
   - ui
@@ -30,19 +30,31 @@ Relevant files: src/routes/identity/IdentityMapPage.tsx, src/utils/identityFillS
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A help chip near the top of the Identity Map explains the full fill-strength label vocabulary in one place
-- [ ] #2 The legend covers each label value and what tone (ok/warn) it represents
-- [ ] #3 Legend copy is sourced from / consistent with identityFillStrength.ts so it does not drift
-- [ ] #4 Uses the existing help-chip component and design-system tokens
-- [ ] #5 Does not duplicate the per-section targeted advice chips from TASK-268.6
+- [x] #1 A help chip near the top of the Identity Map explains the full fill-strength label vocabulary in one place
+- [x] #2 The legend covers each label value and what tone (ok/warn) it represents
+- [x] #3 Legend copy is sourced from / consistent with identityFillStrength.ts so it does not drift
+- [x] #4 Uses the existing help-chip component and design-system tokens
+- [x] #5 Does not duplicate the per-section targeted advice chips from TASK-268.6
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Implemented a topbar Fill strength help chip for the Identity Map. The legend is sourced from identityFillStrength.ts via an exhaustive label-keyed vocabulary map, uses user-facing tone labels while preserving ok/warn data, and is covered in populated and empty identity states.
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Added a band-agnostic fill-strength legend HelpHint near the Identity Map topbar stats. The legend vocabulary is defined in identityFillStrength.ts, derives its exported order from an exhaustive label-keyed map, and renders user-facing ready/needs-attention tone copy. Covered utility serialization, per-label tone mappings, focus reveal behavior, and empty-state render behavior.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
-- [ ] #3 Automatic formatting was applied to touched files
-- [ ] #4 Regression tests pass (scoped to touched files)
-- [ ] #5 Linters report no warnings or errors in touched files
-- [ ] #6 Relevant documentation updates landed or tasks created
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
+- [x] #3 Automatic formatting was applied to touched files
+- [x] #4 Regression tests pass (scoped to touched files)
+- [x] #5 Linters report no warnings or errors in touched files
+- [x] #6 Relevant documentation updates landed or tasks created
 <!-- DOD:END -->
