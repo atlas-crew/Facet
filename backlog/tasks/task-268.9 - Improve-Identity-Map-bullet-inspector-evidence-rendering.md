@@ -4,10 +4,12 @@ title: Improve Identity Map bullet inspector evidence rendering
 status: To Do
 assignee: []
 created_date: '2026-05-31 20:48'
+updated_date: '2026-06-07 02:44'
 labels:
   - bug
   - identity
   - ux
+milestone: m-35
 dependencies: []
 references:
   - TODO.md
