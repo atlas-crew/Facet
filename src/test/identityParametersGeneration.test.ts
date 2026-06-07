@@ -917,6 +917,74 @@ describe('identityParametersGeneration', () => {
       expect(patch.bullet.action).toBe('Rebuilt, from scratch.')
       expect(patch.bullet.outcome).toBe('Stable, now.')
     })
+
+    it('rejects a role-bullet with a missing problem field', () => {
+      const identity = cloneIdentityFixture()
+      expect(() =>
+        normalizeAnswerPatch(
+          { kind: 'role-bullet', roleId: 'contoso', bullet: { action: 'a', outcome: 'o' } },
+          identity,
+        ),
+      ).toThrow('requires non-empty problem, action, and outcome')
+    })
+
+    it('rejects a role-bullet with an empty action field', () => {
+      const identity = cloneIdentityFixture()
+      expect(() =>
+        normalizeAnswerPatch(
+          { kind: 'role-bullet', roleId: 'contoso', bullet: { problem: 'p', action: '', outcome: 'o' } },
+          identity,
+        ),
+      ).toThrow('requires non-empty problem, action, and outcome')
+    })
+
+    it('rejects a skill with a missing skillName', () => {
+      const identity = cloneIdentityFixture()
+      expect(() =>
+        normalizeAnswerPatch({ kind: 'skill', groupId: 'platform' }, identity),
+      ).toThrow('AnswerPatch skill missing skillName')
+    })
+
+    it('rejects a skill with an empty skillName', () => {
+      const identity = cloneIdentityFixture()
+      expect(() =>
+        normalizeAnswerPatch({ kind: 'skill', groupId: 'platform', skillName: '   ' }, identity),
+      ).toThrow('AnswerPatch skill missing skillName')
+    })
+
+    it('rejects a self-model-arc with missing company', () => {
+      const identity = cloneIdentityFixture()
+      expect(() =>
+        normalizeAnswerPatch(
+          { kind: 'self-model-arc', entry: { chapter: 'Platform era' } },
+          identity,
+        ),
+      ).toThrow('requires non-empty company and chapter')
+    })
+
+    it('rejects a self-model-arc with an empty chapter', () => {
+      const identity = cloneIdentityFixture()
+      expect(() =>
+        normalizeAnswerPatch(
+          { kind: 'self-model-arc', entry: { company: 'Acme', chapter: '' } },
+          identity,
+        ),
+      ).toThrow('requires non-empty company and chapter')
+    })
+
+    it('rejects a competitive-moat with an empty text', () => {
+      const identity = cloneIdentityFixture()
+      expect(() =>
+        normalizeAnswerPatch({ kind: 'competitive-moat', text: '  ' }, identity),
+      ).toThrow('requires non-empty text')
+    })
+
+    it('rejects an unfair-advantage with an empty items array', () => {
+      const identity = cloneIdentityFixture()
+      expect(() =>
+        normalizeAnswerPatch({ kind: 'unfair-advantage', items: [] }, identity),
+      ).toThrow('requires at least one item')
+    })
   })
 
   describe('proposeAnswerPatch', () => {
@@ -926,6 +994,20 @@ describe('identityParametersGeneration', () => {
       description: 'No evidence of cross-team platform ownership.',
       action: 'Describe a platform project where you led across teams.',
     }
+
+    it('throws gracefully for an LLM response with no recognizable kind', async () => {
+      // extractJsonBlock extracts {} from [{}]; normalizeAnswerPatch then rejects the empty kind
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [{ message: { content: '[{}]' } }],
+        }),
+      } as Response)
+
+      await expect(
+        proposeAnswerPatch(cloneIdentityFixture(), baseQuestion, 'Some answer.', 'https://ai.example/proxy'),
+      ).rejects.toThrow('unknown kind')
+    })
 
     it('propagates JsonExtractionError from malformed JSON response', async () => {
       vi.mocked(fetch).mockResolvedValueOnce({
