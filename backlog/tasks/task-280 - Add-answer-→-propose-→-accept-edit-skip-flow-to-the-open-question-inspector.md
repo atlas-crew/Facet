@@ -4,6 +4,7 @@ title: Add answer → propose → accept/edit/skip flow to the open-question ins
 status: To Do
 assignee: []
 created_date: '2026-06-05 17:15'
+updated_date: '2026-06-07 01:37'
 labels: []
 milestone: m-34
 dependencies:
@@ -43,6 +44,77 @@ Key file: src/routes/identity/inspectorSlots/AwarenessQuestionInspector.tsx (cur
 - [ ] #8 The flow is keyboard-accessible and labeled for screen readers; styling uses existing design tokens and route-scoped CSS
 - [ ] #9 Tests cover the happy path (answer→propose→accept→resolved), the skip path, the error path, and resolved-state rendering
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+## Implementation Plan (grounded in current code)
+
+Prerequisites: TASK-278 (proposeAnswerPatch + AnswerPatch) and TASK-279 (applyAnswerPatch + resolveAwarenessQuestion store actions) must land first.
+
+### Target file
+src/routes/identity/inspectorSlots/AwarenessQuestionInspector.tsx (full current contents reviewed: it has an `editing` view and a read view; store hooks via useIdentityStore; actions today = Edit / Mark-reviewed / Remove). Dispatch already routes here from IdentityInspector.tsx:125. No change needed to the dispatcher.
+
+### Patterns to copy (do not invent new UX)
+- Endpoint + config error: `ensureIdentityInferenceEndpoint('Connect the AI proxy before answering questions.')` from src/routes/identity/identityInferenceRuntime.ts. It throws `IdentityInferenceConfigError`. Mirror the band catch (SearchStrategyBand.tsx:316-329): if `error instanceof IdentityInferenceConfigError` show its message; else console.error + show a generic "Couldn't propose an update — try again." Keep the user's typed answer in state on error.
+- Working indicator: reuse `<AiWorkingStatus active=… label=… caption=… />` and the status-message component already used in the bands, or a minimal local busy state — keep it lightweight for a slot.
+- Store access: `const proposeViaStore` is NOT a thing — call the generator `proposeAnswerPatch` (from src/utils/identityParametersGeneration) directly with (currentIdentity, question, answer, endpoint), exactly as bands call generators.
+
+### State (local useState in the inspector)
+- `answer: string` (textarea value)
+- `phase: 'idle' | 'proposing' | 'review'`
+- `proposal: AnswerPatch | null`
+- `error: string | null`
+The proposal is EPHEMERAL — held only here, never persisted (per doc-45; this is the key divergence from the proposed-vectors draft storage).
+
+### Flow
+1. For an UNRESOLVED question (read view), render an "Answer" `<textarea>` + a "Propose update" button (disabled while proposing or when answer is blank).
+2. On submit: set phase='proposing'; `try { endpoint = ensureIdentityInferenceEndpoint(...); patch = await proposeAnswerPatch(identity, question, answer, endpoint); setProposal(patch); phase='review' } catch (e) { set error per band pattern; phase='idle' }` — keep `answer` intact.
+3. Review card: render a human-readable description of `proposal` keyed on kind:
+   - role-bullet → "Add a bullet to <role title for proposal.roleId>" + show problem/action/outcome (and metrics/tech if present).
+   - skill → "Add skill ‘<skillName>’ to <group label>".
+   - self-model-arc → "Add arc chapter at <company>".
+   - competitive-moat → "Set competitive moat".
+   - unfair-advantage → "Add unfair advantage(s)".
+   Resolve role/group labels from `identity.roles` / `identity.skills.groups` for display.
+   Controls: **Accept**, **Edit**, **Skip**.
+4. Accept: `applyAnswerPatch(proposal)` then `resolveAwarenessQuestion(question.id, answer)`; clear local proposal; the question now renders resolved.
+5. Edit: allow editing the proposal's free-text before accepting. Minimal scope — for role-bullet edit problem/action/outcome text; for text/items kinds edit the string(s). Mirror the constrained-patch philosophy of ProposedSearchVectorPatch (don't build a full form).
+6. Skip: discard proposal (setProposal(null), phase='idle'); identity unchanged; question stays unresolved with the typed answer optionally retained.
+
+### Resolved-state rendering
+When `question.resolved`, the read view shows a resolved badge + the recorded `question.answer` (read-only), and hides the answer textarea / propose button (offer a subtle "answer again" affordance only if cheap). Keep Edit-question / Remove available.
+
+### describeImpact (AC#7) — scoped sub-decision, FLAG BEFORE BUILDING
+describeImpact (src/types/artifactMeta.ts:329) needs a full IdentityMutation `{ label, fields[], fromRevision, toRevision, valueChanges? }` PLUS an `impactArtifacts: ImpactArtifactInput[]` collection. ResearchPage assembles that inline and skill-depth-specific (ResearchPage.tsx:858-877) — there is no generic reusable collector today. Options:
+  (a) Minimal: after apply, map patch.kind → affected fields (role-bullet→['roles'], skill→['skills'], self-model-*→['self_model']) and from/to identity revision, collect impactArtifacts via the same workspace selectors ResearchPage uses, show the existing impact banner.
+  (b) Omit for v1 and file a follow-up (AC#7 explicitly allows documenting omission).
+RECOMMENDATION: (b) for this task unless the impact collector can be factored out cheaply; if (a), extract a small `collectIdentityImpactArtifacts(workspace)` helper rather than duplicating ResearchPage logic. Confirm choice with reviewer before implementing.
+
+### Accessibility & styling
+- Textarea labeled; buttons have accessible names; busy state via aria-busy like the bands.
+- Route-scoped CSS + existing design tokens / 4px grid (UI design system). Reuse inspector slot classes (inspector-field, inspector-btn, Actions, SlotShell) already in this file.
+
+### Tests
+Extend/add an inspector test (co-locate in src/test/; see existing inspector/IdentityMap tests for render+store setup). Mock proposeAnswerPatch. Cover:
+- happy path: type answer → propose → review card shows → accept → applyAnswerPatch + resolveAwarenessQuestion called → resolved rendering.
+- skip path: proposal discarded, no store mutation, question still unresolved.
+- error path: proposeAnswerPatch rejects → error shown, typed answer preserved, no mutation.
+- resolved-state rendering shows the recorded answer and hides the propose affordance.
+
+### Files touched
+- src/routes/identity/inspectorSlots/AwarenessQuestionInspector.tsx
+- src/routes/identity/<feature>.css (answer/proposal card styles, if needed)
+- src/test/<AwarenessQuestionInspector or IdentityMap answer-flow>.test.tsx (new/extended)
+
+### Verification
+- `npm run typecheck && npx vitest run <test file>`
+- `npm run build` (UI/render wiring changed — required for this task).
+- Manual: `npm run dev` → Identity Map → select an open question → answer → propose → accept → confirm the model field updated and the question shows resolved.
+
+### Scope boundary
+Presentation only. Consume 278/279 exports; do not modify the generator or store beyond wiring. If new store/generator capability is needed, STOP and raise a scope-change per the execution guide rather than expanding silently.
+<!-- SECTION:PLAN:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
