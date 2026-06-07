@@ -1,10 +1,10 @@
 ---
 id: TASK-268.1
 title: Rename identity import route surface to Identity Import
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-05-31 20:48'
-updated_date: '2026-06-07 02:44'
+updated_date: '2026-06-07 04:52'
 labels:
   - feature
   - identity
