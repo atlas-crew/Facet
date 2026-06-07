@@ -782,7 +782,7 @@ export function IdentityMapPage() {
               className="identity-map-topbar-action label-tracked"
               onClick={goToImport}
             >
-              <Upload size={12} aria-hidden="true" /> Import from resume
+              <Upload size={12} aria-hidden="true" /> Go to Identity Import
             </button>
           </div>
         </div>
@@ -871,15 +871,15 @@ export function IdentityMapPage() {
           ) : (
             <div className="identity-map-empty-cta">
               <p className="chapter-copy">
-                The Map renders your authored identity. Pull one in from a resume to populate every
-                band — thesis, roles, skills, preferences — in a single pass.
+                The Map renders your authored identity. Bring in resumes, source notes, or identity
+                JSON to populate every band — thesis, roles, skills, preferences — in a single pass.
               </p>
               <button
                 type="button"
                 className="inspector-btn primary identity-map-empty-cta-btn"
                 onClick={goToImport}
               >
-                Start from a resume
+                Open Identity Import
               </button>
             </div>
           )}

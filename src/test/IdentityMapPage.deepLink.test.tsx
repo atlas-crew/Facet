@@ -73,7 +73,7 @@ describe('IdentityMapPage deep-link forward bridge', () => {
     seedIdentityWithMatchRule()
 
     render(<IdentityMapPage />)
-    fireEvent.click(screen.getByRole('button', { name: /Import from resume/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Identity Import/i }))
 
     expect(mockNavigate).toHaveBeenCalledWith({ to: '/identity/import' })
   })

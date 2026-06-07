@@ -3083,13 +3083,16 @@ describe('Identity Map — match-rule add/remove', () => {
     const { container } = render(<IdentityMapPage />)
 
     expect(screen.getByText('No identity yet')).toBeTruthy()
+    expect(
+      screen.getByText(/Bring in resumes, source notes, or identity JSON/i),
+    ).toBeTruthy()
     expect(container.querySelector('.thesis-strength-note')?.textContent).toBe('')
     expect(
       within(container.querySelector('[data-layer="thesis"]') as HTMLElement).getByText(
         'Empty: generate a thesis or add one before this section can be evaluated.',
       ),
     ).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Start from a resume' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Open Identity Import' })).toBeTruthy()
     expect(screen.queryByText('Edit the durable identity here.')).toBeNull()
     expect(screen.queryByText('Deepen evidence before generating strategy.')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Generate research thesis' })).toBeNull()

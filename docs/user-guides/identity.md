@@ -12,7 +12,7 @@ Research, Pipeline, Build, Letters, and Prep specialize it for each scenario.
 ## What You Will Learn
 
 - Use the Identity Map at `/identity`.
-- Import source material through the import workbench at `/identity/import`.
+- Import source material through Identity Import at `/identity/import`.
 - Upload one or more resume PDFs or paste source text.
 - Add optional AI exports and brag docs as extraction context.
 - Deepen scanned bullets before generating the draft.
@@ -39,11 +39,11 @@ Identity is split into three related surfaces:
 | Route | Surface | Use It For |
 | --- | --- | --- |
 | `/identity` | **Identity Map** | Inspect and edit the current identity model by band. |
-| `/identity/import` | **Import Workbench** | Bring in resumes, source notes, drafts, and JSON. |
+| `/identity/import` | **Identity Import** | Bring in resumes, source notes, drafts, and JSON. |
 | `/identity/enrich` | **Skill Enrichment** | Review skill-depth progress and manage the enrichment queue. |
 
-The sidebar opens the Map. From the Map, use **Import from resume** or **Start
-from a resume** to open the import workbench.
+The sidebar opens the Map. From the Map, use **Identity Import** or **Open
+Identity Import** to open the import surface.
 
 ---
 
@@ -66,15 +66,15 @@ Click a band item to open the inspector for that slot. The selection is mirrored
 into the URL, so copied links can return to the same Map selection when the
 referenced entity still exists.
 
-If no identity is loaded, the Map shows an empty state with **Start from a
-resume**. The top bar also shows model counts and an **Import from resume**
+If no identity is loaded, the Map shows an empty state with **Open Identity
+Import**. The top bar also shows model counts and a **Go to Identity Import**
 action.
 
 ---
 
-## Import Workbench
+## Identity Import
 
-The import workbench is the route at `/identity/import`. It has a header action
+Identity Import is the route at `/identity/import`. It has a header action
 that changes with your current state:
 
 - **Upload Resume** when no source is loaded.
@@ -290,7 +290,7 @@ the source model.
 
 - Research can write selected thesis skill-depth corrections and avoid signals
   back into Identity after confirmation.
-- Prep can queue answered context gaps for review in the import workbench.
+- Prep can queue answered context gaps for review in Identity Import.
 - Debrief insights can become follow-up notes or corrections for the next
   Identity pass.
 
@@ -301,7 +301,7 @@ stays accurate.
 
 ## Import and Export
 
-The import workbench header includes:
+The Identity Import header includes:
 
 - **Import JSON** -- load an identity JSON file into the workbench.
 - **Export Draft** -- download the current draft as `identity-draft.json`.

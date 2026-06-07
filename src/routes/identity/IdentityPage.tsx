@@ -1151,7 +1151,7 @@ export function IdentityPage() {
       <header className="identity-header">
         <div className="identity-header-main">
           <p className="identity-eyebrow">Identity Workspace</p>
-          <h1>Professional Identity</h1>
+          <h1>Identity Import</h1>
           <p className="identity-copy">
             Start here by turning your resume and source notes into a rich identity model. Facet
             uses that model as the source of truth for resumes, search, match analysis, and
