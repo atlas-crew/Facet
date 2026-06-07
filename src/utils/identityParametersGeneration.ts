@@ -9,6 +9,7 @@ import type {
   ProfessionalSearchVector,
   ProfessionalSearchVectorPriority,
 } from '../identity/schema'
+import type { AnswerPatch } from '../types/identity'
 import { createId, slugify } from './idUtils'
 import { parseJsonWithRepair } from './jsonParsing'
 import { callLlmProxy, extractJsonBlock, JsonExtractionError, isString } from './llmProxy'
@@ -595,5 +596,153 @@ Response schema:
       throw error
     }
     throw error instanceof Error ? error : new Error('Failed to parse generated awareness items.')
+  }
+}
+
+export const normalizeAnswerPatch = (
+  payload: unknown,
+  identity: ProfessionalIdentityV3,
+): AnswerPatch => {
+  const record =
+    payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {}
+  const kind = isString(record.kind) ? record.kind.trim() : ''
+
+  if (kind === 'role-bullet') {
+    const roleId = isString(record.roleId) ? record.roleId.trim() : ''
+    if (!roleId) throw new Error('AnswerPatch role-bullet missing roleId.')
+    if (!identity.roles.some((r) => r.id === roleId)) {
+      throw new Error(`AnswerPatch role-bullet references unknown roleId: ${roleId}.`)
+    }
+
+    const bulletRecord =
+      record.bullet && typeof record.bullet === 'object'
+        ? (record.bullet as Record<string, unknown>)
+        : {}
+    const problem = isString(bulletRecord.problem) ? bulletRecord.problem.trim() : ''
+    const action = isString(bulletRecord.action) ? bulletRecord.action.trim() : ''
+    const outcome = isString(bulletRecord.outcome) ? bulletRecord.outcome.trim() : ''
+    if (!problem || !action || !outcome) {
+      throw new Error('AnswerPatch role-bullet requires non-empty problem, action, and outcome.')
+    }
+
+    const rawMetrics = bulletRecord.metrics
+    const metrics: Record<string, string | number | boolean> = {}
+    if (rawMetrics && typeof rawMetrics === 'object' && !Array.isArray(rawMetrics)) {
+      for (const [k, v] of Object.entries(rawMetrics as Record<string, unknown>)) {
+        if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
+          metrics[k] = v
+        }
+      }
+    }
+
+    return {
+      kind: 'role-bullet',
+      roleId,
+      bullet: {
+        problem: removeVoiceTells(problem),
+        action: removeVoiceTells(action),
+        outcome: removeVoiceTells(outcome),
+        ...(normalizeStringArray(bulletRecord.impact).length
+          ? { impact: normalizeStringArray(bulletRecord.impact) }
+          : {}),
+        ...(Object.keys(metrics).length ? { metrics } : {}),
+        ...(normalizeStringArray(bulletRecord.technologies).length
+          ? { technologies: normalizeStringArray(bulletRecord.technologies) }
+          : {}),
+        ...(normalizeStringArray(bulletRecord.tags).length
+          ? { tags: normalizeStringArray(bulletRecord.tags) }
+          : {}),
+      },
+    }
+  }
+
+  if (kind === 'skill') {
+    const groupId = isString(record.groupId) ? record.groupId.trim() : ''
+    const skillName = isString(record.skillName) ? record.skillName.trim() : ''
+    if (!groupId) throw new Error('AnswerPatch skill missing groupId.')
+    if (!skillName) throw new Error('AnswerPatch skill missing skillName.')
+    if (!identity.skills.groups.some((g) => g.id === groupId)) {
+      throw new Error(`AnswerPatch skill references unknown groupId: ${groupId}.`)
+    }
+    return { kind: 'skill', groupId, skillName }
+  }
+
+  if (kind === 'self-model-arc') {
+    const entryRecord =
+      record.entry && typeof record.entry === 'object'
+        ? (record.entry as Record<string, unknown>)
+        : {}
+    const company = isString(entryRecord.company) ? entryRecord.company.trim() : ''
+    const chapter = isString(entryRecord.chapter) ? entryRecord.chapter.trim() : ''
+    if (!company || !chapter) {
+      throw new Error('AnswerPatch self-model-arc requires non-empty company and chapter.')
+    }
+    return { kind: 'self-model-arc', entry: { company, chapter } }
+  }
+
+  if (kind === 'competitive-moat') {
+    const text = isString(record.text) ? removeVoiceTells(record.text.trim()) : ''
+    if (!text) throw new Error('AnswerPatch competitive-moat requires non-empty text.')
+    return { kind: 'competitive-moat', text }
+  }
+
+  if (kind === 'unfair-advantage') {
+    const items = normalizeStringArray(record.items)
+    if (!items.length) {
+      throw new Error('AnswerPatch unfair-advantage requires at least one item.')
+    }
+    return { kind: 'unfair-advantage', items }
+  }
+
+  throw new Error(`AnswerPatch has unknown kind: ${JSON.stringify(kind)}.`)
+}
+
+export async function proposeAnswerPatch(
+  identity: ProfessionalIdentityV3,
+  question: ProfessionalOpenQuestion,
+  answerText: string,
+  endpoint: string,
+): Promise<AnswerPatch> {
+  const systemPrompt = `You route a candidate's answer into the identity model. Return JSON only.
+Given the open question and the candidate's answer text, return a single JSON object for the appropriate patch kind.
+
+HARD RULES:
+1. Ground every field ONLY in the supplied answer text — never invent metrics, numbers, or claims the answer does not contain.
+2. Respect generator_rules.accuracy as hard truth constraints — do not contradict accuracy rules.
+3. Route facts (accomplishments, skills, concrete experiences) → role-bullet or skill kinds.
+4. Route interpretation (career narrative, positioning, differentiation) → self-model-arc, competitive-moat, or unfair-advantage kinds.
+5. Reference only existing roleId / groupId values from the identity — never fabricate ids.
+
+Response schema (return exactly ONE of these shapes):
+{ "kind": "role-bullet", "roleId": "existing role id", "bullet": { "problem": "string", "action": "string", "outcome": "string", "impact": ["string"], "metrics": {}, "technologies": ["string"], "tags": ["string"] } }
+{ "kind": "skill", "groupId": "existing group id", "skillName": "string" }
+{ "kind": "self-model-arc", "entry": { "company": "string", "chapter": "string" } }
+{ "kind": "competitive-moat", "text": "string" }
+{ "kind": "unfair-advantage", "items": ["string"] }`
+
+  const userPrompt = `${buildGenerationPrompt(identity)}
+
+Open question:
+${JSON.stringify({ topic: question.topic, description: question.description, action: question.action }, null, 2)}
+
+Candidate's answer:
+${answerText}`
+
+  const rawResponse = await callLlmProxy(endpoint, systemPrompt, userPrompt, {
+    feature: 'research.profile-inference',
+    model: GENERATION_MODEL,
+    timeoutMs: RESEARCH_PROFILE_INFERENCE_TIMEOUT_MS,
+  })
+
+  try {
+    return normalizeAnswerPatch(
+      parseGeneratedPayload(rawResponse, 'Generated answer patch response'),
+      identity,
+    )
+  } catch (error) {
+    if (error instanceof JsonExtractionError) {
+      throw error
+    }
+    throw error instanceof Error ? error : new Error('Failed to parse generated answer patch.')
   }
 }
