@@ -254,6 +254,8 @@ describe('BulletInspector — source_text sheet canary', () => {
               status: 'idle',
               total: 1,
               completed: 1,
+              failed: 0,
+              failedBaseline: 0,
               currentBulletKey: null,
               lastUpdatedAt: null,
             },
@@ -283,7 +285,9 @@ describe('BulletInspector — source_text sheet canary', () => {
     expect(within(tags as HTMLElement).getByText('delivery')).not.toBeNull()
 
     const evidence = screen.getByRole('region', { name: 'Deepening evidence' })
-    expect(within(evidence).getByText('AI deepened this bullet from the scanned resume.')).not.toBeNull()
+    expect(
+      within(evidence).getByText('AI deepened this bullet from the scanned resume.'),
+    ).not.toBeNull()
     expect(within(evidence).getByText('Current AI rewrite')).not.toBeNull()
     expect(
       within(evidence).getByText('Ported the platform to Kubernetes-based customer installs.'),
@@ -350,6 +354,8 @@ describe('BulletInspector — source_text sheet canary', () => {
               status: 'idle',
               total: 1,
               completed: 1,
+              failed: 0,
+              failedBaseline: 0,
               currentBulletKey: null,
               lastUpdatedAt: null,
             },
@@ -410,6 +416,8 @@ describe('BulletInspector — source_text sheet canary', () => {
               status: 'idle',
               total: 1,
               completed: 1,
+              failed: 0,
+              failedBaseline: 0,
               currentBulletKey: null,
               lastUpdatedAt: null,
             },
@@ -466,6 +474,8 @@ describe('BulletInspector — source_text sheet canary', () => {
               status: 'idle',
               total: 1,
               completed: 1,
+              failed: 0,
+              failedBaseline: 0,
               currentBulletKey: null,
               lastUpdatedAt: null,
             },
@@ -521,6 +531,8 @@ describe('BulletInspector — source_text sheet canary', () => {
               status: 'idle',
               total: 1,
               completed: 1,
+              failed: 0,
+              failedBaseline: 0,
               currentBulletKey: null,
               lastUpdatedAt: null,
             },

@@ -159,6 +159,8 @@ export interface ResumeScanBulkProgress {
   status: 'idle' | 'running' | 'cancelling'
   total: number
   completed: number
+  failed: number
+  failedBaseline: number
   currentBulletKey: string | null
   lastUpdatedAt: string | null
 }

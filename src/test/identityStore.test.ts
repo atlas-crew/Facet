@@ -4,6 +4,7 @@ import {
   IDENTITY_STORE_STORAGE_KEY,
   getActiveResumeScan,
   hasAiDeepenExplanation,
+  parseScanBulletKey,
   useIdentityStore,
 } from '../store/identityStore'
 import type { IntakeSource } from '../types/identity'
@@ -63,6 +64,8 @@ const createScanResult = (): ResumeScanResult => {
         status: 'idle' as const,
         total: 0,
         completed: 0,
+        failed: 0,
+        failedBaseline: 0,
         currentBulletKey: null,
         lastUpdatedAt: null,
       },
@@ -228,6 +231,18 @@ describe('identityStore scan progress', () => {
     expect(hasAiDeepenExplanation(progress('idle', true))).toBe(false)
   })
 
+  it('parses scan bullet keys with the same separator contract used by progress maps', () => {
+    expect(parseScanBulletKey('contoso::platform-migration')).toEqual({
+      roleId: 'contoso',
+      bulletId: 'platform-migration',
+    })
+    expect(parseScanBulletKey('contoso::platform::migration')).toEqual({
+      roleId: 'contoso',
+      bulletId: 'platform::migration',
+    })
+    expect(parseScanBulletKey('missing-separator')).toBeNull()
+  })
+
   it('initializes persisted scan progress when a scan result is loaded', () => {
     useIdentityStore.getState().setScanResult(createScanResult())
 
@@ -312,6 +327,8 @@ describe('identityStore scan progress', () => {
       status: 'running',
       total: 99,
       completed: 99,
+      failed: 0,
+      failedBaseline: 0,
       currentBulletKey: 'contoso::platform-migration',
       lastUpdatedAt: '2026-04-05T00:00:00.000Z',
     } satisfies ResumeScanBulkProgress
@@ -551,6 +568,7 @@ describe('identityStore scan progress', () => {
       editedBullets: 0,
       failedBullets: 1,
     })
+    expect(state?.progress.bulk.failed).toBe(0)
   })
 
   it('leaves existing scan state unchanged when completing a missing role or bullet', () => {
@@ -928,12 +946,58 @@ describe('identityStore scan progress', () => {
     })
     expect(state?.progress.bulk).toMatchObject({
       status: 'idle',
+      failed: 0,
       currentBulletKey: null,
     })
     expect(state?.counts).toMatchObject({
       editedBullets: 1,
       failedBullets: 0,
     })
+  })
+
+  it('counts bulk failures that arrive after cancellation is requested', () => {
+    useIdentityStore.getState().setScanResult(createScanResult())
+    useIdentityStore.getState().startScanBulkDeepen()
+    useIdentityStore.getState().updateScanBulkProgress('contoso::platform-migration')
+    useIdentityStore.getState().requestCancelScanBulkDeepen()
+    useIdentityStore
+      .getState()
+      .failScannedBulletDeepen('contoso', 'platform-migration', 'Timed out while cancelling.')
+    useIdentityStore
+      .getState()
+      .failScannedBulletDeepen('contoso', 'platform-migration', 'Timed out while cancelling.')
+
+    const state = getActiveResumeScan(useIdentityStore.getState())
+    expect(state?.progress.bulk).toMatchObject({
+      status: 'cancelling',
+      failed: 1,
+      currentBulletKey: 'contoso::platform-migration',
+    })
+    expect(state?.counts.failedBullets).toBe(1)
+  })
+
+  it('does not count stale pre-run failures in a new bulk run', () => {
+    useIdentityStore.getState().setScanResult(createMultiBulletScanResult())
+    useIdentityStore
+      .getState()
+      .failScannedBulletDeepen(
+        'contoso',
+        'platform-migration',
+        'Failed before the bulk run started.',
+      )
+
+    useIdentityStore.getState().startScanBulkDeepen()
+    useIdentityStore
+      .getState()
+      .failScannedBulletDeepen('contoso', 'observability-rollout', 'Failed during the bulk run.')
+
+    const state = getActiveResumeScan(useIdentityStore.getState())
+    expect(state?.progress.bulk).toMatchObject({
+      status: 'running',
+      failed: 1,
+      failedBaseline: 1,
+    })
+    expect(state?.counts.failedBullets).toBe(2)
   })
 })
 
@@ -1025,7 +1089,9 @@ describe('identityStore non-scan field setters', () => {
     const persistedEnvelope = await resolveStorage().getItem(IDENTITY_STORE_STORAGE_KEY)
     const persistedState = persistedEnvelope ? JSON.parse(persistedEnvelope) : {}
     expect(persistedState).toEqual(expect.any(Object))
-    expect((persistedState as { state?: { thesisDraft?: unknown } }).state?.thesisDraft).toMatchObject({
+    expect(
+      (persistedState as { state?: { thesisDraft?: unknown } }).state?.thesisDraft,
+    ).toMatchObject({
       thesis: 'I connect platform and delivery for outcomes.',
       title: 'Platform Strategy Lead',
       origin: 'Repeated platform modernization work.',

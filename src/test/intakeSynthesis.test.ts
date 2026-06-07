@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { cloneIdentityFixture } from './fixtures/identityFixture'
 import { intakeSynthesis } from '../utils/resumeScanner/intakeSynthesis'
-import type {
-  IntakeSource,
-  ResumeScanResult,
-} from '../types/identity'
+import type { IntakeSource, ResumeScanResult } from '../types/identity'
 import type {
   ProfessionalEducationEntry,
   ProfessionalIdentityV3,
@@ -108,15 +105,9 @@ const makeResumeSource = (options: MakeSourceOptions): IntakeSource => {
       projects: options.identity.projects.length,
       skillGroups: options.identity.skills.groups.length,
       education: options.identity.education.length,
-      extractedBullets: options.identity.roles.reduce(
-        (sum, role) => sum + role.bullets.length,
-        0,
-      ),
+      extractedBullets: options.identity.roles.reduce((sum, role) => sum + role.bullets.length, 0),
       decomposedBullets: 0,
-      scannedBullets: options.identity.roles.reduce(
-        (sum, role) => sum + role.bullets.length,
-        0,
-      ),
+      scannedBullets: options.identity.roles.reduce((sum, role) => sum + role.bullets.length, 0),
       deepenedBullets: 0,
       editedBullets: 0,
       failedBullets: 0,
@@ -128,6 +119,8 @@ const makeResumeSource = (options: MakeSourceOptions): IntakeSource => {
         status: 'idle',
         total: 0,
         completed: 0,
+        failed: 0,
+        failedBaseline: 0,
         currentBulletKey: null,
         lastUpdatedAt: null,
       },
@@ -329,7 +322,10 @@ describe('intakeSynthesis', () => {
       projects: [makeProject('facet', 'Facet')],
     })
     const newerIdentity = makeIdentity({
-      projects: [makeProject('facet', 'Facet OSS', 'https://facet.test'), makeProject('atlas', 'Atlas Crew')],
+      projects: [
+        makeProject('facet', 'Facet OSS', 'https://facet.test'),
+        makeProject('atlas', 'Atlas Crew'),
+      ],
     })
 
     const seed = intakeSynthesis([
@@ -382,9 +378,7 @@ describe('intakeSynthesis', () => {
       analysis: {},
     } as unknown as IntakeSource
 
-    expect(() => intakeSynthesis([futureSource])).toThrow(
-      /jd source arm is not yet implemented/,
-    )
+    expect(() => intakeSynthesis([futureSource])).toThrow(/jd source arm is not yet implemented/)
   })
 
   it('throws when given an empty source list', () => {
@@ -398,10 +392,7 @@ describe('intakeSynthesis', () => {
         company: 'Contoso Networks',
         title,
         dates: 'Jan 2022 – Present',
-        bullets: [
-          makeBullet(`${id}-a`, `${id} bullet A`),
-          makeBullet(`${id}-b`, `${id} bullet B`),
-        ],
+        bullets: [makeBullet(`${id}-a`, `${id} bullet A`), makeBullet(`${id}-b`, `${id} bullet B`)],
       })
 
     const seed = intakeSynthesis([

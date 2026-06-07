@@ -104,6 +104,8 @@ const createScanResult = (
         status: overrides.bulkStatus ?? 'idle',
         total: 2,
         completed: 2,
+        failed: 0,
+        failedBaseline: 0,
         currentBulletKey: null,
         lastUpdatedAt: null,
       },

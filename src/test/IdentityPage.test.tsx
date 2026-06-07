@@ -106,6 +106,8 @@ const scanFixture = (): ResumeScanResult => {
         status: 'idle',
         total: 0,
         completed: 0,
+        failed: 0,
+        failedBaseline: 0,
         currentBulletKey: null,
         lastUpdatedAt: null,
       },
@@ -504,9 +506,7 @@ describe('IdentityPage', () => {
 
     expect(projectToggle.getAttribute('aria-expanded')).toBe('true')
     expect(screen.getAllByText('Facet').length).toBeGreaterThan(0)
-    expect(
-      screen.queryByRole('textbox', { name: 'Bullet 1 Source' }),
-    ).toBeNull()
+    expect(screen.queryByRole('textbox', { name: 'Bullet 1 Source' })).toBeNull()
     expect(screen.queryByRole('textbox', { name: 'Group Label' })).toBeNull()
     expect(screen.getByText(/two-column layout/i)).toBeTruthy()
 
@@ -1998,9 +1998,7 @@ describe('IdentityPage', () => {
     uploadPdf(container)
 
     await waitFor(() => {
-      expect(
-        screen.getByText('Legacy delivery path blocked on-prem installs.'),
-      ).toBeTruthy()
+      expect(screen.getByText('Legacy delivery path blocked on-prem installs.')).toBeTruthy()
     })
 
     expect(screen.getAllByText('Guessing').length).toBeGreaterThan(0)
@@ -2121,28 +2119,18 @@ describe('IdentityPage', () => {
   })
 
   it('reports partial failures when bulk deepening continues past a failed bullet', async () => {
+    let resolveSecondDeepen!: (
+      value: Awaited<ReturnType<typeof identityExtractionMocks.deepenIdentityBulletMock>>,
+    ) => void
     resumeScannerMocks.scanResumePdfMock.mockResolvedValueOnce(scanFixtureWithTwoBullets())
     identityExtractionMocks.deepenIdentityBulletMock
-      .mockResolvedValueOnce({
-        summary: 'Deepened the migration bullet.',
-        roleId: 'contoso',
-        bulletId: 'platform-migration',
-        bullet: {
-          id: 'platform-migration',
-          problem: 'Cloud-only delivery blocked on-prem installs.',
-          action: 'Ported the platform to Kubernetes-based installs for on-prem customers.',
-          outcome: 'Made the product deployable in customer environments.',
-          impact: ['Unlocked customer-hosted deployments'],
-          metrics: { installs: 12 },
-          technologies: ['Kubernetes'],
-          source_text: 'ignored',
-          tags: ['platform', 'kubernetes'],
-        },
-        rewrite: 'Ported the platform to Kubernetes-based installs for on-prem customers.',
-        assumptions: [],
-        warnings: [],
-      })
-      .mockRejectedValueOnce(new Error('Second bullet decomposition failed.'))
+      .mockRejectedValueOnce(new Error('First bullet decomposition failed.'))
+      .mockImplementationOnce(
+        async () =>
+          new Promise((resolve) => {
+            resolveSecondDeepen = resolve
+          }),
+      )
 
     const { container } = render(<IdentityPage />)
     uploadPdf(container)
@@ -2152,6 +2140,45 @@ describe('IdentityPage', () => {
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Deepen all bullets' }))
+
+    await waitFor(() => {
+      expect(identityExtractionMocks.deepenIdentityBulletMock).toHaveBeenCalledTimes(2)
+    })
+    expect(
+      screen
+        .getByRole('progressbar', { name: 'Deepen all bullets progress' })
+        .getAttribute('aria-valuenow'),
+    ).toBe('1')
+    expect(
+      screen.getAllByText(/Current: Senior Platform Engineer at Contoso Networks:/).length,
+    ).toBeGreaterThan(0)
+    const bulkStatusRegion = screen.getByRole('region', { name: 'Bulk bullet status' })
+    expect(within(bulkStatusRegion).getByText('Completed')).toBeTruthy()
+    expect(within(bulkStatusRegion).getAllByText('0').length).toBeGreaterThan(0)
+    expect(within(bulkStatusRegion).getByText('Failed')).toBeTruthy()
+    expect(within(bulkStatusRegion).getByText('Remaining')).toBeTruthy()
+    expect(bulkStatusRegion.textContent).toContain('Failed1')
+    expect(bulkStatusRegion.textContent).toContain('Remaining1')
+
+    resolveSecondDeepen({
+      summary: 'Deepened the second migration bullet.',
+      roleId: 'contoso',
+      bulletId: 'second-migration',
+      bullet: {
+        id: 'second-migration',
+        problem: 'Workloads needed a managed Kubernetes target.',
+        action: 'Migrated workloads to EKS with Helm charts.',
+        outcome: 'Standardized the deployment path.',
+        impact: ['Reduced handoff friction for platform releases'],
+        metrics: { services: 8 },
+        technologies: ['EKS', 'Helm'],
+        source_text: 'ignored',
+        tags: ['platform'],
+      },
+      rewrite: 'Migrated workloads to EKS with Helm charts.',
+      assumptions: [],
+      warnings: [],
+    })
 
     await waitFor(() => {
       expect(screen.getByText('Deepened 1 scanned bullet(s); 1 failed.')).toBeTruthy()
@@ -2182,11 +2209,27 @@ describe('IdentityPage', () => {
       expect(screen.getByText('Cancel')).toBeTruthy()
     })
     expect(screen.getByText('Bulk running')).toBeTruthy()
+    expect(screen.getByText('Deepening scanned bullets')).toBeTruthy()
+    expect(
+      screen.getAllByText(/Current: Senior Platform Engineer at Contoso Networks:/).length,
+    ).toBeGreaterThan(0)
+    const bulkStatusRegion = screen.getByRole('region', { name: 'Bulk bullet status' })
+    expect(within(bulkStatusRegion).getByText('Completed')).toBeTruthy()
+    expect(within(bulkStatusRegion).getAllByText('0').length).toBeGreaterThan(0)
+    expect(within(bulkStatusRegion).getByText('Failed')).toBeTruthy()
+    expect(within(bulkStatusRegion).getByText('Remaining')).toBeTruthy()
+    expect(within(bulkStatusRegion).getByText('1')).toBeTruthy()
+    expect(
+      screen
+        .getByRole('progressbar', { name: 'Deepen all bullets progress' })
+        .getAttribute('aria-valuemax'),
+    ).toBe('1')
 
     fireEvent.click(screen.getByText('Cancel'))
     await waitFor(() => {
       expect(screen.getByText('Bulk cancelling')).toBeTruthy()
     })
+    expect(screen.getByText('Cancelling bulk deepening')).toBeTruthy()
     await rejectWithAbort(rejectDeepen)
 
     expect(getActiveResumeScan(useIdentityStore.getState())?.progress.bulk.status).toBe('idle')
@@ -2291,9 +2334,7 @@ describe('IdentityPage', () => {
     render(<IdentityPage />)
 
     expect(screen.queryByText('Skill Enrichment')).toBeNull()
-    expect(
-      screen.queryByRole('button', { name: 'Open Skill Depth Wizard' }),
-    ).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Open Skill Depth Wizard' })).toBeNull()
     expect(
       within(screen.getByRole('banner')).getByRole('button', {
         name: 'Send to Build',
@@ -2331,9 +2372,7 @@ describe('IdentityPage', () => {
     expect(screen.getByText('Generate the draft')).toBeTruthy()
     expect(screen.getByText('Apply, then refine on the Map')).toBeTruthy()
     expect(screen.queryByText('Skill Enrichment')).toBeNull()
-    expect(
-      screen.queryByRole('button', { name: 'Open Skill Depth Wizard' }),
-    ).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Open Skill Depth Wizard' })).toBeNull()
   })
 
   it('uses a wider workbench layout and keeps the model builder compact before a draft exists', () => {
@@ -2360,9 +2399,7 @@ describe('IdentityPage', () => {
     expect(screen.getByText('Turn source material into a draft.')).toBeTruthy()
     expect(screen.getByText('Generate the draft')).toBeTruthy()
     expect(screen.getByText('Apply, then refine on the Map')).toBeTruthy()
-    expect(
-      screen.getByText(/upload resumes and supporting notes, let facet extract/i),
-    ).toBeTruthy()
+    expect(screen.getByText(/upload resumes and supporting notes, let facet extract/i)).toBeTruthy()
     expect(container.querySelector('.identity-grid.identity-grid-workbench')).toBeTruthy()
     expect(container.querySelector('.identity-inspection-region')).toBeTruthy()
     const openButton = screen.getByRole('button', {

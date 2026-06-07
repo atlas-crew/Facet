@@ -215,6 +215,89 @@
   color: var(--text-inverse);
 }
 
+.identity-bulk-progress {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--space-2);
+  background: color-mix(in srgb, var(--accent-primary) 4%, var(--bg-inset));
+}
+
+.identity-bulk-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.identity-bulk-progress-header div {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.identity-bulk-progress-header strong,
+.identity-bulk-progress-count {
+  color: var(--text-primary);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.identity-bulk-progress-header span {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.identity-bulk-progress-count {
+  flex: 0 0 auto;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.identity-bulk-progress-bar {
+  position: relative;
+  overflow: hidden;
+  height: var(--space-2);
+  border-radius: 999px;
+  background: var(--bg-surface);
+}
+
+.identity-bulk-progress-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent-primary);
+  transition: width var(--duration-normal) var(--easing);
+}
+
+.identity-bulk-progress-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.identity-bulk-progress-stats div {
+  display: inline-flex;
+  gap: var(--space-1);
+}
+
+.identity-bulk-progress-stats dt,
+.identity-bulk-progress-stats dd {
+  margin: 0;
+}
+
+.identity-bulk-progress-stats dd {
+  color: var(--text-primary);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
 /*
  * Breathing pulse for any in-flight async action. Hooks on aria-busy so the
  * effect lights up automatically wherever a button advertises async work,

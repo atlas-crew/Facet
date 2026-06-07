@@ -16,7 +16,9 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   import.meta.url,
 ).toString()
 
-const isPdfTextItem = (value: unknown): value is {
+const isPdfTextItem = (
+  value: unknown,
+): value is {
   str: string
   transform: number[]
   width: number
@@ -143,14 +145,12 @@ export const scanResumePdf = async (
       skillGroups: parsed.identity.skills.groups.length,
       education: parsed.identity.education.length,
       extractedBullets: parsed.identity.roles.reduce(
-        (total, role) =>
-          total + role.bullets.filter((bullet) => bullet.source_text?.trim()).length,
+        (total, role) => total + role.bullets.filter((bullet) => bullet.source_text?.trim()).length,
         0,
       ),
       decomposedBullets: 0,
       scannedBullets: parsed.identity.roles.reduce(
-        (total, role) =>
-          total + role.bullets.filter((bullet) => bullet.source_text?.trim()).length,
+        (total, role) => total + role.bullets.filter((bullet) => bullet.source_text?.trim()).length,
         0,
       ),
       deepenedBullets: 0,
@@ -164,6 +164,8 @@ export const scanResumePdf = async (
         status: 'idle',
         total: 0,
         completed: 0,
+        failed: 0,
+        failedBaseline: 0,
         currentBulletKey: null,
         lastUpdatedAt: null,
       },

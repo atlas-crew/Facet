@@ -208,8 +208,22 @@ const advanceModelRevision = (
 
 const getScanBulletKey = (roleId: string, bulletId: string): string => `${roleId}::${bulletId}`
 
+export const parseScanBulletKey = (
+  key: string,
+): { roleId: string; bulletId: string } | null => {
+  // Facet-generated ids never contain "::"; the remainder belongs to bulletId.
+  const separatorIndex = key.indexOf('::')
+  if (separatorIndex < 0) {
+    return null
+  }
+  return {
+    roleId: key.slice(0, separatorIndex),
+    bulletId: key.slice(separatorIndex + 2),
+  }
+}
+
 export const getCurrentBulletDeepenKey = (roleId: string, bulletId: string): string =>
-  `${roleId}::${bulletId}`
+  getScanBulletKey(roleId, bulletId)
 
 export interface CurrentBulletDeepenEntry {
   status: 'running' | 'failed'
@@ -267,6 +281,8 @@ const createScanProgress = (identity: ProfessionalIdentityV3): ResumeScanProgres
       status: 'idle',
       total: bulletEntries.filter(({ bullet }) => Boolean(bullet.source_text?.trim())).length,
       completed: 0,
+      failed: 0,
+      failedBaseline: 0,
       currentBulletKey: null,
       lastUpdatedAt: null,
     },
@@ -288,6 +304,9 @@ const advanceRunningBulkProgress = (
         lastUpdatedAt,
       }
     : bulk
+
+const countFailedScanBullets = (bullets: ResumeScanProgress['bullets']): number =>
+  Object.values(bullets).filter((progress) => progress.status === 'failed').length
 
 const normalizeScanProgress = (
   identity: ProfessionalIdentityV3,
@@ -317,12 +336,20 @@ const normalizeScanProgress = (
     }),
   )
 
+  const failedCount = countFailedScanBullets(bullets)
+  const failedBaseline = Math.min(
+    progress.bulk?.failedBaseline ?? Math.max(0, failedCount - (progress.bulk?.failed ?? 0)),
+    fallback.bulk.total,
+  )
+
   return {
     bullets,
     bulk: {
       status: progress.bulk?.status ?? 'idle',
       total: fallback.bulk.total,
       completed: Math.min(progress.bulk?.completed ?? 0, fallback.bulk.total),
+      failed: Math.min(Math.max(0, failedCount - failedBaseline), fallback.bulk.total),
+      failedBaseline,
       currentBulletKey: progress.bulk?.currentBulletKey ?? null,
       lastUpdatedAt: progress.bulk?.lastUpdatedAt ?? null,
     },
@@ -1242,7 +1269,14 @@ export const useIdentityStore = create<IdentityState>()(
           progress.bullets[key] = createBulletProgress('failed', 'stated', message, {
             explanation: existing?.explanation ?? null,
           })
-          if (progress.bulk.status === 'running') {
+          if (
+            (progress.bulk.status === 'running' || progress.bulk.status === 'cancelling') &&
+            existing?.status !== 'failed'
+          ) {
+            progress.bulk.failed = Math.min(
+              progress.bulk.total,
+              Math.max(0, countFailedScanBullets(progress.bullets) - progress.bulk.failedBaseline),
+            )
             progress.bulk.lastUpdatedAt = new Date().toISOString()
           }
 
@@ -1284,10 +1318,13 @@ export const useIdentityStore = create<IdentityState>()(
           }
 
           const progress = normalizeScanProgress(active.identity, active.progress)
+          const failedBaseline = countFailedScanBullets(progress.bullets)
           progress.bulk = {
             status: 'running',
             total: active.counts.extractedBullets,
             completed: 0,
+            failed: 0,
+            failedBaseline,
             currentBulletKey: null,
             lastUpdatedAt: new Date().toISOString(),
           }

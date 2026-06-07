@@ -22,6 +22,7 @@ import {
   type RefObject,
 } from 'react'
 import type { ProfessionalIdentityV3 } from '../../identity/schema'
+import { parseScanBulletKey } from '../../store/identityStore'
 import {
   getSupplementalContextLengthError,
   getSupplementalContextSourceLabel,
@@ -70,6 +71,49 @@ interface FailedFileEntry {
   id: string
   name: string
   error: string
+}
+
+const BULK_BULLET_PREVIEW_LENGTH = 84
+const BULK_BULLET_PREVIEW_ELLIPSIS = '...'
+
+const getBulletPreview = (
+  bullet: ProfessionalIdentityV3['roles'][number]['bullets'][number],
+): string => {
+  const preview =
+    bullet.source_text?.trim() ||
+    bullet.action.trim() ||
+    bullet.problem.trim() ||
+    bullet.outcome.trim()
+  if (!preview) {
+    return 'selected bullet'
+  }
+  return preview.length > BULK_BULLET_PREVIEW_LENGTH
+    ? `${preview.slice(
+        0,
+        BULK_BULLET_PREVIEW_LENGTH - BULK_BULLET_PREVIEW_ELLIPSIS.length,
+      )}${BULK_BULLET_PREVIEW_ELLIPSIS}`
+    : preview
+}
+
+const resolveBulkBulletLabel = (
+  scanResult: ResumeScanResult,
+  currentBulletKey: string | null,
+): string | null => {
+  if (!currentBulletKey) {
+    return null
+  }
+  const parsedKey = parseScanBulletKey(currentBulletKey)
+  if (!parsedKey) {
+    return null
+  }
+  const { roleId, bulletId } = parsedKey
+  const role = scanResult.identity.roles.find((entry) => entry.id === roleId)
+  const bullet = role?.bullets.find((entry) => entry.id === bulletId)
+  if (!role || !bullet) {
+    return null
+  }
+  const roleLabel = [role.title, role.company].filter(Boolean).join(' at ')
+  return `${roleLabel || 'Role'}: ${getBulletPreview(bullet)}`
 }
 
 interface ExtractionAgentCardProps {
@@ -161,6 +205,26 @@ export function ExtractionAgentCard({
   const hasRunningBullet = scanResult
     ? Object.values(scanResult.progress.bullets).some((progress) => progress.status === 'running')
     : false
+  const bulkProgress =
+    scanResult && (bulkStatus === 'running' || bulkStatus === 'cancelling')
+      ? scanResult.progress.bulk
+      : null
+  const bulkProgressTotal = bulkProgress?.total ?? 0
+  const bulkProgressCompleted = Math.min(bulkProgress?.completed ?? 0, bulkProgressTotal)
+  const bulkProgressFailed = Math.min(bulkProgress?.failed ?? 0, bulkProgressTotal)
+  const bulkProgressProcessed = Math.min(
+    bulkProgressTotal,
+    bulkProgressCompleted + bulkProgressFailed,
+  )
+  const bulkProgressRemaining = Math.max(0, bulkProgressTotal - bulkProgressProcessed)
+  const bulkProgressValueText =
+    bulkProgressTotal > 0
+      ? `${bulkProgressProcessed} of ${bulkProgressTotal} bullets processed`
+      : 'Preparing bullet progress'
+  const currentBulkBulletLabel =
+    scanResult && bulkProgress
+      ? resolveBulkBulletLabel(scanResult, bulkProgress.currentBulletKey)
+      : null
   const resumeSources = intakeSources.filter((source) => source.kind === 'resume')
   const contextSources = intakeSources.filter(
     (source): source is SupplementalContextSource =>
@@ -825,12 +889,72 @@ export function ExtractionAgentCard({
                     Clear Scan
                   </button>
                 </div>
+                {bulkProgress ? (
+                  <section className="identity-bulk-progress" aria-label="Bulk bullet status">
+                    <p className="sr-only" aria-live="polite" aria-atomic="true">
+                      {bulkStatus === 'cancelling'
+                        ? 'Cancelling bulk deepening.'
+                        : 'Deepening scanned bullets.'}{' '}
+                      {currentBulkBulletLabel
+                        ? `Current: ${currentBulkBulletLabel}.`
+                        : 'Preparing next bullet.'}{' '}
+                      {bulkProgressValueText}. Completed {bulkProgressCompleted}. Failed{' '}
+                      {bulkProgressFailed}. Remaining {bulkProgressRemaining}.
+                    </p>
+                    <div className="identity-bulk-progress-header" aria-hidden="true">
+                      <div>
+                        <strong>
+                          {bulkStatus === 'cancelling'
+                            ? 'Cancelling bulk deepening'
+                            : 'Deepening scanned bullets'}
+                        </strong>
+                        <span>
+                          {currentBulkBulletLabel
+                            ? `Current: ${currentBulkBulletLabel}`
+                            : 'Preparing next bullet...'}
+                        </span>
+                      </div>
+                      <span className="identity-bulk-progress-count">
+                        {bulkProgressProcessed}/{bulkProgressTotal}
+                      </span>
+                    </div>
+                    <div
+                      className="identity-bulk-progress-bar"
+                      role="progressbar"
+                      aria-label="Deepen all bullets progress"
+                      aria-valuemin={0}
+                      aria-valuemax={bulkProgressTotal > 0 ? bulkProgressTotal : undefined}
+                      aria-valuenow={bulkProgressTotal > 0 ? bulkProgressProcessed : undefined}
+                      aria-valuetext={bulkProgressValueText}
+                    >
+                      <span
+                        style={{
+                          width:
+                            bulkProgressTotal > 0
+                              ? `${Math.round((bulkProgressProcessed / bulkProgressTotal) * 100)}%`
+                              : '0%',
+                        }}
+                      />
+                    </div>
+                    <dl className="identity-bulk-progress-stats">
+                      <div>
+                        <dt>Completed</dt>
+                        <dd>{bulkProgressCompleted}</dd>
+                      </div>
+                      <div>
+                        <dt>Failed</dt>
+                        <dd>{bulkProgressFailed}</dd>
+                      </div>
+                      <div>
+                        <dt>Remaining</dt>
+                        <dd>{bulkProgressRemaining}</dd>
+                      </div>
+                    </dl>
+                  </section>
+                ) : null}
               </div>
 
-              <ScanReviewPane
-                scanResult={scanResult}
-                bulkStatus={bulkStatus ?? 'idle'}
-              />
+              <ScanReviewPane scanResult={scanResult} bulkStatus={bulkStatus ?? 'idle'} />
             </>
           ) : (
             <div className="identity-empty">
