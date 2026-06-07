@@ -4,11 +4,12 @@ title: Triage Identity model quality and inference UX backlog
 status: To Do
 assignee: []
 created_date: '2026-05-31 20:48'
-updated_date: '2026-05-31 20:49'
+updated_date: '2026-06-07 02:44'
 labels:
   - feature
   - identity
   - triage
+milestone: m-35
 dependencies: []
 references:
   - TODO.md
