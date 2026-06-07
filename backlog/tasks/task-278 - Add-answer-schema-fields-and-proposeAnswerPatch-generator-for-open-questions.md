@@ -1,10 +1,10 @@
 ---
 id: TASK-278
 title: Add answer schema fields and proposeAnswerPatch generator for open questions
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-05 17:14'
-updated_date: '2026-06-06 21:38'
+updated_date: '2026-06-07 01:30'
 labels: []
 milestone: m-34
 dependencies: []
@@ -16,6 +16,11 @@ documentation:
   - >-
     specs/answerable-identity-open-questions/doc-45 -
     Answerable-Identity-Open-Questions-—-Design.md
+modified_files:
+  - src/identity/schema.ts
+  - src/types/identity.ts
+  - src/utils/identityParametersGeneration.ts
+  - src/test/identityParametersGeneration.test.ts
 priority: medium
 ordinal: 34000
 ---
@@ -37,13 +42,13 @@ Key files: src/identity/schema.ts (type at 267-279, validator at 983-1018); src/
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 ProfessionalOpenQuestion gains optional answer?: string and resolved?: boolean fields; the hydration validator in schema.ts parses both as optional without breaking existing snapshots
-- [ ] #2 An AnswerPatch discriminated union is defined covering at minimum role-bullet, skill, and a self-model target (arc / competitive-moat / unfair-advantage)
-- [ ] #3 proposeAnswerPatch(identity, question, answerText, endpoint) calls the LLM proxy following the existing generator pattern and returns a normalized AnswerPatch
-- [ ] #4 The generator prompt instructs the model to ground the patch only in the user's answer (no invented claims) and to respect generator_rules.accuracy
-- [ ] #5 Normalization rejects patches whose discriminant is unknown or whose referenced roleId/groupId does not exist in the identity, surfacing a parse error like the other generators
-- [ ] #6 Tests cover: each patch kind normalizes correctly, unknown-id and unknown-kind are rejected, and malformed JSON is handled via the existing JsonExtractionError path
-- [ ] #7 Tests assert the prompt/normalizer does not fabricate content beyond the supplied answer (e.g. answer with no metric does not yield a metric-bearing bullet)
+- [x] #1 ProfessionalOpenQuestion gains optional answer?: string and resolved?: boolean fields; the hydration validator in schema.ts parses both as optional without breaking existing snapshots
+- [x] #2 An AnswerPatch discriminated union is defined covering at minimum role-bullet, skill, and a self-model target (arc / competitive-moat / unfair-advantage)
+- [x] #3 proposeAnswerPatch(identity, question, answerText, endpoint) calls the LLM proxy following the existing generator pattern and returns a normalized AnswerPatch
+- [x] #4 The generator prompt instructs the model to ground the patch only in the user's answer (no invented claims) and to respect generator_rules.accuracy
+- [x] #5 Normalization rejects patches whose discriminant is unknown or whose referenced roleId/groupId does not exist in the identity, surfacing a parse error like the other generators
+- [x] #6 Tests cover: each patch kind normalizes correctly, unknown-id and unknown-kind are rejected, and malformed JSON is handled via the existing JsonExtractionError path
+- [x] #7 Tests assert the prompt/normalizer does not fabricate content beyond the supplied answer (e.g. answer with no metric does not yield a metric-bearing bullet)
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -118,12 +123,28 @@ This task is data + AI ONLY. Do NOT add store actions (TASK-279) or UI (TASK-280
 AC#7 (no-fabrication) can be enforced (a) prompt-only, or (b) prompt + a normalizer that refuses metrics/numbers absent from the answer string. (b) is stronger but heuristic. Recommend: prompt-primary + normalizer defaults `metrics` to `{}` and does not invent; add a focused test asserting absent metrics stay absent. Flag if a stricter cross-check against answerText is wanted.
 <!-- SECTION:PLAN:END -->
 
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+## What shipped
+
+**Schema fields (AC#1):** Added `answer?: string` and `resolved?: boolean` to `ProfessionalOpenQuestion` in `src/identity/schema.ts`. Validator in `parseAwareness` parses both as optional using the same `assertString`/`assertBoolean` spread idiom as `needs_review`. Existing snapshots without these fields parse cleanly.
+
+**AnswerPatch type (AC#2):** Added `AnswerPatch` discriminated union to `src/types/identity.ts` covering five kinds — `role-bullet` (with structured bullet fields mirroring `ProfessionalRoleBullet`), `skill` (groupId + skillName), `self-model-arc` (company + chapter), `competitive-moat` (text), `unfair-advantage` (items[]). Discriminant on `kind` so callers can switch exhaustively.
+
+**Generator + normalizer (AC#3–5):** Added `proposeAnswerPatch` and `normalizeAnswerPatch` (both exported) to `identityParametersGeneration.ts`. Generator mirrors `generateAwarenessFromIdentity` exactly — same feature flag, model, timeout, `buildGenerationPrompt` + appended question/answer, `parseGeneratedPayload` → normalizer → re-throw `JsonExtractionError`. Normalizer validates: known discriminant, `roleId` ∈ `identity.roles`, `groupId` ∈ `identity.skills.groups`, required string fields non-empty, metric values primitive-only (strips null/objects). Em-dash voice tells removed from free-text fields.
+
+**No-fabrication guardrail (AC#7):** Prompt hard-rules forbid inventing metrics/numbers not in the answer text. Normalizer enforces structurally: only copies metric key-value pairs where `typeof v` is string/number/boolean; absent `metrics` field stays absent (undefined) on the returned patch — not coerced to `{}`.
+
+**Tests (AC#6–7 + DoD#1–2):** 25 new tests across three describe blocks — `normalizeAnswerPatch` (all five kinds, unknown kind/roleId/groupId rejection, metric fabrication prevention, voice-tell stripping), `proposeAnswerPatch` (JsonExtractionError propagation, happy path, bad roleId, feature/model flags), and `parseAwareness` round-trip (answer+resolved present, answer+resolved absent). All 39 tests pass. TypeScript strict + ESLint clean.
+<!-- SECTION:FINAL_SUMMARY:END -->
+
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
-- [ ] #3 Automatic formatting was applied to touched files
-- [ ] #4 Regression tests pass (scoped to touched files)
-- [ ] #5 Linters report no warnings or errors in touched files
-- [ ] #6 Relevant documentation updates landed or tasks created
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
+- [x] #3 Automatic formatting was applied to touched files
+- [x] #4 Regression tests pass (scoped to touched files)
+- [x] #5 Linters report no warnings or errors in touched files
+- [x] #6 Relevant documentation updates landed or tasks created
 <!-- DOD:END -->
