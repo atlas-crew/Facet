@@ -4,11 +4,13 @@ title: Deepen projects with structured evidence like bullets
 status: To Do
 assignee: []
 created_date: '2026-05-31 20:48'
+updated_date: '2026-06-07 02:44'
 labels:
   - feature
   - identity
   - projects
   - inference
+milestone: m-35
 dependencies: []
 references:
   - TODO.md
