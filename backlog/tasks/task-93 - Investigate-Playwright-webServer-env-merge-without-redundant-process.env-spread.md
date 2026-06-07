@@ -6,8 +6,10 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-04-07 22:26'
+updated_date: '2026-06-07 02:44'
 labels:
   - playwright
+milestone: m-37
 dependencies: []
 references:
   - ./.agents/reviews/review-20260407-182509.md
