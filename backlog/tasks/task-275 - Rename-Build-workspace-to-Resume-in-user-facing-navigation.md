@@ -4,10 +4,12 @@ title: Rename Build workspace to Resume in user-facing navigation
 status: To Do
 assignee: []
 created_date: '2026-06-01 19:05'
+updated_date: '2026-06-07 02:44'
 labels:
   - feature
   - build
   - copy
+milestone: m-36
 dependencies: []
 references:
   - TODO.md
