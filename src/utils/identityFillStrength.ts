@@ -10,6 +10,88 @@ export interface FillStrength {
   tone: FillStrengthTone
 }
 
+export interface FillStrengthLegendEntry {
+  label: FillStrengthLabel
+  tone: FillStrengthTone
+  toneLabel: string
+  description: string
+}
+
+// Band-specific help chips explain local scoring heuristics. This legend is the
+// band-agnostic vocabulary key for the labels users see across the map.
+const FILL_STRENGTH_LEGEND_BY_LABEL = {
+  Strong: {
+    label: 'Strong',
+    tone: 'ok',
+    toneLabel: 'ready',
+    description: 'Ready to reuse downstream with specific, well-supported identity evidence.',
+  },
+  Solid: {
+    label: 'Solid',
+    tone: 'ok',
+    toneLabel: 'ready',
+    description: 'Usable now, with enough signal to guide generated artifacts.',
+  },
+  Dense: {
+    label: 'Dense',
+    tone: 'ok',
+    toneLabel: 'ready',
+    description: 'Evidence is especially full and can support multiple angles.',
+  },
+  Sparse: {
+    label: 'Sparse',
+    tone: 'warn',
+    toneLabel: 'needs attention',
+    description: 'Present but thin; add concrete examples, tags, or supporting evidence.',
+  },
+  Thin: {
+    label: 'Thin',
+    tone: 'warn',
+    toneLabel: 'needs attention',
+    description: 'A required slice exists, but it needs more detail before it can steer decisions.',
+  },
+  Messy: {
+    label: 'Messy',
+    tone: 'warn',
+    toneLabel: 'needs attention',
+    description: 'The material needs cleanup, such as duplicate skills or generic taxonomy.',
+  },
+  Draft: {
+    label: 'Draft',
+    tone: 'warn',
+    toneLabel: 'needs attention',
+    description: 'Text exists, but it needs stronger specifics before downstream reuse.',
+  },
+  Empty: {
+    label: 'Empty',
+    tone: 'warn',
+    toneLabel: 'needs attention',
+    description: 'Nothing usable is present yet; add or generate this section first.',
+  },
+} as const satisfies {
+  readonly [Label in FillStrengthLabel]: FillStrengthLegendEntry & { label: Label }
+}
+
+const FILL_STRENGTH_LEGEND_RANK = {
+  Strong: 0,
+  Solid: 1,
+  Dense: 2,
+  Sparse: 3,
+  Thin: 4,
+  Messy: 5,
+  Draft: 6,
+  Empty: 7,
+} as const satisfies { readonly [Label in FillStrengthLabel]: number }
+
+export const FILL_STRENGTH_LEGEND: readonly FillStrengthLegendEntry[] = Object.values(
+  FILL_STRENGTH_LEGEND_BY_LABEL,
+).sort((a, b) => FILL_STRENGTH_LEGEND_RANK[a.label] - FILL_STRENGTH_LEGEND_RANK[b.label])
+
+export const describeFillStrengthLegend = (): string =>
+  FILL_STRENGTH_LEGEND.map(
+    (entry) => `${entry.label} (${entry.toneLabel}): ${entry.description}`,
+  ).join(' | ')
+
 type ThesisFillLabel = 'Empty' | 'Draft' | 'Sparse' | 'Solid' | 'Strong'
 type DescribedThesisFillLabel = Exclude<ThesisFillLabel, 'Empty'>
 type ThesisFillStrength = FillStrength & { label: ThesisFillLabel }
@@ -20,6 +102,14 @@ type RolesFillLabel = 'Empty' | 'Thin' | 'Sparse' | 'Solid' | 'Dense'
 type SkillsFillLabel = 'Empty' | 'Sparse' | 'Solid' | 'Strong' | 'Messy'
 type SearchStrategyFillLabel = 'Empty' | 'Sparse' | 'Solid' | 'Strong'
 type PreferencesFillLabel = 'Empty' | 'Thin' | 'Solid' | 'Strong'
+export type FillStrengthLabel =
+  | ThesisFillLabel
+  | SelfModelFillLabel
+  | ProfilesFillLabel
+  | RolesFillLabel
+  | SkillsFillLabel
+  | SearchStrategyFillLabel
+  | PreferencesFillLabel
 export const EMPTY_THESIS_FILL_DESCRIPTION =
   'Empty: generate a thesis or add one before this section can be evaluated.'
 const THESIS_SCORE_THRESHOLDS = [
@@ -28,8 +118,7 @@ const THESIS_SCORE_THRESHOLDS = [
   [20, 'Sparse'],
 ] as const satisfies ReadonlyArray<readonly [number, ThesisFillLabel]>
 
-const clamp = (value: number, min = 0, max = 100): number =>
-  Math.max(min, Math.min(max, value))
+const clamp = (value: number, min = 0, max = 100): number => Math.max(min, Math.min(max, value))
 
 const labelForPercent = <Label extends string>(
   percent: number,
@@ -92,14 +181,28 @@ const isPreferencesFillLabel = (label: string): label is PreferencesFillLabel =>
 
 const THESIS_KILL_LIST_WORDS = [
   // Corporate-vocabulary bloat
-  'leverage', 'leverages', 'leveraged', 'leveraging',
-  'synergy', 'synergies', 'synergize',
-  'stakeholder', 'stakeholders',
-  'ecosystem', 'ecosystems',
-  'utilize', 'utilizes', 'utilized', 'utilizing',
-  'paradigm', 'paradigms',
-  'transformational', 'transformative',
-  'innovate', 'innovates', 'innovating',
+  'leverage',
+  'leverages',
+  'leveraged',
+  'leveraging',
+  'synergy',
+  'synergies',
+  'synergize',
+  'stakeholder',
+  'stakeholders',
+  'ecosystem',
+  'ecosystems',
+  'utilize',
+  'utilizes',
+  'utilized',
+  'utilizing',
+  'paradigm',
+  'paradigms',
+  'transformational',
+  'transformative',
+  'innovate',
+  'innovates',
+  'innovating',
   'cutting-edge',
   'next-generation',
   // Hedging
@@ -109,13 +212,7 @@ const THESIS_KILL_LIST_WORDS = [
   'arguably',
 ] as const
 
-const THESIS_HEDGE_PHRASES = [
-  'i think',
-  'i guess',
-  'sort of',
-  'kind of',
-  'i feel like',
-] as const
+const THESIS_HEDGE_PHRASES = ['i think', 'i guess', 'sort of', 'kind of', 'i feel like'] as const
 
 function countThesisSentences(text: string): number {
   // Naive but adequate: split on terminal punctuation followed by whitespace
@@ -160,11 +257,20 @@ function countThesisSpecificity(text: string): number {
     const cleaned = tok.replace(/[.,;:!?'"`)(]+/g, '')
     if (cleaned.length < 2) continue
     // 2+ uppercase letters in a row, with optional lowercase prefix (eBPF, AWS, ML)
-    if (/^[a-z]?[A-Z]{2,}/.test(cleaned)) { specific += 1; continue }
+    if (/^[a-z]?[A-Z]{2,}/.test(cleaned)) {
+      specific += 1
+      continue
+    }
     // CamelCase: lowercase letter then uppercase mid-word (Kubernetes, Postgres)
-    if (/^[A-Z][a-z]+[A-Z][a-z]+/.test(cleaned)) { specific += 1; continue }
+    if (/^[A-Z][a-z]+[A-Z][a-z]+/.test(cleaned)) {
+      specific += 1
+      continue
+    }
     // Letter-digit mix (k8s, h3, ipv6, ipv4)
-    if (/^[a-z]+\d+[a-z]?$/i.test(cleaned)) { specific += 1; continue }
+    if (/^[a-z]+\d+[a-z]?$/i.test(cleaned)) {
+      specific += 1
+      continue
+    }
   }
   return specific
 }
@@ -252,10 +358,7 @@ export function describeThesisFillStrength(identity: ProfessionalIdentityV3): st
   }
 }
 
-export function describeIdentityFillStrength(
-  layer: BandLayer,
-  fill: FillStrength,
-): string {
+export function describeIdentityFillStrength(layer: BandLayer, fill: FillStrength): string {
   const status = `${fill.label} at ${Math.round(fill.percent)}%.`
 
   switch (layer) {
@@ -325,16 +428,34 @@ export function selfModelFillStrength(identity: ProfessionalIdentityV3 | null): 
   const arcScore = arc.length > 0 || (identity.roles?.length ?? 0) > 0 ? 20 : 0
   const philoScore = philosophy.length >= 2 ? 25 : philosophy.length === 1 ? 12 : 0
   const strengthsScore =
-    (interview?.strengths?.length ?? 0) >= 2 ? 15 : (interview?.strengths?.length ?? 0) === 1 ? 7 : 0
+    (interview?.strengths?.length ?? 0) >= 2
+      ? 15
+      : (interview?.strengths?.length ?? 0) === 1
+        ? 7
+        : 0
   const weaknessesScore = (interview?.weaknesses?.length ?? 0) >= 1 ? 10 : 0
   const prepScore = interview?.prep_strategy?.trim() ? 10 : 0
   const moatScore = moat ? 10 : 0
   const advantagesScore = advantages.length >= 2 ? 10 : advantages.length === 1 ? 5 : 0
   const percent = clamp(
-    arcScore + philoScore + strengthsScore + weaknessesScore + prepScore + moatScore + advantagesScore,
+    arcScore +
+      philoScore +
+      strengthsScore +
+      weaknessesScore +
+      prepScore +
+      moatScore +
+      advantagesScore,
   )
   return {
-    label: labelForPercent(percent, [[80, 'Strong'], [50, 'Solid'], [20, 'Sparse']], 'Empty'),
+    label: labelForPercent(
+      percent,
+      [
+        [80, 'Strong'],
+        [50, 'Solid'],
+        [20, 'Sparse'],
+      ],
+      'Empty',
+    ),
     percent,
     tone: percent < 20 ? 'warn' : 'ok',
   }
@@ -346,7 +467,14 @@ export function profilesFillStrength(identity: ProfessionalIdentityV3 | null): F
   const usable = profiles.filter((p) => p.text?.trim() && p.tags?.length).length
   const percent = clamp(Math.min(usable / 3, 1) * 100)
   return {
-    label: labelForPercent(percent, [[80, 'Solid'], [33, 'Sparse']], 'Empty'),
+    label: labelForPercent(
+      percent,
+      [
+        [80, 'Solid'],
+        [33, 'Sparse'],
+      ],
+      'Empty',
+    ),
     percent,
     tone: percent < 33 ? 'warn' : 'ok',
   }
@@ -364,7 +492,15 @@ export function rolesFillStrength(identity: ProfessionalIdentityV3 | null): Fill
   const projectsScore = projects.length > 0 ? 30 : 0
   const percent = clamp(rolesScore + projectsScore)
   return {
-    label: labelForPercent(percent, [[85, 'Dense'], [60, 'Solid'], [30, 'Sparse']], 'Thin'),
+    label: labelForPercent(
+      percent,
+      [
+        [85, 'Dense'],
+        [60, 'Solid'],
+        [30, 'Sparse'],
+      ],
+      'Thin',
+    ),
     percent,
     tone: percent < 30 ? 'warn' : 'ok',
   }
@@ -401,7 +537,15 @@ export function skillsFillStrength(identity: ProfessionalIdentityV3 | null): Fil
     return { label: 'Messy', percent, tone: 'warn' }
   }
   return {
-    label: labelForPercent(percent, [[80, 'Strong'], [50, 'Solid'], [20, 'Sparse']], 'Empty'),
+    label: labelForPercent(
+      percent,
+      [
+        [80, 'Strong'],
+        [50, 'Solid'],
+        [20, 'Sparse'],
+      ],
+      'Empty',
+    ),
     percent,
     tone: percent < 20 ? 'warn' : 'ok',
   }
@@ -417,7 +561,15 @@ export function searchStrategyFillStrength(identity: ProfessionalIdentityV3 | nu
   const questionScore = Math.min(usableQuestions / 3, 1) * 40
   const percent = clamp(vectorScore + questionScore)
   return {
-    label: labelForPercent(percent, [[80, 'Strong'], [40, 'Solid'], [15, 'Sparse']], 'Empty'),
+    label: labelForPercent(
+      percent,
+      [
+        [80, 'Strong'],
+        [40, 'Solid'],
+        [15, 'Sparse'],
+      ],
+      'Empty',
+    ),
     percent,
     tone: percent < 40 ? 'warn' : 'ok',
   }
@@ -447,7 +599,15 @@ export function preferencesFillStrength(identity: ProfessionalIdentityV3 | null)
   const populated = checks.filter(Boolean).length
   const percent = clamp((populated / checks.length) * 100)
   return {
-    label: labelForPercent(percent, [[70, 'Strong'], [40, 'Solid'], [15, 'Thin']], 'Empty'),
+    label: labelForPercent(
+      percent,
+      [
+        [70, 'Strong'],
+        [40, 'Solid'],
+        [15, 'Thin'],
+      ],
+      'Empty',
+    ),
     percent,
     tone: percent < 40 ? 'warn' : 'ok',
   }

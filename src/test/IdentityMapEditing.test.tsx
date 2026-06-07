@@ -270,6 +270,18 @@ describe('Identity Map — match-rule add/remove', () => {
   })
   afterEach(() => cleanup())
 
+  it('renders a fill-strength legend help chip near the top of the map', () => {
+    seed()
+    render(<IdentityMapPage />)
+
+    const trigger = screen.getByRole('button', { name: 'Fill strength legend' })
+    expect(trigger).toBeTruthy()
+
+    fireEvent.focus(trigger)
+    expect(screen.getByText(/Strong \(ready\): Ready to reuse downstream/)).toBeTruthy()
+    expect(screen.getByText(/Messy \(needs attention\): The material needs cleanup/)).toBeTruthy()
+  })
+
   it('edits candidate contact basics from the Identity Map header', () => {
     seed((id) => {
       id.identity.display_name = 'Alex'
@@ -3619,6 +3631,7 @@ describe('Identity Map — match-rule add/remove', () => {
 
     expect(screen.getByText('No identity yet')).toBeTruthy()
     expect(screen.getByText(/Bring in resumes, source notes, or identity JSON/i)).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Fill strength legend' })).toBeTruthy()
     expect(container.querySelector('.thesis-strength-note')?.textContent).toBe('')
     expect(
       within(container.querySelector('[data-layer="thesis"]') as HTMLElement).getByText(

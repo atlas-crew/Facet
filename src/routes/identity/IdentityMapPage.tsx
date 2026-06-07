@@ -29,6 +29,8 @@ import {
   getNextIdentityAttentionItem,
   identityAttentionSelectionMatches,
 } from '../../utils/identityAttentionQueue'
+import { describeFillStrengthLegend } from '../../utils/identityFillStrength'
+import { HelpHint } from '../../components/HelpHint'
 import { IdentityInspector } from './IdentityInspector'
 import type { BandLayer } from './IdentityBand'
 import { getIdentityBandSelector } from './identityBandLayers'
@@ -40,6 +42,8 @@ import { SkillsBand } from './bands/SkillsBand'
 import { PreferencesBand } from './bands/PreferencesBand'
 import { SearchStrategyBand } from './bands/SearchStrategyBand'
 import './identityMap.css'
+
+const FILL_STRENGTH_LEGEND_HELP = describeFillStrengthLegend()
 
 type IdentityActionId =
   | 'bullets'
@@ -910,7 +914,6 @@ export function IdentityMapPage() {
     setMapSelection(nextAttentionItem.selection)
     scrollToLayer(nextAttentionItem.layer, { highlight: true, focus: true })
   }
-
   return (
     <div className="identity-map">
       <main className="identity-map-canvas" inert={showActionItems ? true : undefined}>
@@ -941,6 +944,14 @@ export function IdentityMapPage() {
             <span className="label-tracked identity-map-stat">
               <span>{roleCount}</span> roles · <span>{bulletCount}</span> bullets ·{' '}
               <span>{projectCount}</span> projects
+            </span>
+            <span className="identity-map-fill-legend label-tracked">
+              Fill strength
+              <HelpHint
+                text={FILL_STRENGTH_LEGEND_HELP}
+                ariaLabel="Fill strength legend"
+                placement="bottom"
+              />
             </span>
             {openQuestions > 0 ? (
               <span className="label-tracked identity-map-stat warn">

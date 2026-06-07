@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+  FILL_STRENGTH_LEGEND,
+  describeFillStrengthLegend,
   describeIdentityFillStrength,
   describeThesisFillStrength,
   preferencesFillStrength,
@@ -16,6 +18,40 @@ import { cloneIdentityFixture } from './fixtures/identityFixture'
 const empty = (): ProfessionalIdentityV3 => cloneIdentityFixture()
 
 describe('identityFillStrength', () => {
+  it('exports one fill-strength legend that covers the rating vocabulary', () => {
+    const expectedLabels = [
+      'Strong',
+      'Solid',
+      'Dense',
+      'Sparse',
+      'Thin',
+      'Messy',
+      'Draft',
+      'Empty',
+    ] as const
+    const expectedToneByLabel = {
+      Strong: { tone: 'ok', toneLabel: 'ready' },
+      Solid: { tone: 'ok', toneLabel: 'ready' },
+      Dense: { tone: 'ok', toneLabel: 'ready' },
+      Sparse: { tone: 'warn', toneLabel: 'needs attention' },
+      Thin: { tone: 'warn', toneLabel: 'needs attention' },
+      Messy: { tone: 'warn', toneLabel: 'needs attention' },
+      Draft: { tone: 'warn', toneLabel: 'needs attention' },
+      Empty: { tone: 'warn', toneLabel: 'needs attention' },
+    }
+    const legendCopy = describeFillStrengthLegend()
+
+    expect(FILL_STRENGTH_LEGEND.map((entry) => entry.label)).toEqual(expectedLabels)
+    expect(legendCopy.split(' | ').map((entry) => entry.replace(/: .*/, ''))).toEqual(
+      expectedLabels.map((label) => `${label} (${expectedToneByLabel[label].toneLabel})`),
+    )
+    for (const entry of FILL_STRENGTH_LEGEND) {
+      expect(entry).toMatchObject(expectedToneByLabel[entry.label])
+      expect(legendCopy).toContain(`${entry.label} (${entry.toneLabel})`)
+      expect(legendCopy).toContain(entry.description)
+    }
+  })
+
   describe('describeIdentityFillStrength', () => {
     it('explains a healthy thesis meter with its local heuristic', () => {
       expect(
@@ -224,8 +260,7 @@ describe('identityFillStrength', () => {
 
       const solid = empty()
       solid.identity.thesis =
-        'I build platforms on AWS and GCP. ' +
-        'I ship SQL systems that help teams move faster.'
+        'I build platforms on AWS and GCP. ' + 'I ship SQL systems that help teams move faster.'
       expect(describeThesisFillStrength(solid)).toBe(
         'Solid: the thesis is usable and has some evidence signal, with 2 sentences, 3 specific signals, and 0 generic or hedging signals.',
       )
@@ -376,9 +411,7 @@ describe('identityFillStrength', () => {
     it('credits projects (30 points) when at least one project exists', () => {
       const id = empty()
       id.projects = [{ id: 'p1', name: 'one', description: 'd', tags: [] }]
-      id.roles = [
-        { id: 'r1', company: 'c', title: 't', dates: '2020', bullets: [] },
-      ]
+      id.roles = [{ id: 'r1', company: 'c', title: 't', dates: '2020', bullets: [] }]
       // roles with 2+ bullets = 0 of 1, so rolesScore = 0; projects = 30
       expect(rolesFillStrength(id).percent).toBe(30)
     })

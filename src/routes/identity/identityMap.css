@@ -66,6 +66,15 @@
   color: var(--warning);
 }
 
+.identity-map-fill-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--text-tertiary);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+}
+
 .identity-map-topbar-action {
   display: inline-flex;
   align-items: center;
