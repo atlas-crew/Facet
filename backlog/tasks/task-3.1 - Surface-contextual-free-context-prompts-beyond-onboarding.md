@@ -4,8 +4,10 @@ title: Surface contextual free-context prompts beyond onboarding
 status: To Do
 assignee: []
 created_date: '2026-05-26 02:26'
+updated_date: '2026-06-07 02:44'
 labels:
   - feature
+milestone: m-27
 dependencies: []
 parent_task_id: TASK-3
 ordinal: 7000
