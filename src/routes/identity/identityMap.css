@@ -282,6 +282,10 @@
   align-items: center;
 }
 
+.identity-map-attention-panel {
+  border-left-color: var(--warning);
+}
+
 .identity-map-action-panel h2 {
   margin: 0 0 var(--space-2);
   color: var(--text-primary);

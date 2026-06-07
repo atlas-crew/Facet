@@ -24,6 +24,11 @@ import {
   getIdentityEnrichmentProgress,
   resolveIdentityMapSkillDraftSelection,
 } from '../../utils/identityEnrichment'
+import {
+  deriveIdentityAttentionItems,
+  getNextIdentityAttentionItem,
+  identityAttentionSelectionMatches,
+} from '../../utils/identityAttentionQueue'
 import { IdentityInspector } from './IdentityInspector'
 import type { BandLayer } from './IdentityBand'
 import { getIdentityBandSelector } from './identityBandLayers'
@@ -104,12 +109,14 @@ const identityMapGuideHeroImage = new URL(
 const buildIdentityExportSlug = (identity: ProfessionalIdentityV3) => {
   const rawName = identity.identity?.name?.trim()
   if (!rawName) return ''
-  return rawName
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    // Slice before trimming so a separator introduced at the cut point does not trail the filename.
-    .slice(0, IDENTITY_EXPORT_SLUG_MAX_LEN)
-    .replace(/^-|-$/g, '')
+  return (
+    rawName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      // Slice before trimming so a separator introduced at the cut point does not trail the filename.
+      .slice(0, IDENTITY_EXPORT_SLUG_MAX_LEN)
+      .replace(/^-|-$/g, '')
+  )
 }
 
 const buildIdentityExportFileName = (identity: ProfessionalIdentityV3) => {
@@ -241,8 +248,7 @@ const deriveIdentityActions = (context: IdentityActionContext): IdentityActionIt
         : hasSkillDepthToReview
           ? 'Ready'
           : 'No skills',
-      statusTone:
-        actionPhase === 'skills' ? 'next' : hasSkillDepthToReview ? 'done' : 'muted',
+      statusTone: actionPhase === 'skills' ? 'next' : hasSkillDepthToReview ? 'done' : 'muted',
       targetLayer: 'skills',
       actionLabel: skillInferenceLabel,
       canRun: hasSkillDepthToReview,
@@ -296,13 +302,8 @@ const deriveIdentityActions = (context: IdentityActionContext): IdentityActionIt
         ? 'Refresh the durable philosophy and interview preparation model after evidence edits.'
         : 'Fill the operating principles, strengths, weaknesses, and prep strategy that make the map useful in interviews.',
       statusLabel:
-        actionPhase === 'selfKnowledge'
-          ? 'Next'
-          : hasSelfKnowledge
-            ? 'Ready'
-            : 'After chapters',
-      statusTone:
-        actionPhase === 'selfKnowledge' ? 'next' : hasSelfKnowledge ? 'done' : 'ready',
+        actionPhase === 'selfKnowledge' ? 'Next' : hasSelfKnowledge ? 'Ready' : 'After chapters',
+      statusTone: actionPhase === 'selfKnowledge' ? 'next' : hasSelfKnowledge ? 'done' : 'ready',
       targetLayer: 'self',
       actionLabel: 'Generate self-knowledge',
       canRun: true,
@@ -518,14 +519,14 @@ export function IdentityMapPage() {
   const canGenerateChapters = (identity?.roles?.length ?? 0) > 0
   const hasInterviewSelfKnowledge = Boolean(
     (identity?.self_model?.interview_style?.strengths?.length ?? 0) > 0 ||
-      (identity?.self_model?.interview_style?.weaknesses?.length ?? 0) > 0 ||
-      identity?.self_model?.interview_style?.prep_strategy?.trim(),
+    (identity?.self_model?.interview_style?.weaknesses?.length ?? 0) > 0 ||
+    identity?.self_model?.interview_style?.prep_strategy?.trim(),
   )
   const hasSelfKnowledge =
     (identity?.self_model?.philosophy?.length ?? 0) > 0 && hasInterviewSelfKnowledge
   const hasPositioning = Boolean(
     identity?.self_model?.competitive_moat?.trim() ||
-      (identity?.self_model?.unfair_advantages?.length ?? 0) > 0,
+    (identity?.self_model?.unfair_advantages?.length ?? 0) > 0,
   )
   const hasSearchStrategy =
     (identity?.search_vectors?.length ?? 0) > 0 ||
@@ -894,13 +895,25 @@ export function IdentityMapPage() {
     if (!nextAction) return
     scrollToLayer(nextAction.targetLayer, { highlight: true, focus: true })
   }
+  const attentionItems = useMemo(() => deriveIdentityAttentionItems(identity), [identity])
+  const nextAttentionItem = useMemo(
+    () => getNextIdentityAttentionItem(attentionItems, mapSelection),
+    [attentionItems, mapSelection],
+  )
+  const isOnlyCurrentAttentionItem = Boolean(
+    nextAttentionItem &&
+    attentionItems.length === 1 &&
+    identityAttentionSelectionMatches(nextAttentionItem, mapSelection),
+  )
+  const jumpToNextAttentionItem = () => {
+    if (!nextAttentionItem || isOnlyCurrentAttentionItem) return
+    setMapSelection(nextAttentionItem.selection)
+    scrollToLayer(nextAttentionItem.layer, { highlight: true, focus: true })
+  }
 
   return (
     <div className="identity-map">
-      <main
-        className="identity-map-canvas"
-        inert={showActionItems ? true : undefined}
-      >
+      <main className="identity-map-canvas" inert={showActionItems ? true : undefined}>
         {validatedReturn ? (
           <button
             type="button"
@@ -989,8 +1002,8 @@ export function IdentityMapPage() {
                 <h2 id="identity-map-guide-title">Edit the durable identity here.</h2>
                 <p className="chapter-copy">
                   Import turns source material into a draft. Once it is applied, refine the model on
-                  this Map: edit evidence in Roles, tune positioning in Search Strategy, and use each
-                  band for the durable edits that belong to that slice.
+                  this Map: edit evidence in Roles, tune positioning in Search Strategy, and use
+                  each band for the durable edits that belong to that slice.
                 </p>
               </section>
               {nextAction ? (
@@ -1035,17 +1048,54 @@ export function IdentityMapPage() {
                       <LocateFixed size={14} aria-hidden="true" />
                       Jump to step
                     </button>
-                    <button
-                      type="button"
-                      className="inspector-btn"
-                      onClick={openActionItems}
-                    >
+                    <button type="button" className="inspector-btn" onClick={openActionItems}>
                       <ListChecks size={14} aria-hidden="true" />
                       View all actions
                     </button>
                   </div>
                 </section>
               ) : null}
+              <section
+                className="identity-map-action-panel identity-map-attention-panel"
+                aria-labelledby="identity-map-attention-title"
+              >
+                <div className="identity-map-action-copy">
+                  <p className="label-tracked identity-map-guide-eyebrow">Needs attention</p>
+                  <h2 id="identity-map-attention-title">
+                    {nextAttentionItem ? nextAttentionItem.title : 'No attention items'}
+                  </h2>
+                  <p className="chapter-copy">
+                    {nextAttentionItem
+                      ? nextAttentionItem.body
+                      : 'No assumptions, failed inference, sparse sections, or messy skills need review right now.'}
+                  </p>
+                  <div className="identity-map-action-meta">
+                    <span
+                      className={`identity-action-status label-tracked ${
+                        nextAttentionItem ? 'ready' : 'done'
+                      }`}
+                    >
+                      {nextAttentionItem
+                        ? `${attentionItems.length} item${attentionItems.length === 1 ? '' : 's'}`
+                        : 'Clear'}
+                    </span>
+                    {nextAttentionItem ? (
+                      <span className="label-tracked">{nextAttentionItem.statusLabel}</span>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="identity-map-action-buttons">
+                  <button
+                    type="button"
+                    className="inspector-btn"
+                    onClick={jumpToNextAttentionItem}
+                    disabled={!nextAttentionItem || isOnlyCurrentAttentionItem}
+                  >
+                    <LocateFixed size={14} aria-hidden="true" />
+                    {isOnlyCurrentAttentionItem ? 'Current attention item' : 'Next attention item'}
+                  </button>
+                </div>
+              </section>
             </>
           ) : (
             <div className="identity-map-empty-cta">
@@ -1099,10 +1149,7 @@ export function IdentityMapPage() {
         </footer>
       </main>
 
-      <div
-        className="identity-map-inspector-slot"
-        inert={showActionItems ? true : undefined}
-      >
+      <div className="identity-map-inspector-slot" inert={showActionItems ? true : undefined}>
         <IdentityInspector />
       </div>
 

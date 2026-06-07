@@ -102,6 +102,151 @@ const getSelfKnowledgeControls = () => {
   return controls as HTMLElement
 }
 
+const seedNoAttentionIdentity = () => {
+  seed((id) => {
+    id.identity.thesis =
+      'I build Kubernetes and Postgres platforms for regulated SaaS teams. I turn ambiguous delivery constraints into reliable operating systems. I make infrastructure choices legible to product and security leaders.'
+    id.self_model = {
+      arc: [
+        {
+          company: 'Contoso Networks',
+          chapter: 'Built platform systems that made enterprise delivery predictable.',
+        },
+      ],
+      philosophy: [
+        { id: 'clarity', text: 'Make tradeoffs explicit.', tags: ['leadership'] },
+        { id: 'systems', text: 'Prefer durable systems over heroic recovery.', tags: ['platform'] },
+      ],
+      interview_style: {
+        strengths: ['system design', 'cross-functional strategy'],
+        weaknesses: ['take-home exercises'],
+        prep_strategy: 'Map every answer to an operating principle and a concrete artifact.',
+      },
+      competitive_moat: 'Combines platform depth with product-facing judgment.',
+      unfair_advantages: [
+        'Can translate infra work into business risk.',
+        'Has shipped across constraints.',
+      ],
+    }
+    id.profiles = [
+      { id: 'platform', tags: ['platform'], text: 'Platform systems profile.' },
+      { id: 'security', tags: ['security'], text: 'Security and reliability profile.' },
+      { id: 'leadership', tags: ['leadership'], text: 'Engineering leadership profile.' },
+    ]
+    id.roles[0]!.bullets = [
+      {
+        id: 'delivery',
+        problem: 'Enterprise delivery was blocked by cloud-only assumptions.',
+        action: 'Designed a Kubernetes installation path.',
+        outcome: 'Unlocked customer-hosted deployments.',
+        impact: [],
+        metrics: {},
+        tags: ['platform'],
+        technologies: ['Kubernetes'],
+      },
+      {
+        id: 'reliability',
+        problem: 'Operators lacked deployment confidence.',
+        action: 'Added release guardrails and runbooks.',
+        outcome: 'Reduced failed rollout risk.',
+        impact: [],
+        metrics: {},
+        tags: ['reliability'],
+        technologies: ['Postgres'],
+      },
+    ]
+    id.projects = [
+      {
+        id: 'installer',
+        name: 'Enterprise installer',
+        description: 'Customer-hosted installation path.',
+        tags: ['platform'],
+      },
+    ]
+    id.skills.groups[0]!.label = 'Platform Engineering'
+    id.skills.groups[0]!.items = [
+      {
+        name: 'Kubernetes',
+        tags: ['platform', 'kubernetes'],
+        depth: 'strong',
+        depthSource: 'corrected',
+        context: 'Used across customer-hosted delivery.',
+        positioning: 'Strong match for platform roles.',
+      },
+    ]
+    id.preferences = {
+      compensation: {
+        base_floor: 175000,
+        base_target: 210000,
+        notes: 'Prioritizes strong teams and durable scope.',
+        priorities: [{ item: 'base', weight: 'high' }],
+      },
+      work_model: {
+        preference: 'remote',
+        flexibility: 'Hybrid for the right team.',
+        hard_no: 'No full-time office mandate.',
+      },
+      constraints: {
+        clearance: { status: 'none' },
+        education: { highest: 'BS' },
+        title_flexibility: ['Staff', 'Principal'],
+      },
+      matching: {
+        prioritize: [
+          {
+            id: 'platform',
+            label: 'Platform ownership',
+            description: 'Platform scope with durable ownership.',
+            weight: 'high',
+          },
+        ],
+        avoid: [
+          {
+            id: 'adtech',
+            label: 'Adtech',
+            description: 'Avoid adtech-heavy work.',
+            severity: 'soft',
+          },
+        ],
+      },
+      interview_process: {
+        accepted_formats: ['system design'],
+        strong_fit_signals: ['collaborative team'],
+        red_flags: ['opaque process'],
+        max_rounds: 5,
+        onsite_preferences: 'Remote-first preferred.',
+      },
+    }
+    id.search_vectors = [
+      {
+        id: 'platform',
+        title: 'Platform',
+        priority: 'high',
+        thesis: 'Platform leadership.',
+        target_roles: ['Staff Platform Engineer'],
+        keywords: { primary: ['platform'], secondary: [] },
+      },
+      {
+        id: 'infra',
+        title: 'Infrastructure',
+        priority: 'medium',
+        thesis: 'Infrastructure strategy.',
+        target_roles: ['Infrastructure Engineer'],
+        keywords: { primary: ['infrastructure'], secondary: [] },
+      },
+      {
+        id: 'security',
+        title: 'Security',
+        priority: 'medium',
+        thesis: 'Security platform work.',
+        target_roles: ['Security Platform Engineer'],
+        keywords: { primary: ['security'], secondary: [] },
+      },
+    ]
+    id.awareness = { open_questions: [] }
+  })
+}
+
 beforeEach(() => {
   skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock.mockReset()
   skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock.mockResolvedValue({
@@ -227,6 +372,61 @@ describe('Identity Map — match-rule add/remove', () => {
       }),
     )
     expect(screen.getByLabelText('Name')).toHaveProperty('value', 'Alex Example')
+  })
+
+  it('jumps through Identity items that need attention', async () => {
+    seed((id) => {
+      id.awareness = {
+        open_questions: [
+          {
+            id: 'visa',
+            topic: 'Clarify visa status',
+            severity: 'high',
+            description: 'Work authorization is unclear.',
+            action: 'Confirm sponsorship needs.',
+          },
+        ],
+      }
+      id.skills.groups[0]!.items = [
+        {
+          name: 'Kubernetes',
+          tags: ['platform', 'kubernetes'],
+        },
+      ]
+    })
+    render(<IdentityMapPage />)
+
+    expect(screen.getByRole('heading', { name: 'Clarify visa status' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Next attention item' }))
+
+    expect(useIdentityStore.getState().mapSelection).toEqual({
+      type: 'awareness-question',
+      id: 'visa',
+    })
+    await waitFor(() => {
+      expect(
+        screen.getAllByRole('heading', { name: 'Deepen skill evidence' }).length,
+      ).toBeGreaterThan(0)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next attention item' }))
+    expect(useIdentityStore.getState().mapSelection).toEqual({
+      type: 'skill-item',
+      groupId: 'platform',
+      itemId: 'Kubernetes',
+    })
+  })
+
+  it('shows a clear empty state when no Identity items need attention', () => {
+    seedNoAttentionIdentity()
+    render(<IdentityMapPage />)
+
+    expect(screen.getByRole('heading', { name: 'No attention items' })).toBeTruthy()
+    expect(screen.getByText('Clear')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Next attention item' })).toHaveProperty(
+      'disabled',
+      true,
+    )
   })
 
   it('summarizes contact basics in inspector read mode', () => {
@@ -674,7 +874,9 @@ describe('Identity Map — match-rule add/remove', () => {
       tags: ['platform'],
       text: 'I make infrastructure tradeoffs legible for product teams.',
     })
-    expect(screen.getByRole('button', { name: /i make infrastructure tradeoffs legible/i })).toBeTruthy()
+    expect(
+      screen.getByRole('button', { name: /i make infrastructure tradeoffs legible/i }),
+    ).toBeTruthy()
     expect(screen.queryByText('Discarded profile draft.')).toBeNull()
   })
 
@@ -751,7 +953,9 @@ describe('Identity Map — match-rule add/remove', () => {
     fireEvent.click(screen.getByRole('button', { name: /run action: regenerate profiles/i }))
 
     await waitFor(() => {
-      expect(identityParameterMocks.generateIdentityProfilesFromIdentityMock).toHaveBeenCalledTimes(1)
+      expect(identityParameterMocks.generateIdentityProfilesFromIdentityMock).toHaveBeenCalledTimes(
+        1,
+      )
     })
     expect(useIdentityStore.getState().currentIdentity?.profiles).toEqual([
       {
@@ -772,7 +976,9 @@ describe('Identity Map — match-rule add/remove', () => {
     fireEvent.click(screen.getByRole('button', { name: /^regenerate profiles$/i }))
 
     await waitFor(() => {
-      expect(screen.getByText('Connect the AI proxy before generating profile lenses.')).toBeTruthy()
+      expect(
+        screen.getByText('Connect the AI proxy before generating profile lenses.'),
+      ).toBeTruthy()
     })
     expect(identityParameterMocks.generateIdentityProfilesFromIdentityMock).not.toHaveBeenCalled()
     expect(consoleErrorSpy).not.toHaveBeenCalled()
@@ -867,12 +1073,14 @@ describe('Identity Map — match-rule add/remove', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /^regenerate profiles$/i }))
     await waitFor(() => {
-      expect(identityParameterMocks.generateIdentityProfilesFromIdentityMock).toHaveBeenCalledTimes(1)
+      expect(identityParameterMocks.generateIdentityProfilesFromIdentityMock).toHaveBeenCalledTimes(
+        1,
+      )
     })
     expect(screen.getByText('Generating profile lenses...')).toBeTruthy()
-    expect(screen.getByRole('button', { name: /^generating\.\.\.$/i }).getAttribute('aria-busy')).toBe(
-      'true',
-    )
+    expect(
+      screen.getByRole('button', { name: /^generating\.\.\.$/i }).getAttribute('aria-busy'),
+    ).toBe('true')
     fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
     fireEvent.click(screen.getByRole('button', { name: /run action: regenerate profiles/i }))
 
@@ -908,7 +1116,9 @@ describe('Identity Map — match-rule add/remove', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /^regenerate profiles$/i }))
     await waitFor(() => {
-      expect(identityParameterMocks.generateIdentityProfilesFromIdentityMock).toHaveBeenCalledTimes(1)
+      expect(identityParameterMocks.generateIdentityProfilesFromIdentityMock).toHaveBeenCalledTimes(
+        1,
+      )
     })
 
     const nextIdentity = useIdentityStore.getState().currentIdentity!
@@ -953,10 +1163,12 @@ describe('Identity Map — match-rule add/remove', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /^regenerate profiles$/i }))
     await waitFor(() => {
-      expect(identityParameterMocks.generateIdentityProfilesFromIdentityMock).toHaveBeenCalledTimes(1)
+      expect(identityParameterMocks.generateIdentityProfilesFromIdentityMock).toHaveBeenCalledTimes(
+        1,
+      )
     })
-    const signal = identityParameterMocks.generateIdentityProfilesFromIdentityMock.mock
-      .calls[0]?.[2]?.signal
+    const signal =
+      identityParameterMocks.generateIdentityProfilesFromIdentityMock.mock.calls[0]?.[2]?.signal
 
     unmount()
 
@@ -1015,7 +1227,9 @@ describe('Identity Map — match-rule add/remove', () => {
     await waitFor(() => {
       expect(screen.getByText('Review the generated positioning before applying it.')).toBeTruthy()
     })
-    expect(identityParameterMocks.generateStrategicPositioningFromIdentityMock).toHaveBeenCalledWith(
+    expect(
+      identityParameterMocks.generateStrategicPositioningFromIdentityMock,
+    ).toHaveBeenCalledWith(
       expect.objectContaining({
         identity: expect.objectContaining({ name: 'Alex Example' }),
       }),
@@ -1068,13 +1282,13 @@ describe('Identity Map — match-rule add/remove', () => {
     fireEvent.click(screen.getByRole('button', { name: /^refresh positioning$/i }))
 
     await waitFor(() => {
-      expect(
-        screen.getByText('Connect the AI proxy before refreshing positioning.'),
-      ).toBeTruthy()
+      expect(screen.getByText('Connect the AI proxy before refreshing positioning.')).toBeTruthy()
     })
     expect(consoleErrorSpy).not.toHaveBeenCalled()
     consoleErrorSpy.mockRestore()
-    expect(identityParameterMocks.generateStrategicPositioningFromIdentityMock).not.toHaveBeenCalled()
+    expect(
+      identityParameterMocks.generateStrategicPositioningFromIdentityMock,
+    ).not.toHaveBeenCalled()
   })
 
   it('shows an error and preserves identity when refreshing positioning fails', async () => {
