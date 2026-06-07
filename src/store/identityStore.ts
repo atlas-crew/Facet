@@ -761,6 +761,8 @@ export const isMapSelectionValid = (
 ): boolean => {
   if (!identity) return false
   switch (selection.type) {
+    case 'contact-basics':
+      return true
     case 'thesis':
       return true
     case 'competitive-moat':

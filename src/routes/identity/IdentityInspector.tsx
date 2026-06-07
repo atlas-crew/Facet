@@ -5,6 +5,7 @@ import { ArcStopInspector } from './inspectorSlots/ArcStopInspector'
 import { AwarenessQuestionInspector } from './inspectorSlots/AwarenessQuestionInspector'
 import { BulletInspector } from './inspectorSlots/BulletInspector'
 import { CompetitiveMoatInspector } from './inspectorSlots/CompetitiveMoatInspector'
+import { ContactBasicsInspector } from './inspectorSlots/ContactBasicsInspector'
 import { MatchRuleInspector } from './inspectorSlots/MatchRuleInspector'
 import { PhilosophyInspector } from './inspectorSlots/PhilosophyInspector'
 import { PrefFieldInspector } from './inspectorSlots/PrefFieldInspector'
@@ -42,7 +43,8 @@ export function IdentityInspector() {
     <aside className="identity-inspector" aria-label="Identity inspector">
       {!selection || !identity ? (
         <p className="identity-inspector-empty chapter-copy">
-          Click any element on the map to inspect it. Gaps and assumptions surface here, with prompts to refine the model.
+          Click any element on the map to inspect it. Gaps and assumptions surface here, with
+          prompts to refine the model.
         </p>
       ) : (
         <InspectorBody selection={selection} identity={identity} handlers={handlers} />
@@ -61,6 +63,8 @@ function InspectorBody({
   handlers: InspectorHandlers
 }) {
   switch (selection.type) {
+    case 'contact-basics':
+      return <ContactBasicsInspector identity={identity} />
     case 'thesis':
       return <ThesisInspector identity={identity} />
     case 'competitive-moat':

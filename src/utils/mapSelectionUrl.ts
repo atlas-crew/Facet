@@ -32,6 +32,8 @@ const safeDecode = (value: string): string | null => {
 
 export function serializeMapSelection(selection: MapSelection): string {
   switch (selection.type) {
+    case 'contact-basics':
+      return 'contact-basics'
     case 'thesis':
       return 'thesis'
     case 'competitive-moat':
@@ -80,6 +82,9 @@ export function parseMapSelection(serialized: string | undefined | null): MapSel
   if (!type) return null
 
   switch (type) {
+    case 'contact-basics':
+      if (rest.length !== 0) return null
+      return { type: 'contact-basics' }
     case 'thesis':
       if (rest.length !== 0) return null
       return { type: 'thesis' }
@@ -133,6 +138,8 @@ export function parseMapSelection(serialized: string | undefined | null): MapSel
 
 export function getEntityNoun(selection: MapSelection): string {
   switch (selection.type) {
+    case 'contact-basics':
+      return 'contact basics'
     case 'thesis':
       return 'thesis selection'
     case 'competitive-moat':
@@ -263,7 +270,8 @@ export function validateReturnUrl(url: string | undefined | null): string | null
   // Split off the path component (drop query / fragment for prefix matching).
   const queryIndex = url.indexOf('?')
   const fragmentIndex = url.indexOf('#')
-  const cutoff = [queryIndex, fragmentIndex].filter((i) => i >= 0).sort((a, b) => a - b)[0] ?? url.length
+  const cutoff =
+    [queryIndex, fragmentIndex].filter((i) => i >= 0).sort((a, b) => a - b)[0] ?? url.length
   const path = url.slice(0, cutoff)
   return matchOrigin(path) ? url : null
 }
@@ -277,7 +285,9 @@ export function validateReturnUrl(url: string | undefined | null): string | null
 export function getReturnOriginName(validatedUrl: string): string {
   const queryIndex = validatedUrl.indexOf('?')
   const fragmentIndex = validatedUrl.indexOf('#')
-  const cutoff = [queryIndex, fragmentIndex].filter((i) => i >= 0).sort((a, b) => a - b)[0] ?? validatedUrl.length
+  const cutoff =
+    [queryIndex, fragmentIndex].filter((i) => i >= 0).sort((a, b) => a - b)[0] ??
+    validatedUrl.length
   const path = validatedUrl.slice(0, cutoff)
   return matchOrigin(path)?.[1] ?? 'origin'
 }

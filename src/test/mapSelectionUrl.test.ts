@@ -13,6 +13,7 @@ import {
 } from '../utils/mapSelectionUrl'
 
 const allVariants: MapSelection[] = [
+  { type: 'contact-basics' },
   { type: 'thesis' },
   { type: 'competitive-moat' },
   { type: 'philosophy', id: 'phil-1' },
@@ -71,7 +72,11 @@ describe('serializeMapSelection / parseMapSelection round-trip', () => {
   })
 
   it('preserves ids that contain spaces, slashes, and unicode', () => {
-    const sel: MapSelection = { type: 'skill-item', groupId: 'platform', itemId: 'Apache Spark / 2.x — café' }
+    const sel: MapSelection = {
+      type: 'skill-item',
+      groupId: 'platform',
+      itemId: 'Apache Spark / 2.x — café',
+    }
     const serialized = serializeMapSelection(sel)
     expect(parseMapSelection(serialized)).toEqual(sel)
   })
@@ -97,6 +102,10 @@ describe('parseMapSelection rejection paths', () => {
 
   it('returns null when thesis carries unexpected payload', () => {
     expect(parseMapSelection('thesis:unexpected')).toBeNull()
+  })
+
+  it('returns null when contact basics carries unexpected payload', () => {
+    expect(parseMapSelection('contact-basics:unexpected')).toBeNull()
   })
 
   it('returns null when competitive moat carries unexpected payload', () => {

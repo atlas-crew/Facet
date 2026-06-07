@@ -43,7 +43,10 @@ describe('identityStore mapSelection', () => {
   })
 
   it('setMapSelection(null) always clears selection', () => {
-    useIdentityStore.setState({ currentIdentity: cloneIdentityFixture(), mapSelection: { type: 'thesis' } })
+    useIdentityStore.setState({
+      currentIdentity: cloneIdentityFixture(),
+      mapSelection: { type: 'thesis' },
+    })
     useIdentityStore.getState().setMapSelection(null)
     expect(useIdentityStore.getState().mapSelection).toBeNull()
   })
@@ -76,7 +79,10 @@ describe('identityStore mapSelection', () => {
   it('accepts a real bullet by (roleId, bulletId)', () => {
     const id = cloneIdentityFixture()
     expect(
-      isMapSelectionValid({ type: 'bullet', roleId: 'contoso', bulletId: 'platform-migration' }, id),
+      isMapSelectionValid(
+        { type: 'bullet', roleId: 'contoso', bulletId: 'platform-migration' },
+        id,
+      ),
     ).toBe(true)
     expect(
       isMapSelectionValid({ type: 'bullet', roleId: 'contoso', bulletId: 'missing' }, id),
@@ -90,7 +96,9 @@ describe('identityStore mapSelection', () => {
     // serialized snapshot does not include mapSelection.
     useIdentityStore.setState({ currentIdentity: cloneIdentityFixture() })
     useIdentityStore.getState().setMapSelection({ type: 'thesis' })
-    const persisted = JSON.stringify(useIdentityStore.persist.getOptions().partialize?.(useIdentityStore.getState()))
+    const persisted = JSON.stringify(
+      useIdentityStore.persist.getOptions().partialize?.(useIdentityStore.getState()),
+    )
     expect(persisted).not.toContain('mapSelection')
   })
 })
@@ -121,7 +129,9 @@ function buildCompleteIdentity(): ProfessionalIdentityV3 {
     prioritize: [
       { id: 'prio-platform', label: 'Platform focus', description: 'd', weight: 'high' },
     ],
-    avoid: [{ id: 'avoid-maintenance', label: 'Pure maintenance', description: 'd', severity: 'soft' }],
+    avoid: [
+      { id: 'avoid-maintenance', label: 'Pure maintenance', description: 'd', severity: 'soft' },
+    ],
   }
   id.search_vectors = [
     {
@@ -147,9 +157,10 @@ function buildCompleteIdentity(): ProfessionalIdentityV3 {
 }
 
 describe('isMapSelectionValid — positive coverage for every MapSelection variant', () => {
-  // 15 cases (14 type discriminants, with `match-rule` exercised on both `prioritize`
+  // 16 cases (15 type discriminants, with `match-rule` exercised on both `prioritize`
   // and `avoid` kinds since they read from different lists).
   const cases: Array<{ name: string; selection: MapSelection }> = [
+    { name: 'contact basics', selection: { type: 'contact-basics' } },
     { name: 'thesis', selection: { type: 'thesis' } },
     { name: 'competitive moat', selection: { type: 'competitive-moat' } },
     { name: 'philosophy', selection: { type: 'philosophy', id: 'absorb-complexity' } },

@@ -125,6 +125,306 @@ describe('Identity Map — match-rule add/remove', () => {
   })
   afterEach(() => cleanup())
 
+  it('edits candidate contact basics from the Identity Map header', () => {
+    seed((id) => {
+      id.identity.display_name = 'Alex'
+      id.identity.title = 'Staff Platform Engineer'
+      id.identity.remote = true
+      id.identity.links = [{ id: 'github', url: 'https://github.com/alex' }]
+    })
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit contact basics' }))
+    expect(useIdentityStore.getState().mapSelection).toEqual({ type: 'contact-basics' })
+    expect(within(screen.getByRole('main')).getByRole('heading', { name: 'Alex' })).toBeTruthy()
+
+    fireEvent.click(
+      within(screen.getByLabelText('Identity inspector')).getByRole('button', {
+        name: 'Edit details',
+      }),
+    )
+    fireEvent.change(screen.getByLabelText('Name'), {
+      target: { value: '  Alexandra Example  ' },
+    })
+    fireEvent.change(screen.getByLabelText('Display Name'), {
+      target: { value: 'Alex Example' },
+    })
+    fireEvent.change(screen.getByLabelText('Title'), {
+      target: { value: 'Principal Platform Engineer' },
+    })
+    fireEvent.change(screen.getByLabelText('Email'), {
+      target: { value: 'alexandra@example.dev' },
+    })
+    fireEvent.change(screen.getByLabelText('Phone'), {
+      target: { value: '555-0101' },
+    })
+    fireEvent.change(screen.getByLabelText('Location'), {
+      target: { value: 'Seattle, WA' },
+    })
+    fireEvent.click(screen.getByLabelText('Available for remote roles'))
+    fireEvent.change(screen.getByLabelText('Link 1 Label'), {
+      target: { value: 'linkedin' },
+    })
+    fireEvent.change(screen.getByLabelText('Link 1 URL'), {
+      target: { value: 'https://linkedin.com/in/alex-example' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Add link' }))
+    fireEvent.change(screen.getByLabelText('Link 2 URL'), {
+      target: { value: 'https://alex.example.dev' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(useIdentityStore.getState().currentIdentity?.identity).toMatchObject({
+      name: 'Alexandra Example',
+      display_name: 'Alex Example',
+      title: 'Principal Platform Engineer',
+      email: 'alexandra@example.dev',
+      phone: '555-0101',
+      location: 'Seattle, WA',
+      remote: false,
+      links: [
+        { id: 'linkedin', url: 'https://linkedin.com/in/alex-example' },
+        { id: 'link-1', url: 'https://alex.example.dev' },
+      ],
+    })
+    expect(document.querySelector('.identity-map-name')?.textContent).toBe('Alex Example')
+    expect(screen.getByText('Seattle, WA · On-site · alexandra@example.dev')).toBeTruthy()
+  })
+
+  it('cancels candidate contact basics edits without changing identity', () => {
+    seed((id) => {
+      id.identity.display_name = 'Alex'
+      id.identity.links = [{ id: 'github', url: 'https://github.com/alex' }]
+    })
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit contact basics' }))
+    fireEvent.click(
+      within(screen.getByLabelText('Identity inspector')).getByRole('button', {
+        name: 'Edit details',
+      }),
+    )
+    fireEvent.change(screen.getByLabelText('Name'), {
+      target: { value: 'Discarded Name' },
+    })
+    fireEvent.change(screen.getByLabelText('Email'), {
+      target: { value: 'discarded@example.dev' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(useIdentityStore.getState().currentIdentity?.identity).toMatchObject({
+      name: 'Alex Example',
+      display_name: 'Alex',
+      email: 'alex@example.com',
+      links: [{ id: 'github', url: 'https://github.com/alex' }],
+    })
+    expect(within(screen.getByRole('main')).getByRole('heading', { name: 'Alex' })).toBeTruthy()
+    expect(screen.queryByText('discarded@example.dev')).toBeNull()
+
+    fireEvent.click(
+      within(screen.getByLabelText('Identity inspector')).getByRole('button', {
+        name: 'Edit details',
+      }),
+    )
+    expect(screen.getByLabelText('Name')).toHaveProperty('value', 'Alex Example')
+  })
+
+  it('summarizes contact basics in inspector read mode', () => {
+    seed((id) => {
+      id.identity.title = 'Staff Platform Engineer'
+      id.identity.remote = true
+      id.identity.links = [
+        { id: 'github', url: 'https://github.com/alex' },
+        { id: 'linkedin', url: 'https://linkedin.com/in/alex' },
+      ]
+    })
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit contact basics' }))
+    const inspector = screen.getByLabelText('Identity inspector')
+
+    expect(within(inspector).getByText('Staff Platform Engineer')).toBeTruthy()
+    expect(within(inspector).getByText('Remote')).toBeTruthy()
+    expect(
+      within(inspector).getByText(
+        'github: https://github.com/alex · linkedin: https://linkedin.com/in/alex',
+      ),
+    ).toBeTruthy()
+  })
+
+  it('falls back through contact read-mode titles and on-site availability', () => {
+    seed((id) => {
+      id.identity.display_name = ''
+      id.identity.remote = false
+      id.identity.links = []
+    })
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit contact basics' }))
+    const inspector = screen.getByLabelText('Identity inspector')
+    expect(within(inspector).getByRole('heading', { name: 'Alex Example' })).toBeTruthy()
+    expect(within(inspector).getByText('On-site')).toBeTruthy()
+
+    act(() => {
+      useIdentityStore.getState().updateCurrentIdentityCore({ name: '' })
+    })
+    expect(within(inspector).getByRole('heading', { name: 'No identity yet' })).toBeTruthy()
+  })
+
+  it('blocks incomplete contact drafts before saving', () => {
+    seed((id) => {
+      id.identity.display_name = 'Alex'
+      id.identity.links = [{ id: 'github', url: 'https://github.com/alex' }]
+    })
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit contact basics' }))
+    const inspector = screen.getByLabelText('Identity inspector')
+    fireEvent.click(within(inspector).getByRole('button', { name: 'Edit details' }))
+    const saveButton = within(inspector).getByRole('button', { name: 'Save' })
+
+    fireEvent.change(within(inspector).getByLabelText('Name'), {
+      target: { value: '   ' },
+    })
+    expect((saveButton as HTMLButtonElement).disabled).toBe(true)
+
+    fireEvent.change(within(inspector).getByLabelText('Name'), {
+      target: { value: 'Alex Example' },
+    })
+    const emailInput = within(inspector).getByLabelText('Email')
+    fireEvent.change(emailInput, {
+      target: { value: 'not-an-email' },
+    })
+    expect((saveButton as HTMLButtonElement).disabled).toBe(true)
+    expect(within(inspector).getByText('Use a valid email address.')).toBeTruthy()
+
+    fireEvent.change(emailInput, {
+      target: { value: 'alex@example.com' },
+    })
+    fireEvent.click(within(inspector).getByRole('button', { name: 'Add link' }))
+    fireEvent.change(within(inspector).getByLabelText('Link 2 Label'), {
+      target: { value: 'portfolio' },
+    })
+    expect((saveButton as HTMLButtonElement).disabled).toBe(true)
+    expect(within(inspector).getByText('Add a URL or remove the labeled link.')).toBeTruthy()
+  })
+
+  it('clears optional contact fields and keeps generated link ids unique', () => {
+    seed((id) => {
+      id.identity.display_name = 'Alex'
+      id.identity.title = 'Staff Platform Engineer'
+      id.identity.links = [
+        { id: 'link-1', url: 'https://alex.example.dev' },
+        { id: 'github', url: 'https://github.com/alex' },
+      ]
+    })
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit contact basics' }))
+    const inspector = screen.getByLabelText('Identity inspector')
+    fireEvent.click(within(inspector).getByRole('button', { name: 'Edit details' }))
+    fireEvent.change(within(inspector).getByLabelText('Display Name'), {
+      target: { value: '   ' },
+    })
+    fireEvent.change(within(inspector).getByLabelText('Title'), {
+      target: { value: '   ' },
+    })
+    fireEvent.change(within(inspector).getByLabelText('Email'), {
+      target: { value: '   ' },
+    })
+    fireEvent.change(within(inspector).getByLabelText('Phone'), {
+      target: { value: '   ' },
+    })
+    fireEvent.change(within(inspector).getByLabelText('Location'), {
+      target: { value: '   ' },
+    })
+    fireEvent.click(within(inspector).getByRole('button', { name: 'Remove link 2' }))
+    fireEvent.click(within(inspector).getByRole('button', { name: 'Add link' }))
+    fireEvent.change(within(inspector).getByLabelText('Link 2 URL'), {
+      target: { value: 'https://portfolio.example.dev' },
+    })
+    fireEvent.click(within(inspector).getByRole('button', { name: 'Add link' }))
+    fireEvent.click(within(inspector).getByRole('button', { name: 'Save' }))
+
+    expect(useIdentityStore.getState().currentIdentity?.identity.display_name).toBeUndefined()
+    expect(useIdentityStore.getState().currentIdentity?.identity.title).toBeUndefined()
+    expect(useIdentityStore.getState().currentIdentity?.identity.email).toBe('')
+    expect(useIdentityStore.getState().currentIdentity?.identity.phone).toBe('')
+    expect(useIdentityStore.getState().currentIdentity?.identity.location).toBe('')
+    expect(useIdentityStore.getState().currentIdentity?.identity.links).toEqual([
+      { id: 'link-1', url: 'https://alex.example.dev' },
+      { id: 'link-2', url: 'https://portfolio.example.dev' },
+    ])
+    expect(document.querySelector('.identity-map-name')?.textContent).toBe('Alex Example')
+  })
+
+  it('reserves later manual link labels before assigning fallback labels', () => {
+    seed((id) => {
+      id.identity.links = []
+    })
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit contact basics' }))
+    const inspector = screen.getByLabelText('Identity inspector')
+    fireEvent.click(within(inspector).getByRole('button', { name: 'Edit details' }))
+    fireEvent.click(within(inspector).getByRole('button', { name: 'Add link' }))
+    fireEvent.click(within(inspector).getByRole('button', { name: 'Add link' }))
+    fireEvent.change(within(inspector).getByLabelText('Link 1 URL'), {
+      target: { value: 'https://first.example.dev' },
+    })
+    fireEvent.change(within(inspector).getByLabelText('Link 2 Label'), {
+      target: { value: 'link-1' },
+    })
+    fireEvent.change(within(inspector).getByLabelText('Link 2 URL'), {
+      target: { value: 'https://second.example.dev' },
+    })
+    fireEvent.click(within(inspector).getByRole('button', { name: 'Save' }))
+
+    expect(useIdentityStore.getState().currentIdentity?.identity.links).toEqual([
+      { id: 'link-2', url: 'https://first.example.dev' },
+      { id: 'link-1', url: 'https://second.example.dev' },
+    ])
+  })
+
+  it('deduplicates repeated manual contact link labels', () => {
+    seed((id) => {
+      id.identity.links = []
+    })
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit contact basics' }))
+    const inspector = screen.getByLabelText('Identity inspector')
+    fireEvent.click(within(inspector).getByRole('button', { name: 'Edit details' }))
+    fireEvent.click(within(inspector).getByRole('button', { name: 'Add link' }))
+    fireEvent.click(within(inspector).getByRole('button', { name: 'Add link' }))
+    fireEvent.change(within(inspector).getByLabelText('Link 1 Label'), {
+      target: { value: 'github' },
+    })
+    fireEvent.change(within(inspector).getByLabelText('Link 1 URL'), {
+      target: { value: 'https://github.com/alex' },
+    })
+    fireEvent.change(within(inspector).getByLabelText('Link 2 Label'), {
+      target: { value: 'github' },
+    })
+    fireEvent.change(within(inspector).getByLabelText('Link 2 URL'), {
+      target: { value: 'https://github.com/alex-work' },
+    })
+    fireEvent.click(within(inspector).getByRole('button', { name: 'Add link' }))
+    fireEvent.change(within(inspector).getByLabelText('Link 3 Label'), {
+      target: { value: 'github' },
+    })
+    fireEvent.change(within(inspector).getByLabelText('Link 3 URL'), {
+      target: { value: 'https://github.com/alex-side' },
+    })
+    fireEvent.click(within(inspector).getByRole('button', { name: 'Save' }))
+
+    expect(useIdentityStore.getState().currentIdentity?.identity.links).toEqual([
+      { id: 'github', url: 'https://github.com/alex' },
+      { id: 'github-2', url: 'https://github.com/alex-work' },
+      { id: 'github-3', url: 'https://github.com/alex-side' },
+    ])
+  })
+
   it('uses source text as the map preview before role bullets are decomposed', () => {
     seed((id) => {
       const bullet = id.roles[0]?.bullets[0]
@@ -215,8 +515,6 @@ describe('Identity Map — match-rule add/remove', () => {
         .getAttribute('aria-describedby'),
     ).toBeNull()
   })
-
-
   it('renders competitive moat as a selectable card and keeps advantage input styled', () => {
     seed((id) => {
       id.self_model.competitive_moat = 'Platform engineering plus deployment architecture.'
@@ -814,7 +1112,9 @@ describe('Identity Map — match-rule add/remove', () => {
     })
     const deferred =
       createDeferred<
-        Awaited<ReturnType<typeof identityParameterMocks.generateStrategicPositioningFromIdentityMock>>
+        Awaited<
+          ReturnType<typeof identityParameterMocks.generateStrategicPositioningFromIdentityMock>
+        >
       >()
     identityParameterMocks.generateStrategicPositioningFromIdentityMock.mockReturnValueOnce(
       deferred.promise,
@@ -915,9 +1215,7 @@ describe('Identity Map — match-rule add/remove', () => {
     render(<IdentityMapPage />)
 
     expect(screen.getByText('Edit the durable identity here.')).toBeTruthy()
-    expect(
-      screen.getByText(/import turns source material into a draft/i),
-    ).toBeTruthy()
+    expect(screen.getByText(/import turns source material into a draft/i)).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Generate research thesis' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Regenerate research thesis' })).toBeNull()
     expect(screen.getByText(/deepen skills here so downstream work knows/i)).toBeTruthy()
@@ -1203,9 +1501,7 @@ describe('Identity Map — match-rule add/remove', () => {
 
     await waitFor(() => {
       expect(skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock).toHaveBeenCalledTimes(2)
-      expect(within(panel).getByRole('status').textContent).toBe(
-        'Processed 1 of 2 skill(s)...',
-      )
+      expect(within(panel).getByRole('status').textContent).toBe('Processed 1 of 2 skill(s)...')
     })
 
     await act(async () => {
@@ -1263,7 +1559,9 @@ describe('Identity Map — match-rule add/remove', () => {
     })
 
     expect(signal.aborted).toBe(true)
-    expect(useIdentityStore.getState().currentIdentity!.skills.groups[0]!.items[0]!.depth).toBeUndefined()
+    expect(
+      useIdentityStore.getState().currentIdentity!.skills.groups[0]!.items[0]!.depth,
+    ).toBeUndefined()
     expect(consoleError).not.toHaveBeenCalled()
     consoleError.mockRestore()
   })
@@ -1448,12 +1746,8 @@ describe('Identity Map — match-rule add/remove', () => {
     })
     render(<SkillsBand />)
 
-    expect(screen.getByRole('button', { name: 'Pending untagged' }).className).toContain(
-      'untagged',
-    )
-    expect(screen.getByRole('button', { name: 'Pending untagged' }).className).toContain(
-      'pending',
-    )
+    expect(screen.getByRole('button', { name: 'Pending untagged' }).className).toContain('untagged')
+    expect(screen.getByRole('button', { name: 'Pending untagged' }).className).toContain('pending')
     expect(screen.getByRole('button', { name: 'Complete untagged' }).className).toContain(
       'complete',
     )
@@ -1546,7 +1840,7 @@ describe('Identity Map — match-rule add/remove', () => {
         unfair_advantages: ['Platform infrastructure depth plus product judgment'],
         search_vectors: [],
         open_questions: [],
-    })
+      })
 
     render(<IdentityMapPage />)
 
@@ -1596,9 +1890,13 @@ describe('Identity Map — match-rule add/remove', () => {
     fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
     fireEvent.click(screen.getByRole('button', { name: /run action: refresh positioning/i }))
     await waitFor(() => {
-      expect(identityParameterMocks.generateStrategicPositioningFromIdentityMock).toHaveBeenCalledTimes(1)
+      expect(
+        identityParameterMocks.generateStrategicPositioningFromIdentityMock,
+      ).toHaveBeenCalledTimes(1)
     })
-    expect(identityParameterMocks.generateStrategicPositioningFromIdentityMock).toHaveBeenNthCalledWith(
+    expect(
+      identityParameterMocks.generateStrategicPositioningFromIdentityMock,
+    ).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
         identity: expect.objectContaining({ name: 'Alex Example' }),
@@ -1610,9 +1908,13 @@ describe('Identity Map — match-rule add/remove', () => {
     fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
     fireEvent.click(screen.getByRole('button', { name: /run action: generate parameters/i }))
     await waitFor(() => {
-      expect(identityParameterMocks.generateStrategicPositioningFromIdentityMock).toHaveBeenCalledTimes(2)
+      expect(
+        identityParameterMocks.generateStrategicPositioningFromIdentityMock,
+      ).toHaveBeenCalledTimes(2)
     })
-    expect(identityParameterMocks.generateStrategicPositioningFromIdentityMock).toHaveBeenNthCalledWith(
+    expect(
+      identityParameterMocks.generateStrategicPositioningFromIdentityMock,
+    ).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
         identity: expect.objectContaining({ name: 'Alex Example' }),
@@ -1807,9 +2109,11 @@ describe('Identity Map — match-rule add/remove', () => {
 
       render(<IdentityMapPage />)
 
-      fireEvent.click(within(getSelfKnowledgeControls()).getByRole('button', {
-        name: /^generate self-knowledge$/i,
-      }))
+      fireEvent.click(
+        within(getSelfKnowledgeControls()).getByRole('button', {
+          name: /^generate self-knowledge$/i,
+        }),
+      )
       await act(async () => {
         await Promise.resolve()
         await Promise.resolve()
@@ -1894,14 +2198,16 @@ describe('Identity Map — match-rule add/remove', () => {
 
     const { unmount } = render(<IdentityMapPage />)
 
-    fireEvent.click(within(getSelfKnowledgeControls()).getByRole('button', {
-      name: /^generate self-knowledge$/i,
-    }))
+    fireEvent.click(
+      within(getSelfKnowledgeControls()).getByRole('button', {
+        name: /^generate self-knowledge$/i,
+      }),
+    )
     await waitFor(() => {
       expect(identityParameterMocks.generateSelfKnowledgeFromIdentityMock).toHaveBeenCalledTimes(1)
     })
-    const signal = identityParameterMocks.generateSelfKnowledgeFromIdentityMock.mock
-      .calls[0]?.[2]?.signal
+    const signal =
+      identityParameterMocks.generateSelfKnowledgeFromIdentityMock.mock.calls[0]?.[2]?.signal
 
     unmount()
 
@@ -2055,9 +2361,11 @@ describe('Identity Map — match-rule add/remove', () => {
     })
 
     render(<IdentityMapPage />)
-    fireEvent.click(within(getSelfKnowledgeControls()).getByRole('button', {
-      name: /^generate self-knowledge$/i,
-    }))
+    fireEvent.click(
+      within(getSelfKnowledgeControls()).getByRole('button', {
+        name: /^generate self-knowledge$/i,
+      }),
+    )
 
     await waitFor(() => {
       expect(
@@ -2098,9 +2406,11 @@ describe('Identity Map — match-rule add/remove', () => {
     })
 
     render(<IdentityMapPage />)
-    fireEvent.click(within(getSelfKnowledgeControls()).getByRole('button', {
-      name: /^generate self-knowledge$/i,
-    }))
+    fireEvent.click(
+      within(getSelfKnowledgeControls()).getByRole('button', {
+        name: /^generate self-knowledge$/i,
+      }),
+    )
 
     await waitFor(() => {
       expect(
@@ -2148,9 +2458,11 @@ describe('Identity Map — match-rule add/remove', () => {
     })
 
     render(<IdentityMapPage />)
-    fireEvent.click(within(getSelfKnowledgeControls()).getByRole('button', {
-      name: /^generate self-knowledge$/i,
-    }))
+    fireEvent.click(
+      within(getSelfKnowledgeControls()).getByRole('button', {
+        name: /^generate self-knowledge$/i,
+      }),
+    )
 
     await waitFor(() => {
       expect(
@@ -2263,8 +2575,8 @@ describe('Identity Map — match-rule add/remove', () => {
     await waitFor(() => {
       expect(identityParameterMocks.generateIdentityThesisFromIdentityMock).toHaveBeenCalledTimes(1)
     })
-    const signal = identityParameterMocks.generateIdentityThesisFromIdentityMock.mock
-      .calls[0]?.[2]?.signal
+    const signal =
+      identityParameterMocks.generateIdentityThesisFromIdentityMock.mock.calls[0]?.[2]?.signal
 
     unmount()
 
@@ -2373,7 +2685,9 @@ describe('Identity Map — match-rule add/remove', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText('Identity changed since this draft was generated; discarded the thesis draft.'),
+        screen.getByText(
+          'Identity changed since this draft was generated; discarded the thesis draft.',
+        ),
       ).toBeTruthy()
     })
     expect(screen.queryByLabelText('Generated thesis draft')).toBeNull()
@@ -2508,7 +2822,8 @@ describe('Identity Map — match-rule add/remove', () => {
       expect(useIdentityStore.getState().currentIdentity?.self_model.arc).toEqual([
         {
           company: 'Contoso Networks',
-          chapter: 'Senior Platform Engineer chapter focused on Raised enterprise deployment confidence.',
+          chapter:
+            'Senior Platform Engineer chapter focused on Raised enterprise deployment confidence.',
         },
       ])
     })
@@ -2792,7 +3107,9 @@ describe('Identity Map — match-rule add/remove', () => {
 
     render(<IdentityMapPage />)
 
-    expect(identityParameterMocks.generateStrategicPositioningFromIdentityMock).not.toHaveBeenCalled()
+    expect(
+      identityParameterMocks.generateStrategicPositioningFromIdentityMock,
+    ).not.toHaveBeenCalled()
     expect(identityParameterMocks.generateSearchVectorsFromIdentityMock).not.toHaveBeenCalled()
     expect(identityParameterMocks.generateAwarenessFromIdentityMock).not.toHaveBeenCalled()
   })
@@ -2815,20 +3132,22 @@ describe('Identity Map — match-rule add/remove', () => {
 
     render(<IdentityMapPage />)
 
-    fireEvent.click(
-      screen.getByRole('button', { name: /run next action: refresh positioning/i }),
-    )
+    fireEvent.click(screen.getByRole('button', { name: /run next action: refresh positioning/i }))
     await waitFor(() => {
-      expect(identityParameterMocks.generateStrategicPositioningFromIdentityMock).toHaveBeenCalledTimes(1)
+      expect(
+        identityParameterMocks.generateStrategicPositioningFromIdentityMock,
+      ).toHaveBeenCalledTimes(1)
     })
 
-    fireEvent.click(
-      screen.getByRole('button', { name: /run next action: refresh positioning/i }),
-    )
+    fireEvent.click(screen.getByRole('button', { name: /run next action: refresh positioning/i }))
     await waitFor(() => {
-      expect(identityParameterMocks.generateStrategicPositioningFromIdentityMock).toHaveBeenCalledTimes(2)
+      expect(
+        identityParameterMocks.generateStrategicPositioningFromIdentityMock,
+      ).toHaveBeenCalledTimes(2)
     })
-    expect(identityParameterMocks.generateStrategicPositioningFromIdentityMock).toHaveBeenNthCalledWith(
+    expect(
+      identityParameterMocks.generateStrategicPositioningFromIdentityMock,
+    ).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
         identity: expect.objectContaining({ name: 'Alex Example' }),
@@ -2856,13 +3175,17 @@ describe('Identity Map — match-rule add/remove', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /^generate strategy$/i }))
     await waitFor(() => {
-      expect(identityParameterMocks.generateStrategicPositioningFromIdentityMock).toHaveBeenCalledTimes(1)
+      expect(
+        identityParameterMocks.generateStrategicPositioningFromIdentityMock,
+      ).toHaveBeenCalledTimes(1)
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
     fireEvent.click(screen.getByRole('button', { name: /run action: generate parameters/i }))
 
-    expect(identityParameterMocks.generateStrategicPositioningFromIdentityMock).toHaveBeenCalledTimes(1)
+    expect(
+      identityParameterMocks.generateStrategicPositioningFromIdentityMock,
+    ).toHaveBeenCalledTimes(1)
     await waitFor(() => {
       expect(screen.getByText('Strategy generation is already running.')).toBeTruthy()
     })
@@ -2892,18 +3215,18 @@ describe('Identity Map — match-rule add/remove', () => {
 
     render(<IdentityMapPage />)
 
-    fireEvent.click(
-      screen.getByRole('button', { name: /run next action: refresh positioning/i }),
-    )
+    fireEvent.click(screen.getByRole('button', { name: /run next action: refresh positioning/i }))
     await waitFor(() => {
-      expect(identityParameterMocks.generateStrategicPositioningFromIdentityMock).toHaveBeenCalledTimes(1)
+      expect(
+        identityParameterMocks.generateStrategicPositioningFromIdentityMock,
+      ).toHaveBeenCalledTimes(1)
     })
 
-    fireEvent.click(
-      screen.getByRole('button', { name: /run next action: refresh positioning/i }),
-    )
+    fireEvent.click(screen.getByRole('button', { name: /run next action: refresh positioning/i }))
 
-    expect(identityParameterMocks.generateStrategicPositioningFromIdentityMock).toHaveBeenCalledTimes(1)
+    expect(
+      identityParameterMocks.generateStrategicPositioningFromIdentityMock,
+    ).toHaveBeenCalledTimes(1)
     expect(screen.getByText('Positioning refresh is already running.')).toBeTruthy()
 
     await act(async () => {
@@ -2944,9 +3267,7 @@ describe('Identity Map — match-rule add/remove', () => {
     try {
       render(<IdentityMapPage />)
 
-      fireEvent.click(
-        screen.getByRole('button', { name: /run next action: refresh positioning/i }),
-      )
+      fireEvent.click(screen.getByRole('button', { name: /run next action: refresh positioning/i }))
 
       expect(scrollIntoViewMock).toHaveBeenCalledWith({
         behavior: 'auto',
@@ -3032,9 +3353,7 @@ describe('Identity Map — match-rule add/remove', () => {
     try {
       render(<IdentityMapPage />)
 
-      fireEvent.click(
-        screen.getByRole('button', { name: /run next action: refresh positioning/i }),
-      )
+      fireEvent.click(screen.getByRole('button', { name: /run next action: refresh positioning/i }))
 
       expect(scrollIntoViewMock).toHaveBeenCalledWith({
         behavior: 'smooth',
@@ -3062,9 +3381,11 @@ describe('Identity Map — match-rule add/remove', () => {
     fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
     const actionDialog = screen.getByRole('dialog', { name: 'Identity action items' })
     expect(
-      (within(actionDialog).getByRole('button', {
-        name: /run action: review skill depth/i,
-      }) as HTMLButtonElement).disabled,
+      (
+        within(actionDialog).getByRole('button', {
+          name: /run action: review skill depth/i,
+        }) as HTMLButtonElement
+      ).disabled,
     ).toBe(true)
     fireEvent.click(within(actionDialog).getByRole('button', { name: 'Close' }))
     expect(screen.getByRole('button', { name: 'Platform' })).toBeTruthy()
@@ -3083,9 +3404,7 @@ describe('Identity Map — match-rule add/remove', () => {
     const { container } = render(<IdentityMapPage />)
 
     expect(screen.getByText('No identity yet')).toBeTruthy()
-    expect(
-      screen.getByText(/Bring in resumes, source notes, or identity JSON/i),
-    ).toBeTruthy()
+    expect(screen.getByText(/Bring in resumes, source notes, or identity JSON/i)).toBeTruthy()
     expect(container.querySelector('.thesis-strength-note')?.textContent).toBe('')
     expect(
       within(container.querySelector('[data-layer="thesis"]') as HTMLElement).getByText(
@@ -3350,7 +3669,9 @@ describe('Identity Map — search-vector full-edit + add/remove', () => {
         identityParameterMocks.generateStrategicPositioningFromIdentityMock,
       ).toHaveBeenCalledTimes(1)
     })
-    expect(identityParameterMocks.generateStrategicPositioningFromIdentityMock).toHaveBeenCalledWith(
+    expect(
+      identityParameterMocks.generateStrategicPositioningFromIdentityMock,
+    ).toHaveBeenCalledWith(
       expect.objectContaining({
         identity: expect.objectContaining({ name: 'Alex Example' }),
       }),
@@ -3435,7 +3756,9 @@ describe('Identity Map — search-vector full-edit + add/remove', () => {
     })
     expect(consoleErrorSpy).not.toHaveBeenCalled()
     consoleErrorSpy.mockRestore()
-    expect(identityParameterMocks.generateStrategicPositioningFromIdentityMock).not.toHaveBeenCalled()
+    expect(
+      identityParameterMocks.generateStrategicPositioningFromIdentityMock,
+    ).not.toHaveBeenCalled()
     expect(useIdentityStore.getState().currentIdentity?.self_model.competitive_moat).toBeUndefined()
     expect(useIdentityStore.getState().currentIdentity?.search_vectors).toEqual([])
     expect(useIdentityStore.getState().currentIdentity?.awareness?.open_questions).toEqual([])
@@ -3478,7 +3801,9 @@ describe('Identity Map — search-vector full-edit + add/remove', () => {
     })
     const deferred =
       createDeferred<
-        Awaited<ReturnType<typeof identityParameterMocks.generateStrategicPositioningFromIdentityMock>>
+        Awaited<
+          ReturnType<typeof identityParameterMocks.generateStrategicPositioningFromIdentityMock>
+        >
       >()
     identityParameterMocks.generateStrategicPositioningFromIdentityMock.mockReturnValueOnce(
       deferred.promise,
@@ -3531,7 +3856,9 @@ describe('Identity Map — search-vector full-edit + add/remove', () => {
       ).toBeTruthy()
     })
     expect(useIdentityStore.getState().currentIdentity?.self_model.competitive_moat).toBeUndefined()
-    expect(useIdentityStore.getState().currentIdentity?.self_model.unfair_advantages).toBeUndefined()
+    expect(
+      useIdentityStore.getState().currentIdentity?.self_model.unfair_advantages,
+    ).toBeUndefined()
     expect(useIdentityStore.getState().currentIdentity?.search_vectors).toEqual([])
     expect(useIdentityStore.getState().currentIdentity?.awareness?.open_questions).toEqual([])
   })
@@ -4571,7 +4898,9 @@ describe('Identity Map — skill inline editing', () => {
     expect(screen.getByText(/No direct bullet evidence matched this skill/i)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Draft skill' }))
 
-    expect(screen.getByText('No bullet evidence matched this skill. Set the depth manually.')).toBeTruthy()
+    expect(
+      screen.getByText('No bullet evidence matched this skill. Set the depth manually.'),
+    ).toBeTruthy()
     expect(skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock).not.toHaveBeenCalled()
   })
 
@@ -4621,7 +4950,9 @@ describe('Identity Map — skill inline editing', () => {
         }),
       )
     })
-    expect(screen.queryByText('No bullet evidence matched this skill. Set the depth manually.')).toBeNull()
+    expect(
+      screen.queryByText('No bullet evidence matched this skill. Set the depth manually.'),
+    ).toBeNull()
   })
 
   it('drafts and applies skill depth, context, positioning, and confidence inline', async () => {
@@ -4896,7 +5227,9 @@ describe('Identity Map — skill inline editing', () => {
       .getState()
       .currentIdentity!.skills.groups[0]!.items.find((entry) => entry.name === 'Ansible')
     expect(skill?.depth).toBeUndefined()
-    expect(screen.getByText('The draft did not include a depth. Set this skill manually.')).toBeTruthy()
+    expect(
+      screen.getByText('The draft did not include a depth. Set this skill manually.'),
+    ).toBeTruthy()
   })
 
   it('renames skill groups from the map inspector', () => {

@@ -315,6 +315,7 @@ export type PreferenceFieldKey =
  * `useIdentityStore.setMapSelection`; the inspector reads it to render a slot.
  */
 export type MapSelection =
+  | { type: 'contact-basics' }
   | { type: 'thesis' }
   | { type: 'competitive-moat' }
   | { type: 'philosophy'; id: string }

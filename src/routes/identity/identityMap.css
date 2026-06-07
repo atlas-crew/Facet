@@ -168,6 +168,13 @@
   margin-bottom: var(--space-8);
 }
 
+.identity-map-identity-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
 .identity-map-name {
   font-size: 30px;
   line-height: 1.15;
@@ -175,6 +182,28 @@
   letter-spacing: -0.5px;
   margin: 0;
   font-weight: 700;
+}
+
+.identity-map-contact-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 32px;
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  padding: 0 var(--space-3);
+}
+
+.identity-map-contact-edit:hover,
+.identity-map-contact-edit:focus-visible {
+  border-color: var(--focus-ring-color);
+  color: var(--text-primary);
 }
 
 .identity-map-contact {
@@ -1948,6 +1977,32 @@
   font-size: 12px;
   line-height: 1.4;
   color: var(--warning);
+}
+
+.inspector-checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.contact-link-list {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.contact-link-fieldset {
+  border: 0;
+  padding: 0;
+}
+
+.contact-link-row {
+  display: grid;
+  grid-template-columns: minmax(88px, 0.7fr) minmax(140px, 1fr) auto;
+  gap: var(--space-2);
+  align-items: center;
 }
 
 .inspector-input,

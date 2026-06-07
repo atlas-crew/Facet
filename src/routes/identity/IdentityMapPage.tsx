@@ -8,7 +8,7 @@ import {
   type MouseEvent,
 } from 'react'
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import { Download, ListChecks, LocateFixed, Sparkles, Upload } from 'lucide-react'
+import { Download, ListChecks, LocateFixed, Pencil, Sparkles, Upload } from 'lucide-react'
 import type { ProfessionalIdentityV3 } from '../../identity/schema'
 import { isMapSelectionValid, useIdentityStore } from '../../store/identityStore'
 import {
@@ -954,9 +954,22 @@ export function IdentityMapPage() {
         </div>
 
         <div className="identity-map-identity">
-          <h1 className="chapter-copy identity-map-name">
-            {identity?.identity?.name ?? 'No identity yet'}
-          </h1>
+          <div className="identity-map-identity-header">
+            <h1 className="chapter-copy identity-map-name">
+              {identity?.identity?.display_name?.trim() ||
+                identity?.identity?.name ||
+                'No identity yet'}
+            </h1>
+            {identity ? (
+              <button
+                type="button"
+                className="identity-map-contact-edit label-tracked"
+                onClick={() => setMapSelection({ type: 'contact-basics' })}
+              >
+                <Pencil size={13} aria-hidden="true" /> Edit contact basics
+              </button>
+            ) : null}
+          </div>
           {identity ? (
             <>
               <p className="label-tracked identity-map-contact">
