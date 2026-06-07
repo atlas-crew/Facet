@@ -4,9 +4,11 @@ title: Hide Research budget badge outside development mode
 status: To Do
 assignee: []
 created_date: '2026-06-01 19:06'
+updated_date: '2026-06-07 02:44'
 labels:
   - bug
   - research
+milestone: m-36
 dependencies: []
 references:
   - TODO.md
