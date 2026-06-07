@@ -1,9 +1,11 @@
 ---
 id: TASK-292
 title: Add a fill-strength legend help chip explaining the label vocabulary
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - codex
 created_date: '2026-06-07 20:28'
+updated_date: '2026-06-07 21:10'
 labels:
   - identity
   - ui
