@@ -281,8 +281,12 @@ describe('BulletInspector — source_text sheet canary', () => {
 
     const tags = screen.getByText('Tags').closest('.inspector-read-section')
     expect(tags).not.toBeNull()
-    expect(within(tags as HTMLElement).getByText('platform')).not.toBeNull()
-    expect(within(tags as HTMLElement).getByText('delivery')).not.toBeNull()
+    expect(within(tags as HTMLElement).getByText('platform').className).toContain(
+      'inspector-tag-pill',
+    )
+    expect(within(tags as HTMLElement).getByText('delivery').className).toContain(
+      'inspector-tag-pill',
+    )
 
     const evidence = screen.getByRole('region', { name: 'Deepening evidence' })
     expect(
@@ -306,7 +310,7 @@ describe('BulletInspector — source_text sheet canary', () => {
   it('filters blank read-mode list items and hides empty list sections', () => {
     seed((id) => {
       id.roles[0].bullets[0].technologies = []
-      id.roles[0].bullets[0].tags = ['  ', 'platform', '', ' delivery ']
+      id.roles[0].bullets[0].tags = ['  ', 'platform', 'Platform', '', ' delivery ']
       id.roles[0].bullets[0].impact = []
     })
 
@@ -319,6 +323,135 @@ describe('BulletInspector — source_text sheet canary', () => {
     expect(within(tags as HTMLElement).getAllByRole('listitem')).toHaveLength(2)
     expect(within(tags as HTMLElement).getByText('platform')).not.toBeNull()
     expect(within(tags as HTMLElement).getByText('delivery')).not.toBeNull()
+  })
+
+  it('hides the read-mode tags section when every bullet tag is blank', () => {
+    seed((id) => {
+      id.roles[0].bullets[0].tags = ['  ', '']
+    })
+
+    render(<IdentityMapPage />)
+
+    expect(screen.queryByText('Tags')).toBeNull()
+  })
+
+  it('edits bullet tags with removable pills and an add control', () => {
+    seed((id) => {
+      id.roles[0].bullets[0].tags = ['platform', 'delivery']
+    })
+
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit bullet' }))
+    const tagInput = screen.getByLabelText('New bullet tags')
+    fireEvent.click(screen.getByRole('button', { name: 'Remove platform tag' }))
+    expect(document.activeElement).toBe(tagInput)
+
+    fireEvent.change(tagInput, { target: { value: '  security  ' } })
+    fireEvent.keyDown(tagInput, { key: 'Enter' })
+    expect((tagInput as HTMLInputElement).value).toBe('')
+    fireEvent.change(tagInput, { target: { value: 'observability' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add bullet tag' }))
+    expect((tagInput as HTMLInputElement).value).toBe('')
+    fireEvent.change(tagInput, { target: { value: 'resilience, scale, Scale' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add bullet tag' }))
+    expect((tagInput as HTMLInputElement).value).toBe('')
+    fireEvent.change(tagInput, { target: { value: 'Security' } })
+    expect(
+      (screen.getByRole('button', { name: 'Add bullet tag' }) as HTMLButtonElement).disabled,
+    ).toBe(true)
+    fireEvent.keyDown(tagInput, { key: 'Enter' })
+    expect((tagInput as HTMLInputElement).value).toBe('Security')
+    fireEvent.change(tagInput, { target: { value: '   ' } })
+    expect(
+      (screen.getByRole('button', { name: 'Add bullet tag' }) as HTMLButtonElement).disabled,
+    ).toBe(true)
+    fireEvent.keyDown(tagInput, { key: 'Enter' })
+    expect((tagInput as HTMLInputElement).value).toBe('   ')
+    fireEvent.change(tagInput, { target: { value: 'pending-save' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(useIdentityStore.getState().currentIdentity!.roles[0].bullets[0].tags).toEqual([
+      'delivery',
+      'security',
+      'observability',
+      'resilience',
+      'scale',
+      'pending-save',
+    ])
+  })
+
+  it('dedupes pending tag input when saving directly', () => {
+    seed((id) => {
+      id.roles[0].bullets[0].tags = ['delivery']
+    })
+
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit bullet' }))
+    fireEvent.change(screen.getByLabelText('New bullet tags'), { target: { value: 'Delivery' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(useIdentityStore.getState().currentIdentity!.roles[0].bullets[0].tags).toEqual([
+      'delivery',
+    ])
+  })
+
+  it('cancels bullet tag draft edits without touching stored tags', () => {
+    seed((id) => {
+      id.roles[0].bullets[0].tags = ['platform']
+    })
+
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit bullet' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Remove platform tag' }))
+    fireEvent.change(screen.getByLabelText('New bullet tags'), { target: { value: 'security' } })
+    fireEvent.keyDown(screen.getByLabelText('New bullet tags'), { key: 'Enter' })
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(useIdentityStore.getState().currentIdentity!.roles[0].bullets[0].tags).toEqual([
+      'platform',
+    ])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit bullet' }))
+    const tags = screen.getByRole('group', { name: 'Tags' })
+    expect(within(tags).getByText('platform')).not.toBeNull()
+    expect(within(tags).queryByText('security')).toBeNull()
+  })
+
+  it('dedupes messy stored tags when entering edit mode', () => {
+    seed((id) => {
+      id.roles[0].bullets[0].tags = ['platform', 'Platform', ' delivery ']
+    })
+
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit bullet' }))
+
+    const tags = screen.getByRole('group', { name: 'Tags' })
+    expect(within(tags).getAllByRole('listitem')).toHaveLength(2)
+    expect(within(tags).getByText('platform')).not.toBeNull()
+    expect(within(tags).getByText('delivery')).not.toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(useIdentityStore.getState().currentIdentity!.roles[0].bullets[0].tags).toEqual([
+      'platform',
+      'delivery',
+    ])
+  })
+
+  it('shows an edit-mode placeholder when the last bullet tag is removed', () => {
+    seed((id) => {
+      id.roles[0].bullets[0].tags = ['platform']
+    })
+
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit bullet' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Remove platform tag' }))
+
+    expect(screen.getByText('No tags yet')).not.toBeNull()
   })
 
   it('shows warning-only deepening evidence without blank summary sections', () => {

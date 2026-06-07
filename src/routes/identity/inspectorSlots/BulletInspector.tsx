@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
+import { Plus, X } from 'lucide-react'
 import type { ProfessionalIdentityV3 } from '../../../identity/schema'
 import {
   getActiveResumeScan,
@@ -47,6 +48,24 @@ const CONFIDENCE_LABELS: Record<IdentityConfidence, string> = {
   corrected: 'Corrected',
 }
 
+const tagKey = (tag: string): string => tag.trim().toLowerCase()
+
+const normalizeBulletTagItems = (items: readonly string[]): string[] => {
+  const seen = new Set<string>()
+  const tags: string[] = []
+  for (const item of items) {
+    const tag = item.trim()
+    if (!tag) continue
+    const key = tagKey(tag)
+    if (seen.has(key)) continue
+    seen.add(key)
+    tags.push(tag)
+  }
+  return tags
+}
+
+const normalizeBulletTags = (value: string): string[] => normalizeBulletTagItems(inputToTags(value))
+
 const parseMetricsDocument = (
   value: string,
 ): {
@@ -83,13 +102,7 @@ const parseMetricsDocument = (
   }
 }
 
-function BulletListSection({
-  label,
-  items,
-}: {
-  label: string
-  items: readonly string[]
-}) {
+function BulletListSection({ label, items }: { label: string; items: readonly string[] }) {
   const normalizedItems = items.map((item) => item.trim()).filter(Boolean)
   if (normalizedItems.length === 0) return null
 
@@ -99,6 +112,27 @@ function BulletListSection({
       <ul className="inspector-read-list">
         {normalizedItems.map((item, index) => (
           <li key={`${label}:${index}`}>{item}</li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+function BulletTagsSection({ items }: { items: readonly string[] }) {
+  const labelId = useId()
+  const normalizedItems = normalizeBulletTagItems(items)
+  if (normalizedItems.length === 0) return null
+
+  return (
+    <div className="inspector-read-section">
+      <p className="inspector-read-label label-tracked" id={labelId}>
+        Tags
+      </p>
+      <ul className="inspector-tag-list" aria-labelledby={labelId}>
+        {normalizedItems.map((item) => (
+          <li key={item} className="inspector-tag-pill">
+            {item}
+          </li>
         ))}
       </ul>
     </div>
@@ -198,8 +232,10 @@ export function BulletInspector({
     outcome: '',
     impact: '',
     technologies: '',
-    tags: '',
+    tags: [] as string[],
   })
+  const [newTag, setNewTag] = useState('')
+  const newTagInputRef = useRef<HTMLInputElement>(null)
   const [sheetState, setSheetState] = useState<SourceTextSheetState | null>(null)
   const [metricsSheetState, setMetricsSheetState] = useState<MetricsSheetState | null>(null)
   const sheetOpen = sheetState !== null && sheetState.bulletId === bulletId
@@ -223,8 +259,9 @@ export function BulletInspector({
       outcome: bullet.outcome,
       impact: tagsToInput(bullet.impact),
       technologies: tagsToInput(bullet.technologies),
-      tags: tagsToInput(bullet.tags),
+      tags: normalizeBulletTagItems(bullet.tags),
     })
+    setNewTag('')
     setEditing(true)
   }
 
@@ -341,6 +378,8 @@ export function BulletInspector({
   }
 
   const handleSave = () => {
+    // Preserve visible pending input if the user types a tag and goes straight to Save.
+    const finalTags = normalizeBulletTagItems([...draft.tags, ...normalizeBulletTags(newTag)])
     const next = identity.roles.map((r) =>
       r.id !== roleId
         ? r
@@ -356,13 +395,34 @@ export function BulletInspector({
                     outcome: draft.outcome.trim(),
                     impact: inputToTags(draft.impact),
                     technologies: inputToTags(draft.technologies),
-                    tags: inputToTags(draft.tags),
+                    tags: finalTags,
                   },
             ),
           },
     )
     updateRoles(next)
+    setNewTag('')
     setEditing(false)
+  }
+  const draftTags = draft.tags
+  const setDraftTags = (tags: string[]) => {
+    setDraft({ ...draft, tags: normalizeBulletTagItems(tags) })
+  }
+  const removeDraftTag = (indexToRemove: number) => {
+    setDraftTags(draftTags.filter((_, index) => index !== indexToRemove))
+    newTagInputRef.current?.focus()
+  }
+  const pendingTags = normalizeBulletTags(newTag)
+  const pendingNewTags = pendingTags.filter(
+    (tag) => !draftTags.some((current) => tagKey(current) === tagKey(tag)),
+  )
+  const canAddTags = pendingNewTags.length > 0
+  const addDraftTags = () => {
+    if (pendingTags.length === 0 || pendingNewTags.length === 0) {
+      return
+    }
+    setDraftTags([...draftTags, ...pendingNewTags])
+    setNewTag('')
   }
 
   const sourceTextSheet = (
@@ -469,15 +529,54 @@ export function BulletInspector({
               onChange={(e) => setDraft({ ...draft, technologies: e.target.value })}
             />
           </label>
-          <label className="inspector-field">
-            <span className="inspector-field-label label-tracked">Tags (comma-sep)</span>
-            <input
-              className="inspector-input"
-              type="text"
-              value={draft.tags}
-              onChange={(e) => setDraft({ ...draft, tags: e.target.value })}
-            />
-          </label>
+          <fieldset className="inspector-field inspector-tag-field">
+            <legend className="inspector-field-label label-tracked">Tags</legend>
+            {draftTags.length > 0 ? (
+              <ul className="inspector-tag-list editable">
+                {draftTags.map((tag, index) => (
+                  <li key={`${tag}:${index}`} className="inspector-tag-pill editable">
+                    <span>{tag}</span>
+                    <button
+                      type="button"
+                      className="inspector-tag-remove"
+                      aria-label={`Remove ${tag} tag`}
+                      onClick={() => removeDraftTag(index)}
+                    >
+                      <X size={14} aria-hidden="true" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="inspector-tag-empty">No tags yet</p>
+            )}
+            <div className="inspector-tag-add">
+              <input
+                className="inspector-input"
+                type="text"
+                ref={newTagInputRef}
+                value={newTag}
+                aria-label="New bullet tags"
+                placeholder="Add tag, comma to separate"
+                onChange={(e) => setNewTag(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    addDraftTags()
+                  }
+                }}
+              />
+              <button
+                type="button"
+                className="inspector-btn icon"
+                aria-label="Add bullet tag"
+                onClick={addDraftTags}
+                disabled={!canAddTags}
+              >
+                <Plus size={16} aria-hidden="true" />
+              </button>
+            </div>
+          </fieldset>
           <Actions>
             <button type="button" className="inspector-btn primary" onClick={handleSave}>
               Save
@@ -519,7 +618,7 @@ export function BulletInspector({
         <BulletListSection label="Impact" items={bullet.impact} />
         <MetricsRows metrics={bullet.metrics} />
         <BulletListSection label="Technologies" items={bullet.technologies} />
-        <BulletListSection label="Tags" items={bullet.tags} />
+        <BulletTagsSection items={bullet.tags} />
         {deepenExplanation ? <DeepenEvidence explanation={deepenExplanation} /> : null}
         {deepenStatus === 'failed' && deepenEntry?.lastError ? (
           <p className="inspector-warning" role="alert">
