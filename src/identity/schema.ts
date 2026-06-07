@@ -272,6 +272,8 @@ export interface ProfessionalOpenQuestion {
   severity?: ProfessionalAwarenessSeverity
   evidence?: string[]
   needs_review?: boolean
+  answer?: string
+  resolved?: boolean
 }
 
 export interface ProfessionalAwareness {
@@ -1015,6 +1017,17 @@ const parseAwareness = (value: unknown, context: string): ProfessionalAwareness 
                 needs_review: assertBoolean(
                   item.needs_review,
                   `${context}.open_questions[${index}].needs_review`,
+                ),
+              }
+            : {}),
+          ...(item.answer !== undefined
+            ? { answer: assertString(item.answer, `${context}.open_questions[${index}].answer`) }
+            : {}),
+          ...(item.resolved !== undefined
+            ? {
+                resolved: assertBoolean(
+                  item.resolved,
+                  `${context}.open_questions[${index}].resolved`,
                 ),
               }
             : {}),

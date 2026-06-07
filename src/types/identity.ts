@@ -61,6 +61,33 @@ export interface ProposedSearchVectorPatch {
   }
 }
 
+/**
+ * Proposed patch from `proposeAnswerPatch` — routes a user's free-text answer
+ * into the correct identity layer. Discriminated by `kind` so callers can
+ * apply each case without a cast.
+ *
+ * evidence-vs-narrative: role-bullet/skill = evidence layer;
+ * self-model-* = narrative layer.
+ */
+export type AnswerPatch =
+  | {
+      kind: 'role-bullet'
+      roleId: string
+      bullet: {
+        problem: string
+        action: string
+        outcome: string
+        impact?: string[]
+        metrics?: Record<string, string | number | boolean>
+        technologies?: string[]
+        tags?: string[]
+      }
+    }
+  | { kind: 'skill'; groupId: string; skillName: string }
+  | { kind: 'self-model-arc'; entry: { company: string; chapter: string } }
+  | { kind: 'competitive-moat'; text: string }
+  | { kind: 'unfair-advantage'; items: string[] }
+
 export interface IdentityExtractionDraft {
   generatedAt: string
   summary: string
