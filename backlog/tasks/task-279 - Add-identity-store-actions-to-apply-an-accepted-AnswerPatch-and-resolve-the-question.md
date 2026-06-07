@@ -3,10 +3,10 @@ id: TASK-279
 title: >-
   Add identity store actions to apply an accepted AnswerPatch and resolve the
   question
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-06-05 17:14'
-updated_date: '2026-06-07 01:37'
+updated_date: '2026-06-07 02:45'
 labels: []
 milestone: m-34
 dependencies:
@@ -19,6 +19,9 @@ documentation:
   - >-
     specs/answerable-identity-open-questions/doc-45 -
     Answerable-Identity-Open-Questions-—-Design.md
+modified_files:
+  - src/store/identityStore.ts
+  - src/test/identityStoreAnswerPatch.test.ts
 priority: medium
 ordinal: 35000
 ---
@@ -37,12 +40,12 @@ Routing (see doc-45): role-bullet → append via updateCurrentRoles; skill → a
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A store action resolveAwarenessQuestion(id, answer) sets answer and resolved:true on the matching question immutably, leaving other questions untouched
-- [ ] #2 A patch-apply path takes an accepted AnswerPatch and dispatches to the correct existing write-back: role-bullet appends a bullet to the named role; skill adds via addSkillToCurrentIdentity; self-model kinds call the matching self-model action
-- [ ] #3 Applying a role-bullet patch preserves all existing roles and bullets and only appends the new bullet to the targeted role
-- [ ] #4 Applying a patch whose target id no longer exists is a safe no-op (or surfaces a recoverable error) rather than corrupting state
-- [ ] #5 All mutations are immutable (no in-place mutation of store arrays/objects)
-- [ ] #6 Tests cover each patch kind routing to the right write-back, the resolve action, and the missing-target safe path
+- [x] #1 A store action resolveAwarenessQuestion(id, answer) sets answer and resolved:true on the matching question immutably, leaving other questions untouched
+- [x] #2 A patch-apply path takes an accepted AnswerPatch and dispatches to the correct existing write-back: role-bullet appends a bullet to the named role; skill adds via addSkillToCurrentIdentity; self-model kinds call the matching self-model action
+- [x] #3 Applying a role-bullet patch preserves all existing roles and bullets and only appends the new bullet to the targeted role
+- [x] #4 Applying a patch whose target id no longer exists is a safe no-op (or surfaces a recoverable error) rather than corrupting state
+- [x] #5 All mutations are immutable (no in-place mutation of store arrays/objects)
+- [x] #6 Tests cover each patch kind routing to the right write-back, the resolve action, and the missing-target safe path
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -112,12 +115,37 @@ Add a focused suite (e.g. src/test/identityStoreAnswerPatch.test.ts; follow the 
 State layer only. No generator (278), no UI (280). Export nothing new beyond the store actions (consumed by 280 via the useIdentityStore hook).
 <!-- SECTION:PLAN:END -->
 
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+## What shipped
+
+Added two store actions to `identityStore.ts` and a comprehensive test suite.
+
+### `resolveAwarenessQuestion(id, answer)`
+Immutable `map()` over `awareness.open_questions` — sets `answer` (trimmed) and `resolved: true` on the matching question, leaves all others untouched. Empty-after-trim answers still set `resolved: true` but omit the `answer` field (mirrors the optional-field schema idiom). Routes through `updateCurrentIdentity` so revision bumping and stale-conflict detection are handled automatically.
+
+### `applyAnswerPatch(patch: AnswerPatch)`
+Discriminated switch over the five `AnswerPatch` kinds. Uses `get()` to delegate to existing write-back actions — no new mutation surfaces invented:
+- `role-bullet` → reads current roles, safe no-op if `roleId` not found, otherwise appends a full `ProfessionalRoleBullet` (id via `createId('bullet')`, all optional fields defaulted to empty) via `updateCurrentRoles`
+- `skill` → `addSkillToCurrentIdentity` (already safe for unknown groupId)
+- `self-model-arc` → `updateCurrentSelfModelArc` (appends to existing arc)
+- `competitive-moat` → `updateCurrentCompetitiveMoat`
+- `unfair-advantage` → merges with existing then dedupes via `dedupeUnfairAdvantages` before calling `updateCurrentUnfairAdvantages`
+- `default` → exhaustiveness guard (`patch satisfies never`)
+
+### Tests — `src/test/identityStoreAnswerPatch.test.ts` (19 tests)
+Covers: resolve sets answer+resolved on target only; trims whitespace; sets resolved even on empty answer; leaves other questions untouched; unknown id is data-safe; each patch kind routes to correct write-back; missing-target safe paths (role-bullet with unknown roleId, skill with unknown groupId); optional bullet fields default correctly; unfair-advantage deduplication; immutability of arrays for both actions.
+
+Two test assertions were corrected during implementation: `Array.prototype.map()` returns the same object reference for unchanged elements (array reference changes, element refs may not), and `addSkillToCurrentIdentity` always normalizes via `syncIdentityDocument` so `toEqual` on skills must check absence of added items rather than full deep equality.
+<!-- SECTION:FINAL_SUMMARY:END -->
+
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
-- [ ] #3 Automatic formatting was applied to touched files
-- [ ] #4 Regression tests pass (scoped to touched files)
-- [ ] #5 Linters report no warnings or errors in touched files
-- [ ] #6 Relevant documentation updates landed or tasks created
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
+- [x] #3 Automatic formatting was applied to touched files
+- [x] #4 Regression tests pass (scoped to touched files)
+- [x] #5 Linters report no warnings or errors in touched files
+- [x] #6 Relevant documentation updates landed or tasks created
 <!-- DOD:END -->
