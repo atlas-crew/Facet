@@ -4,9 +4,11 @@ title: Add Identity Map editor for candidate contact basics
 status: To Do
 assignee: []
 created_date: '2026-06-01 19:05'
+updated_date: '2026-06-07 02:44'
 labels:
   - feature
   - identity
+milestone: m-35
 dependencies: []
 references:
   - TODO.md
