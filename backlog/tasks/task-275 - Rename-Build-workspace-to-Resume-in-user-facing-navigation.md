@@ -1,10 +1,11 @@
 ---
 id: TASK-275
 title: Rename Build workspace to Resume in user-facing navigation
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - codex
 created_date: '2026-06-01 19:05'
-updated_date: '2026-06-07 02:44'
+updated_date: '2026-06-07 21:10'
 labels:
   - feature
   - build
