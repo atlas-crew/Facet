@@ -6,9 +6,11 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-05-06 00:59'
+updated_date: '2026-06-07 02:44'
 labels:
   - docs
   - developer-experience
+milestone: m-9
 dependencies: []
 references:
   - docs/NAVIGATOR.md
