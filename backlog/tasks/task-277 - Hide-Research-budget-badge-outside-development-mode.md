@@ -1,10 +1,11 @@
 ---
 id: TASK-277
 title: Hide Research budget badge outside development mode
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - codex
 created_date: '2026-06-01 19:06'
-updated_date: '2026-06-07 02:44'
+updated_date: '2026-06-07 21:10'
 labels:
   - bug
   - research
