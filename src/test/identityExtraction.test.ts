@@ -13,10 +13,13 @@ import {
   BULLET_DEEPENING_SYSTEM_PROMPT,
   EXTRACTION_SYSTEM_PROMPT,
   buildDeepenBulletPrompt,
+  buildDeepenProjectPrompt,
   buildExtractionPrompt,
   deepenIdentityBullet,
+  deepenIdentityProject,
   generateIdentityDraft,
   parseDeepenIdentityBulletResponse,
+  parseDeepenIdentityProjectResponse,
   parseIdentityExtractionResponse,
 } from '../utils/identityExtraction'
 import type { SynthesisSeed } from '../types/identity'
@@ -368,6 +371,67 @@ describe('identityExtraction', () => {
         warning.includes('Preserved 2 scanned bullets omitted from AI extraction output.'),
       ),
     ).toBe(true)
+  })
+
+  it('merges seeded project evidence fields with extracted project updates', async () => {
+    const seedIdentity = buildExpandedSeedIdentity()
+    seedIdentity.projects[0] = {
+      ...seedIdentity.projects[0]!,
+      source_text: 'Seed project source notes.',
+      problem: 'Seeded project problem.',
+      action: 'Seeded project action.',
+      outcome: 'Seeded project outcome.',
+      impact: ['Seeded impact'],
+      metrics: { seeded_metric: 1 },
+      technologies: ['SeedTech'],
+      assumptions: ['Seeded assumption'],
+    }
+    const extractedIdentity = structuredClone(seedIdentity)
+    extractedIdentity.projects = [
+      {
+        ...extractedIdentity.projects[0]!,
+        name: '',
+        description: 'Extracted project description.',
+        source_text: '',
+        problem: 'Extracted project problem.',
+        action: '',
+        outcome: 'Extracted project outcome.',
+        impact: [],
+        metrics: { extracted_metric: 2 },
+        technologies: ['ExtractedTech'],
+        assumptions: [],
+        tags: ['extracted'],
+      },
+    ]
+
+    vi.mocked(callLlmProxy).mockResolvedValueOnce(
+      JSON.stringify({
+        summary: 'Merged project evidence.',
+        follow_up_questions: [],
+        identity: extractedIdentity,
+        bullets: [],
+      }),
+    )
+
+    const parsed = await generateIdentityDraft({
+      endpoint: 'https://facet.test/api/ai',
+      sourceMaterial: 'Jordan Example resume text',
+      synthesisSeed: { identity: seedIdentity, bulletVariantPools: {}, roleVariantTitles: {} },
+    })
+
+    expect(parsed.identity.projects[0]).toMatchObject({
+      description: 'Extracted project description.',
+      source_text: 'Seed project source notes.',
+      problem: 'Extracted project problem.',
+      action: 'Seeded project action.',
+      outcome: 'Extracted project outcome.',
+      impact: ['Seeded impact'],
+      metrics: { extracted_metric: 2 },
+      technologies: ['ExtractedTech'],
+      assumptions: ['Seeded assumption'],
+      tags: ['extracted'],
+    })
+    expect(parsed.identity.projects).toHaveLength(2)
   })
 
   it('rejects invalid confidence labels', () => {
@@ -1171,6 +1235,245 @@ describe('identity bullet deepening', () => {
     )
 
     expect(draft.summary).toContain('system prompt evaluation')
+  })
+})
+
+describe('identity project deepening', () => {
+  it('builds a prompt with target project and surrounding identity evidence', () => {
+    const prompt = buildDeepenProjectPrompt({
+      identity: responseBody.identity,
+      projectId: 'facet',
+      correctionNotes: 'Preserve exact project nouns.',
+    })
+
+    expect(prompt).toContain('Identity project context:')
+    expect(prompt).toContain('"project_id": "facet"')
+    expect(prompt).toContain('"skills"')
+    expect(prompt).toContain('Preserve exact project nouns.')
+  })
+
+  it('rejects unknown projects before building or applying project deepening', () => {
+    expect(() =>
+      buildDeepenProjectPrompt({
+        identity: responseBody.identity,
+        projectId: 'missing-project',
+      }),
+    ).toThrow(/Project "missing-project" does not exist/)
+
+    expect(() =>
+      parseDeepenIdentityProjectResponse(
+        JSON.stringify({
+          summary: 'Invalid project payload.',
+          project: {
+            project_id: 'missing-project',
+            name: 'Missing',
+            description: 'Missing project.',
+            problem: 'Problem.',
+            action: 'Action.',
+            outcome: 'Outcome.',
+            impact: [],
+            metrics: {},
+            technologies: [],
+            tags: [],
+            rewrite: 'Missing project.',
+            assumptions: [],
+          },
+        }),
+        responseBody.identity,
+      ),
+    ).toThrow(/Project "missing-project" does not exist/)
+  })
+
+  it('parses a deepened project and preserves source_text from the original project', () => {
+    const identity = structuredClone(responseBody.identity)
+    identity.projects[0]!.source_text = 'Raw project source notes.'
+
+    const parsed = parseDeepenIdentityProjectResponse(
+      JSON.stringify({
+        summary: 'Deepened the project.',
+        project: {
+          project_id: 'facet',
+          name: 'Facet',
+          description: 'Resume and identity tooling.',
+          problem: 'Senior engineers needed durable career evidence.',
+          action: 'Built an identity-backed resume assembly system.',
+          outcome: 'Users could reuse verified evidence across artifacts.',
+          impact: ['Reduced resume rewrite churn'],
+          metrics: { artifacts_generated: 12 },
+          technologies: ['TypeScript', 'React'],
+          tags: ['career-tools', 'identity'],
+          rewrite: 'Built identity-backed resume assembly.',
+          assumptions: [{ label: 'usage metric came from source notes', confidence: 'stated' }],
+        },
+      }),
+      identity,
+    )
+
+    expect(parsed.projectId).toBe('facet')
+    expect(parsed.project.source_text).toBe('Raw project source notes.')
+    expect(parsed.project).toMatchObject({
+      problem: 'Senior engineers needed durable career evidence.',
+      action: 'Built an identity-backed resume assembly system.',
+      outcome: 'Users could reuse verified evidence across artifacts.',
+      metrics: { artifacts_generated: 12 },
+      technologies: ['TypeScript', 'React'],
+      assumptions: ['usage metric came from source notes'],
+    })
+    expect(parsed.assumptions).toEqual([
+      { label: 'usage metric came from source notes', confidence: 'stated' },
+    ])
+  })
+
+  it('accepts sparse project deepening evidence fields', () => {
+    const parsed = parseDeepenIdentityProjectResponse(
+      JSON.stringify({
+        summary: 'Deepened the project with sparse evidence.',
+        project: {
+          project_id: 'facet',
+          name: 'Facet',
+          description: 'Resume and identity tooling.',
+          tags: ['career-tools'],
+          rewrite: 'Resume and identity tooling.',
+        },
+      }),
+      responseBody.identity,
+    )
+
+    expect(parsed.project).toMatchObject({
+      id: 'facet',
+      problem: '',
+      action: '',
+      outcome: '',
+      impact: [],
+      metrics: {},
+      technologies: [],
+      assumptions: [],
+    })
+  })
+
+  it('rejects a deepened project when metrics contain nested objects', () => {
+    expect(() =>
+      parseDeepenIdentityProjectResponse(
+        JSON.stringify({
+          summary: 'Invalid project payload.',
+          project: {
+            project_id: 'facet',
+            name: 'Facet',
+            description: 'Resume and identity tooling.',
+            problem: 'Problem.',
+            action: 'Action.',
+            outcome: 'Outcome.',
+            impact: [],
+            metrics: { users: { count: 12 } },
+            technologies: ['TypeScript'],
+            tags: ['career-tools'],
+            rewrite: 'Project rewrite.',
+            assumptions: [],
+          },
+        }),
+        responseBody.identity,
+      ),
+    ).toThrow(/project.metrics.users must be a string, number, or boolean/)
+  })
+
+  it('rejects a deepened project when metrics contain non-finite numbers', () => {
+    expect(() =>
+      parseDeepenIdentityProjectResponse(
+        `{
+          "summary": "Invalid project payload.",
+          "project": {
+            "project_id": "facet",
+            "name": "Facet",
+            "description": "Resume and identity tooling.",
+            "problem": "Problem.",
+            "action": "Action.",
+            "outcome": "Outcome.",
+            "impact": [],
+            "metrics": { "uptime": 1e999 },
+            "technologies": ["TypeScript"],
+            "tags": ["career-tools"],
+            "rewrite": "Project rewrite.",
+            "assumptions": []
+          }
+        }`,
+        responseBody.identity,
+      ),
+    ).toThrow(/project.metrics.uptime must be a string, number, or boolean/)
+  })
+
+  it('normalizes numeric schema_revision values before sending a project deepen request', async () => {
+    const identity = structuredClone(responseBody.identity) as unknown as Record<string, unknown>
+    identity.schema_revision = 3.1
+    vi.mocked(callLlmProxy).mockResolvedValueOnce(
+      JSON.stringify({
+        summary: 'Deepened the project.',
+        project: {
+          project_id: 'facet',
+          name: 'Facet',
+          description: 'Resume and identity tooling.',
+          problem: 'Problem.',
+          action: 'Action.',
+          outcome: 'Outcome.',
+          impact: [],
+          metrics: {},
+          technologies: ['TypeScript'],
+          tags: ['career-tools'],
+          rewrite: 'Project rewrite.',
+          assumptions: [],
+        },
+      }),
+    )
+
+    await expect(
+      deepenIdentityProject({
+        endpoint: 'https://facet.test/api/ai',
+        identity: identity as unknown as typeof responseBody.identity,
+        projectId: 'facet',
+      }),
+    ).resolves.toMatchObject({
+      projectId: 'facet',
+    })
+
+    const call = vi.mocked(callLlmProxy).mock.calls.at(-1)
+    expect(call?.[2]).toContain('"project_id": "facet"')
+    expect(call?.[3]).toMatchObject({ feature: 'identity.deepen_project' })
+  })
+
+  it('rejects a project deepen response for a different existing project', async () => {
+    const identity = structuredClone(responseBody.identity)
+    identity.projects.push({
+      id: 'labs',
+      name: 'Labs',
+      description: 'Internal platform experiments.',
+      tags: ['platform'],
+    })
+    vi.mocked(callLlmProxy).mockResolvedValueOnce(
+      JSON.stringify({
+        summary: 'Deepened the wrong project.',
+        project: {
+          project_id: 'labs',
+          name: 'Labs',
+          description: 'Internal platform experiments.',
+          problem: 'Problem.',
+          action: 'Action.',
+          outcome: 'Outcome.',
+          impact: [],
+          metrics: {},
+          technologies: [],
+          tags: ['platform'],
+          rewrite: 'Internal platform experiments.',
+          assumptions: [],
+        },
+      }),
+    )
+
+    await expect(
+      deepenIdentityProject({
+        endpoint: 'https://facet.test/api/ai',
+        identity,
+        projectId: 'facet',
+      }),
+    ).rejects.toThrow(/Deepening response targeted labs, expected facet/)
   })
 })
 

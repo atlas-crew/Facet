@@ -26,6 +26,15 @@ export interface IdentityDeepenedBullet {
   warnings: string[]
 }
 
+export interface IdentityDeepenedProject {
+  summary: string
+  projectId: string
+  project: ProfessionalIdentityV3['projects'][number]
+  rewrite: string
+  assumptions: IdentityAssumptionTag[]
+  warnings: string[]
+}
+
 export type ResumeScanBulletExplanation = Pick<
   IdentityDeepenedBullet,
   'summary' | 'rewrite' | 'assumptions' | 'warnings'

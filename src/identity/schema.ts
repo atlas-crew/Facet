@@ -228,6 +228,14 @@ export interface ProfessionalProject {
   name: string
   url?: string
   description: string
+  source_text?: string
+  problem?: string
+  action?: string
+  outcome?: string
+  impact?: string[]
+  metrics?: Record<string, string | number | boolean>
+  technologies?: string[]
+  assumptions?: string[]
   portfolio_dive?: string | null
   tags: string[]
 }
@@ -556,6 +564,24 @@ const assertOptionalBoolean = (value: unknown, context: string): boolean | undef
 
 const assertStringArray = (value: unknown, context: string): string[] =>
   assertArray(value, context).map((entry, index) => assertString(entry, `${context}[${index}]`))
+
+const assertMetricObject = (
+  value: unknown,
+  context: string,
+): Record<string, string | number | boolean> => {
+  const record = assertRecord(value, context)
+  return Object.fromEntries(
+    Object.entries(record).map(([key, entry]) => {
+      if (typeof entry === 'number' && !Number.isFinite(entry)) {
+        throw new Error(`${context}.${key} must be a string, number, or boolean.`)
+      }
+      if (typeof entry !== 'string' && typeof entry !== 'number' && typeof entry !== 'boolean') {
+        throw new Error(`${context}.${key} must be a string, number, or boolean.`)
+      }
+      return [key, entry]
+    }),
+  )
+}
 
 const assertEnumString = <T extends string>(
   value: unknown,
@@ -1410,6 +1436,42 @@ export const importProfessionalIdentity = (
           ? { url: assertOptionalString(project.url, `projects[${index}].url`) }
           : {}),
         description: assertString(project.description, `projects[${index}].description`),
+        ...(project.source_text !== undefined
+          ? {
+              source_text: assertOptionalString(
+                project.source_text,
+                `projects[${index}].source_text`,
+              ),
+            }
+          : {}),
+        ...(project.problem !== undefined
+          ? { problem: assertOptionalString(project.problem, `projects[${index}].problem`) }
+          : {}),
+        ...(project.action !== undefined
+          ? { action: assertOptionalString(project.action, `projects[${index}].action`) }
+          : {}),
+        ...(project.outcome !== undefined
+          ? { outcome: assertOptionalString(project.outcome, `projects[${index}].outcome`) }
+          : {}),
+        ...(project.impact !== undefined
+          ? { impact: assertStringArray(project.impact, `projects[${index}].impact`) }
+          : {}),
+        ...(project.metrics !== undefined
+          ? { metrics: assertMetricObject(project.metrics, `projects[${index}].metrics`) }
+          : {}),
+        ...(project.technologies !== undefined
+          ? {
+              technologies: assertStringArray(
+                project.technologies,
+                `projects[${index}].technologies`,
+              ),
+            }
+          : {}),
+        ...(project.assumptions !== undefined
+          ? {
+              assumptions: assertStringArray(project.assumptions, `projects[${index}].assumptions`),
+            }
+          : {}),
         ...(project.portfolio_dive !== undefined
           ? {
               portfolio_dive: assertOptionalNullableString(

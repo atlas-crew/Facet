@@ -9,6 +9,7 @@ import {
 } from '../identity/schema'
 import type {
   IdentityDeepenedBullet,
+  IdentityDeepenedProject,
   IdentityAssumptionTag,
   IdentityConfidence,
   IdentityDraftBullet,
@@ -112,7 +113,20 @@ Use this minimal valid shape for the identity object:
       "tags": string[]
     }]
   }],
-  "projects": [{ "id": string, "name": string, "description": string, "tags": string[] }],
+  "projects": [{
+    "id": string,
+    "name": string,
+    "description": string,
+    "source_text": string,
+    "problem": string,
+    "action": string,
+    "outcome": string,
+    "impact": string[],
+    "metrics": {},
+    "technologies": string[],
+    "assumptions": string[],
+    "tags": string[]
+  }],
   "education": [{ "school": string, "location": string, "degree": string, "year": string }],
   "generator_rules": { "voice_skill": string, "resume_skill": string },
   "search_vectors": [],
@@ -142,6 +156,7 @@ Rules:
 - metrics must be an object whose values are strings, numbers, or booleans. Do not emit metrics as an array.
 - generator_rules must be an object. Do not emit generator_rules as a string, array, or markdown note.
 - projects must be an array. Do not emit a single project object at the top level.
+- Project deepening fields are optional on first-pass extraction. Include source_text, problem, action, outcome, impact, metrics, technologies, and assumptions only when the source supports them.
 - education must be an array. Do not emit a single education object at the top level.
 - matching must always be present as { prioritize: [], avoid: [] } when the source is silent.
 - matching.prioritize entries must use { id, label, description, weight } with weight in "high" | "medium" | "low".
@@ -221,6 +236,46 @@ Rules:
 - Use "corrected" only when explicit correction notes revise the bullet.
 - Do not wrap the JSON in markdown fences.`
 
+export const PROJECT_DEEPENING_SYSTEM_PROMPT = `You are Facet's project deepening agent.
+Decompose exactly one Professional Identity project into structured evidence fields.
+Return JSON only with this exact top-level shape:
+{
+  "summary": string,
+  "project": {
+    "project_id": string,
+    "name": string,
+    "description": string,
+    "problem": string,
+    "action": string,
+    "outcome": string,
+    "impact": string[],
+    "metrics": {},
+    "technologies": string[],
+    "assumptions": [
+      {
+        "label": string,
+        "confidence": "stated" | "confirmed" | "guessing" | "corrected"
+      }
+    ],
+    "rewrite": string,
+    "tags": string[]
+  }
+}
+Rules:
+- Deepen only the supplied project. Do not invent new projects.
+- Preserve factual claims already present in source_text or description.
+- Preserve technologies, metrics, and proper nouns exactly as written.
+- Do not invent metrics. If a metric is implied but not stated, leave it out and add an assumption.
+- Keep project_id exactly as provided.
+- problem, action, and outcome should describe project evidence, not candidate narrative.
+- impact, technologies, assumptions, and tags must be arrays.
+- metrics must be an object whose values are strings, numbers, or booleans.
+- Use "guessing" only when the source implies something but does not state it directly.
+- Use "stated" when the source says it directly.
+- Use "confirmed" when the source states it and the surrounding evidence reinforces it.
+- Use "corrected" only when explicit correction notes revise the project.
+- Do not wrap the JSON in markdown fences.`
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
@@ -275,6 +330,9 @@ const assertMetricObject = (
   const record = assertRecord(value, context)
   const normalized: Record<string, string | number | boolean> = {}
   for (const [key, entry] of Object.entries(record)) {
+    if (typeof entry === 'number' && !Number.isFinite(entry)) {
+      throw new Error(`${context}.${key} must be a string, number, or boolean.`)
+    }
     if (typeof entry === 'string' || typeof entry === 'number' || typeof entry === 'boolean') {
       normalized[key] = entry
       continue
@@ -593,6 +651,17 @@ const mergeSeededIdentityStructure = (
       name: preferIncomingString(incoming.name, project.name),
       description: preferIncomingString(incoming.description, project.description),
       url: preferIncomingString(incoming.url, project.url),
+      source_text: preferIncomingString(incoming.source_text, project.source_text),
+      problem: preferIncomingString(incoming.problem, project.problem),
+      action: preferIncomingString(incoming.action, project.action),
+      outcome: preferIncomingString(incoming.outcome, project.outcome),
+      impact: preferIncomingStringArray(incoming.impact ?? [], project.impact ?? []),
+      metrics: preferIncomingMetricObject(incoming.metrics ?? {}, project.metrics ?? {}),
+      technologies: preferIncomingStringArray(
+        incoming.technologies ?? [],
+        project.technologies ?? [],
+      ),
+      assumptions: preferIncomingStringArray(incoming.assumptions ?? [], project.assumptions ?? []),
       portfolio_dive: preferIncomingNullableString(incoming.portfolio_dive, project.portfolio_dive),
       tags: preferIncomingStringArray(incoming.tags, project.tags),
     }
@@ -820,6 +889,18 @@ const findRoleBullet = (identity: ProfessionalIdentityV3, roleId: string, bullet
     bulletIndex,
     role,
     bullet: role.bullets[bulletIndex]!,
+  }
+}
+
+const findProject = (identity: ProfessionalIdentityV3, projectId: string) => {
+  const projectIndex = identity.projects.findIndex((entry) => entry.id === projectId)
+  if (projectIndex < 0) {
+    throw new Error(`Project "${projectId}" does not exist in identity.projects.`)
+  }
+
+  return {
+    projectIndex,
+    project: identity.projects[projectIndex]!,
   }
 }
 
@@ -1725,6 +1806,68 @@ const parseDeepenedBulletPayload = (
   }
 }
 
+const parseDeepenedProjectPayload = (
+  value: unknown,
+  context: string,
+): Omit<IdentityDeepenedProject, 'warnings' | 'project'> & {
+  summary: string
+  warnings: string[]
+  project: Omit<ProfessionalIdentityV3['projects'][number], 'source_text'>
+} => {
+  const root = assertRecord(value, context)
+  const summary = assertString(root.summary, 'summary').trim()
+  const projectRecord = assertRecord(root.project, 'project')
+  const projectId = assertString(projectRecord.project_id, 'project.project_id').trim()
+  const tags = normalizeTagArray(projectRecord.tags, 'project.tags')
+  const assumptions =
+    projectRecord.assumptions === undefined
+      ? []
+      : normalizeAssumptions(projectRecord.assumptions, 'project.assumptions')
+  const project = {
+    id: projectId,
+    name: assertString(projectRecord.name, 'project.name').trim(),
+    description: assertString(projectRecord.description, 'project.description').trim(),
+    problem:
+      projectRecord.problem === undefined
+        ? ''
+        : assertString(projectRecord.problem, 'project.problem').trim(),
+    action:
+      projectRecord.action === undefined
+        ? ''
+        : assertString(projectRecord.action, 'project.action').trim(),
+    outcome:
+      projectRecord.outcome === undefined
+        ? ''
+        : assertString(projectRecord.outcome, 'project.outcome').trim(),
+    impact:
+      projectRecord.impact === undefined
+        ? []
+        : assertStringArray(projectRecord.impact, 'project.impact')
+            .map((entry) => entry.trim())
+            .filter(Boolean),
+    metrics:
+      projectRecord.metrics === undefined
+        ? {}
+        : assertMetricObject(projectRecord.metrics, 'project.metrics'),
+    technologies:
+      projectRecord.technologies === undefined
+        ? []
+        : assertStringArray(projectRecord.technologies, 'project.technologies')
+            .map((entry) => entry.trim())
+            .filter(Boolean),
+    assumptions: assumptions.map((assumption) => assumption.label),
+    tags: Array.from(new Set(tags.value)),
+  }
+  return {
+    summary,
+    projectId,
+    project,
+    rewrite: assertString(projectRecord.rewrite, 'project.rewrite').trim(),
+    assumptions,
+    warnings: tags.warnings,
+  }
+}
+
 const LEAKAGE_ARTIFACT_PATTERNS: Array<{ label: string; pattern: RegExp }> = [
   { label: 'extraction system prompt', pattern: /You are Facet's extraction agent/i },
   {
@@ -1876,6 +2019,45 @@ export const parseDeepenIdentityBulletResponse = (
     roleId: normalized.roleId,
     bulletId: normalized.bulletId,
     bullet: validatedBullet.bullet,
+    rewrite: normalized.rewrite,
+    assumptions: normalized.assumptions,
+    warnings: repaired
+      ? [
+          'Repaired minor JSON syntax issues in the AI response before validation.',
+          ...normalized.warnings,
+          ...imported.warnings,
+        ]
+      : [...normalized.warnings, ...imported.warnings],
+  }
+}
+
+export const parseDeepenIdentityProjectResponse = (
+  rawResponse: string,
+  identity: ProfessionalIdentityV3,
+): IdentityDeepenedProject => {
+  const { parsed, repaired } = parseLlmJsonResponse(
+    rawResponse,
+    'Identity project deepening response',
+  )
+
+  const normalized = parseDeepenedProjectPayload(parsed, 'identity project deepening response')
+  const existing = findProject(identity, normalized.projectId)
+  const candidateIdentity = structuredClone(identity)
+  candidateIdentity.projects[existing.projectIndex] = {
+    ...candidateIdentity.projects[existing.projectIndex],
+    ...normalized.project,
+    source_text: existing.project.source_text,
+  }
+  const imported = importProfessionalIdentity(candidateIdentity)
+  if (!imported.data) {
+    throw new Error('Deepened project produced an invalid identity after schema validation.')
+  }
+  const validatedProject = findProject(imported.data, normalized.projectId)
+
+  return {
+    summary: normalized.summary,
+    projectId: normalized.projectId,
+    project: validatedProject.project,
     rewrite: normalized.rewrite,
     assumptions: normalized.assumptions,
     warnings: repaired
@@ -2124,6 +2306,63 @@ export const buildDeepenBulletPrompt = ({
   return parts.join('\n')
 }
 
+export const buildDeepenProjectPrompt = ({
+  identity,
+  projectId,
+  correctionNotes,
+}: {
+  identity: ProfessionalIdentityV3
+  projectId: string
+  correctionNotes?: string
+}): string => {
+  const target = findProject(identity, projectId)
+  const parts = [
+    'Identity project context:',
+    JSON.stringify(
+      {
+        identity: identity.identity,
+        roles: identity.roles.map((role) => ({
+          id: role.id,
+          company: role.company,
+          title: role.title,
+          dates: role.dates,
+          bullets: role.bullets.map((bullet) => ({
+            id: bullet.id,
+            problem: bullet.problem,
+            action: bullet.action,
+            outcome: bullet.outcome,
+            technologies: bullet.technologies,
+            tags: bullet.tags,
+          })),
+        })),
+        skills: identity.skills,
+      },
+      null,
+      2,
+    ),
+    '',
+    'Target project to deepen:',
+    JSON.stringify(
+      {
+        project_id: target.project.id,
+        name: target.project.name,
+        description: target.project.description,
+        source_text: target.project.source_text ?? '',
+        tags: target.project.tags,
+      },
+      null,
+      2,
+    ),
+  ]
+
+  if (correctionNotes?.trim()) {
+    parts.push('', 'Correction notes:', correctionNotes.trim())
+  }
+
+  parts.push('', 'Return only the deepened project payload. Do not emit a full identity object.')
+  return parts.join('\n')
+}
+
 export const generateIdentityDraft = async ({
   endpoint,
   sourceMaterial,
@@ -2203,6 +2442,45 @@ export const deepenIdentityBullet = async ({
     throw new Error(
       `Deepening response targeted ${result.roleId}/${result.bulletId}, expected ${roleId}/${bulletId}.`,
     )
+  }
+
+  return result
+}
+
+export const deepenIdentityProject = async ({
+  endpoint,
+  identity,
+  projectId,
+  correctionNotes,
+  signal,
+}: {
+  endpoint: string
+  identity: ProfessionalIdentityV3
+  projectId: string
+  correctionNotes?: string
+  signal?: AbortSignal
+}): Promise<IdentityDeepenedProject> => {
+  const normalizedIdentity = normalizeRuntimeProfessionalIdentity(identity)
+  const rawResponse = await callLlmProxy(
+    endpoint,
+    PROJECT_DEEPENING_SYSTEM_PROMPT,
+    buildDeepenProjectPrompt({
+      identity: normalizedIdentity,
+      projectId,
+      correctionNotes,
+    }),
+    {
+      feature: 'identity.deepen_project',
+      model: 'sonnet',
+      temperature: 0.1,
+      timeoutMs: IDENTITY_EXTRACTION_TIMEOUT_MS,
+      signal,
+    },
+  )
+
+  const result = parseDeepenIdentityProjectResponse(rawResponse, normalizedIdentity)
+  if (result.projectId !== projectId) {
+    throw new Error(`Deepening response targeted ${result.projectId}, expected ${projectId}.`)
   }
 
   return result

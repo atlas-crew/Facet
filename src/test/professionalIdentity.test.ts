@@ -899,6 +899,60 @@ describe('professional identity schema', () => {
     )
   })
 
+  it('imports project evidence fields separately from skills and descriptions', () => {
+    const identity = clone(baseIdentityFixture)
+    identity.projects[0] = {
+      ...identity.projects[0]!,
+      source_text: 'Raw project notes from a brag document.',
+      problem: 'Enterprise customers needed a safer deployment path.',
+      action: 'Built an installer and release workflow.',
+      outcome: 'Customer-hosted deployments became repeatable.',
+      impact: ['Reduced deployment support load'],
+      metrics: { services_packaged: 8, launch_state: 'shipped', enterprise_ready: true },
+      technologies: ['Kubernetes', 'Helm'],
+      assumptions: ['Support-load reduction needs a stronger metric'],
+    }
+
+    const imported = importProfessionalIdentity(identity)
+
+    expect(imported.data?.projects[0]).toMatchObject({
+      source_text: 'Raw project notes from a brag document.',
+      problem: 'Enterprise customers needed a safer deployment path.',
+      action: 'Built an installer and release workflow.',
+      outcome: 'Customer-hosted deployments became repeatable.',
+      impact: ['Reduced deployment support load'],
+      metrics: { services_packaged: 8, launch_state: 'shipped', enterprise_ready: true },
+      technologies: ['Kubernetes', 'Helm'],
+      assumptions: ['Support-load reduction needs a stronger metric'],
+    })
+  })
+
+  it('rejects nested project metric values during identity import', () => {
+    const identity = clone(baseIdentityFixture) as unknown as Record<string, unknown>
+    const projects = identity.projects as Array<Record<string, unknown>>
+    projects[0] = {
+      ...projects[0],
+      metrics: { users: { count: 12 } },
+    }
+
+    expect(() => importProfessionalIdentity(identity)).toThrow(
+      /projects\[0\]\.metrics\.users must be a string, number, or boolean/,
+    )
+  })
+
+  it('rejects non-finite project metric values during identity import', () => {
+    const identity = clone(baseIdentityFixture) as unknown as Record<string, unknown>
+    const projects = identity.projects as Array<Record<string, unknown>>
+    projects[0] = {
+      ...projects[0],
+      metrics: { uptime: Number.POSITIVE_INFINITY },
+    }
+
+    expect(() => importProfessionalIdentity(identity)).toThrow(
+      /projects\[0\]\.metrics\.uptime must be a string, number, or boolean/,
+    )
+  })
+
   it('supports sparse sections and stable deduplicated education ids', () => {
     const sparse = clone(baseIdentityFixture)
     sparse.profiles = []
