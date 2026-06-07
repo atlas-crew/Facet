@@ -1,10 +1,11 @@
 ---
 id: TASK-273
 title: Add Identity Map editor for candidate contact basics
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-06-01 19:05'
-updated_date: '2026-06-07 02:44'
+updated_date: '2026-06-07 09:28'
 labels:
   - feature
   - identity
