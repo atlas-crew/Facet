@@ -4,9 +4,11 @@ title: Propagate workspace clear to cross-tab match state
 status: To Do
 assignee: []
 created_date: '2026-06-01 14:39'
+updated_date: '2026-06-07 02:44'
 labels:
   - bug
   - remediation
+milestone: m-36
 dependencies: []
 modified_files:
   - src/persistence/runtime.ts
