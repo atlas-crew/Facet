@@ -4,9 +4,11 @@ title: Centralize empty workspace artifact defaults
 status: To Do
 assignee: []
 created_date: '2026-06-01 14:39'
+updated_date: '2026-06-07 02:44'
 labels:
   - refactor
   - remediation
+milestone: m-36
 dependencies: []
 modified_files:
   - src/persistence/snapshot.ts
