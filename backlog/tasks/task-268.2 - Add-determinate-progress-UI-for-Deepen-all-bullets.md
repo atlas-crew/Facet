@@ -1,10 +1,10 @@
 ---
 id: TASK-268.2
 title: Add determinate progress UI for Deepen all bullets
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-05-31 20:48'
-updated_date: '2026-06-07 02:44'
+updated_date: '2026-06-07 07:58'
 labels:
   - feature
   - identity
@@ -16,8 +16,15 @@ references:
   - TODO.md
 modified_files:
   - src/routes/identity/ExtractionAgentCard.tsx
+  - src/routes/identity/identity.css
   - src/store/identityStore.ts
+  - src/types/identity.ts
+  - src/utils/resumeScanner/pdf.ts
   - src/test/IdentityPage.test.tsx
+  - src/test/identityStore.test.ts
+  - src/test/HomePage.test.tsx
+  - src/test/BulletInspector.sheet.test.tsx
+  - src/test/intakeSynthesis.test.ts
 parent_task_id: TASK-268
 priority: medium
 ordinal: 18000
@@ -31,10 +38,10 @@ Deepen all bullets already tracks bulk status, total, completed, currentBulletKe
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 When bulkStatus is running or cancelling, the import card renders a determinate progress bar based on completed/total.
-- [ ] #2 The UI names the current bullet or role being processed when currentBulletKey can be resolved.
-- [ ] #3 Completed, failed, and remaining counts are visible without waiting for the final toast.
-- [ ] #4 Cancel state remains clear and accessible.
+- [x] #1 When bulkStatus is running or cancelling, the import card renders a determinate progress bar based on completed/total.
+- [x] #2 The UI names the current bullet or role being processed when currentBulletKey can be resolved.
+- [x] #3 Completed, failed, and remaining counts are visible without waiting for the final toast.
+- [x] #4 Cancel state remains clear and accessible.
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -46,12 +53,18 @@ Deepen all bullets already tracks bulk status, total, completed, currentBulletKe
 4. Cover running, cancelling, partial failure, and idle states in IdentityPage tests.
 <!-- SECTION:PLAN:END -->
 
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Added determinate bulk deepen progress with current-bullet context, completed/failed/remaining counts, cancellation state, persisted failure baselines, and focused UI/store coverage. Verification: npm run typecheck; npx vitest run src/test/IdentityPage.test.tsx src/test/identityStore.test.ts src/test/HomePage.test.tsx src/test/BulletInspector.sheet.test.tsx src/test/intakeSynthesis.test.ts; npx eslint on touched TS/TSX files.
+<!-- SECTION:FINAL_SUMMARY:END -->
+
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
-- [ ] #3 Automatic formatting was applied to touched files
-- [ ] #4 Regression tests pass (scoped to touched files)
-- [ ] #5 Linters report no warnings or errors in touched files
-- [ ] #6 Relevant documentation updates landed or tasks created
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
+- [x] #3 Automatic formatting was applied to touched files
+- [x] #4 Regression tests pass (scoped to touched files)
+- [x] #5 Linters report no warnings or errors in touched files
+- [x] #6 Relevant documentation updates landed or tasks created
 <!-- DOD:END -->
