@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { IdentityMapPage } from '../routes/identity/IdentityMapPage'
 import { useIdentityStore } from '../store/identityStore'
 import { cloneIdentityFixture } from './fixtures/identityFixture'
@@ -44,6 +44,25 @@ const seedIdentityWithMatchRule = () => {
 const queryStaleNotice = () =>
   screen.queryByText(/Dropped you at the Identity Map landing instead\./)
 
+const expectBlob = (value: Blob | MediaSource | undefined): Blob => {
+  expect(value).toBeInstanceOf(Blob)
+  return value as Blob
+}
+
+const setupExportMocks = (
+  expectedFilename = 'identity-canonical-person.json',
+  url = 'blob:identity-map',
+) => ({
+  createObjectUrlMock: vi.spyOn(URL, 'createObjectURL').mockReturnValue(url),
+  revokeObjectUrlMock: vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined),
+  anchorClickMock: vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+    this: HTMLAnchorElement,
+  ) {
+    expect(this.href).toContain(url)
+    expect(this.download).toBe(expectedFilename)
+  }),
+})
+
 // jsdom doesn't implement scrollIntoView; the focus effect calls it on a
 // band element. Stub once at module load so all suites see it.
 if (typeof Element !== 'undefined' && !Element.prototype.scrollIntoView) {
@@ -66,6 +85,8 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  vi.useRealTimers()
+  vi.restoreAllMocks()
 })
 
 describe('IdentityMapPage deep-link forward bridge', () => {
@@ -76,6 +97,198 @@ describe('IdentityMapPage deep-link forward bridge', () => {
     fireEvent.click(screen.getByRole('button', { name: /Identity Import/i }))
 
     expect(mockNavigate).toHaveBeenCalledWith({ to: '/identity/import' })
+  })
+
+  it('hides the Map export action until a canonical identity exists', () => {
+    render(<IdentityMapPage />)
+
+    expect(screen.queryByRole('button', { name: /Export Identity/i })).toBeNull()
+  })
+
+  it('exports the canonical identity model from the Map topbar', async () => {
+    const identity = seedIdentityWithMatchRule()
+    identity.identity.name = 'Canonical Person'
+    identity.identity.email = 'canonical@example.com'
+    const { createObjectUrlMock, revokeObjectUrlMock, anchorClickMock } = setupExportMocks()
+
+    render(<IdentityMapPage />)
+    vi.useFakeTimers()
+
+    fireEvent.click(screen.getByRole('button', { name: /Export Identity/i }))
+
+    expect(createObjectUrlMock).toHaveBeenCalledTimes(1)
+    const blob = expectBlob(createObjectUrlMock.mock.calls[0]?.[0])
+    expect(blob.type).toBe('application/json')
+    await expect(blob.text()).resolves.toBe(JSON.stringify(identity, null, 2))
+    expect(anchorClickMock).toHaveBeenCalledTimes(1)
+    expect(
+      screen.getAllByText(
+        'Prepared export file for identity-canonical-person.json. Check your browser downloads.',
+      ).length,
+    ).toBeGreaterThan(0)
+
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(revokeObjectUrlMock).toHaveBeenCalledWith('blob:identity-map')
+  })
+
+  it('falls back to identity.json when the identity name has no filename-safe text', async () => {
+    const identity = seedIdentityWithMatchRule()
+    identity.identity.name = '  !!!  '
+    const { createObjectUrlMock, anchorClickMock } = setupExportMocks('identity.json')
+
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Export Identity/i }))
+
+    expect(createObjectUrlMock).toHaveBeenCalledTimes(1)
+    const blob = expectBlob(createObjectUrlMock.mock.calls[0]?.[0])
+    await expect(blob.text()).resolves.toBe(JSON.stringify(identity, null, 2))
+    expect(anchorClickMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('caps long identity-name slugs at 64 filename characters', () => {
+    const identity = seedIdentityWithMatchRule()
+    identity.identity.name = 'A'.repeat(80)
+    useIdentityStore.setState({ currentIdentity: identity })
+    const expectedSlug = 'a'.repeat(64)
+    const { anchorClickMock } = setupExportMocks(`identity-${expectedSlug}.json`)
+
+    render(<IdentityMapPage />)
+    fireEvent.click(screen.getByRole('button', { name: /Export Identity/i }))
+
+    expect(anchorClickMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('trims a filename slug hyphen introduced by truncation', () => {
+    const identity = seedIdentityWithMatchRule()
+    identity.identity.name = `${'A'.repeat(63)} B`
+    useIdentityStore.setState({ currentIdentity: identity })
+    const expectedSlug = 'a'.repeat(63)
+    const { anchorClickMock } = setupExportMocks(`identity-${expectedSlug}.json`)
+
+    render(<IdentityMapPage />)
+    fireEvent.click(screen.getByRole('button', { name: /Export Identity/i }))
+
+    expect(anchorClickMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('surfaces an export failure when the blob URL cannot be created', () => {
+    seedIdentityWithMatchRule()
+    const consoleErrorMock = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    vi.spyOn(URL, 'createObjectURL').mockImplementation(() => {
+      throw new Error('boom')
+    })
+    const revokeObjectUrlMock = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined)
+
+    render(<IdentityMapPage />)
+    vi.useFakeTimers()
+    fireEvent.click(screen.getByRole('button', { name: /Export Identity/i }))
+
+    expect(
+      screen.getByText('Could not start identity export: boom').closest('[role="alert"]'),
+    ).not.toBeNull()
+    expect(consoleErrorMock).toHaveBeenCalledWith(
+      'Could not start identity export.',
+      expect.any(Error),
+    )
+    expect(revokeObjectUrlMock).not.toHaveBeenCalled()
+    act(() => {
+      vi.advanceTimersByTime(5000)
+    })
+    expect(screen.getByText('Could not start identity export: boom')).toBeTruthy()
+  })
+
+  it('revokes a created object URL when the download click fails', () => {
+    seedIdentityWithMatchRule()
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:partial-export')
+    const revokeObjectUrlMock = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined)
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {
+      throw new Error('click boom')
+    })
+
+    render(<IdentityMapPage />)
+    fireEvent.click(screen.getByRole('button', { name: /Export Identity/i }))
+
+    expect(revokeObjectUrlMock).toHaveBeenCalledWith('blob:partial-export')
+    expect(
+      screen.getByText('Could not start identity export: click boom').closest('[role="alert"]'),
+    ).not.toBeNull()
+  })
+
+  it('revokes the prior export URL before starting a repeated export', () => {
+    const identity = seedIdentityWithMatchRule()
+    identity.identity.name = 'Canonical Person'
+    const createObjectUrlMock = vi
+      .spyOn(URL, 'createObjectURL')
+      .mockReturnValueOnce('blob:first-export')
+      .mockReturnValueOnce('blob:second-export')
+    const revokeObjectUrlMock = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined)
+    const anchorClickMock = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(function (this: HTMLAnchorElement) {
+        expect(this.download).toBe('identity-canonical-person.json')
+      })
+
+    render(<IdentityMapPage />)
+    vi.useFakeTimers()
+
+    fireEvent.click(screen.getByRole('button', { name: /Export Identity/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Export Identity/i }))
+
+    expect(createObjectUrlMock).toHaveBeenCalledTimes(2)
+    expect(anchorClickMock).toHaveBeenCalledTimes(2)
+    expect(revokeObjectUrlMock).toHaveBeenCalledWith('blob:first-export')
+  })
+
+  it('revokes an active export URL when the Map unmounts', () => {
+    seedIdentityWithMatchRule()
+    const { revokeObjectUrlMock } = setupExportMocks('identity-alex-example.json')
+
+    const { unmount } = render(<IdentityMapPage />)
+    vi.useFakeTimers()
+
+    fireEvent.click(screen.getByRole('button', { name: /Export Identity/i }))
+    unmount()
+
+    expect(revokeObjectUrlMock).toHaveBeenCalledWith('blob:identity-map')
+  })
+
+  it('auto-dismisses and manually dismisses the export notice', async () => {
+    seedIdentityWithMatchRule()
+    setupExportMocks('identity-alex-example.json')
+
+    render(<IdentityMapPage />)
+    vi.useFakeTimers()
+
+    fireEvent.click(screen.getByRole('button', { name: /Export Identity/i }))
+    expect(
+      screen.getByText(
+        'Prepared export file for identity-alex-example.json. Check your browser downloads.',
+      ),
+    ).toBeTruthy()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000)
+    })
+    expect(
+      screen.queryByText(
+        'Prepared export file for identity-alex-example.json. Check your browser downloads.',
+      ),
+    ).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: /Export Identity/i }))
+    const notice = screen
+      .getByText(
+        'Prepared export file for identity-alex-example.json. Check your browser downloads.',
+      )
+      .closest('.identity-map-notice') as HTMLElement
+    fireEvent.click(within(notice).getByRole('button', { name: 'Dismiss' }))
+    expect(
+      screen.queryByText(
+        'Prepared export file for identity-alex-example.json. Check your browser downloads.',
+      ),
+    ).toBeNull()
   })
 
   it('honors a valid `?sel=` deep link by dispatching setMapSelection on first hydration', async () => {

@@ -8,7 +8,8 @@ import {
   type MouseEvent,
 } from 'react'
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import { ListChecks, LocateFixed, Sparkles, Upload } from 'lucide-react'
+import { Download, ListChecks, LocateFixed, Sparkles, Upload } from 'lucide-react'
+import type { ProfessionalIdentityV3 } from '../../identity/schema'
 import { isMapSelectionValid, useIdentityStore } from '../../store/identityStore'
 import {
   buildStaleSelectionNotice,
@@ -74,11 +75,103 @@ type IdentityActionContext = {
   hasSearchStrategy: boolean
   skillInferenceLabel: string
 }
+type DismissibleNoticeProps = {
+  message: string
+  role?: 'status' | 'alert'
+  onDismiss: () => void
+}
+type IdentityDownloadHandle = {
+  url: string
+  revokeTimeout: number
+}
+type ExportNotice = {
+  id: number
+  message: string
+  role: 'status' | 'alert'
+}
+
+// Object URLs need to stay alive after anchor.click while browser download handling resolves.
+const IDENTITY_EXPORT_URL_REVOKE_MS = 60_000
+// Export notices intentionally clear before object URL cleanup; they confirm start, not completion.
+const IDENTITY_EXPORT_NOTICE_TTL_MS = 5_000
+const IDENTITY_EXPORT_SLUG_MAX_LEN = 64
 
 const identityMapGuideHeroImage = new URL(
   '../../../brand/exports/hero/facet-product-explanation-hero.webp',
   import.meta.url,
 ).href
+
+const buildIdentityExportSlug = (identity: ProfessionalIdentityV3) => {
+  const rawName = identity.identity?.name?.trim()
+  if (!rawName) return ''
+  return rawName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    // Slice before trimming so a separator introduced at the cut point does not trail the filename.
+    .slice(0, IDENTITY_EXPORT_SLUG_MAX_LEN)
+    .replace(/^-|-$/g, '')
+}
+
+const buildIdentityExportFileName = (identity: ProfessionalIdentityV3) => {
+  const slug = buildIdentityExportSlug(identity)
+  return slug ? `identity-${slug}.json` : 'identity.json'
+}
+
+const getIdentityExportErrorMessage = (error: unknown) =>
+  error instanceof Error && error.message.trim()
+    ? `Could not start identity export: ${error.message}`
+    : 'Could not start identity export.'
+
+const downloadIdentityJson = (
+  identity: ProfessionalIdentityV3,
+  onRevoke?: (url: string) => void,
+): IdentityDownloadHandle => {
+  const blob = new Blob([JSON.stringify(identity, null, 2)], { type: 'application/json' })
+  let url: string | null = null
+  try {
+    url = URL.createObjectURL(blob)
+    // Keep a non-null alias for the timeout closure while preserving catch-path cleanup.
+    const objectUrl = url
+    const anchor = document.createElement('a')
+    anchor.href = objectUrl
+    anchor.download = buildIdentityExportFileName(identity)
+    document.body.append(anchor)
+    anchor.click()
+    anchor.remove()
+    // Keep the object URL alive briefly so browser download handling can resolve it.
+    const revokeTimeout = window.setTimeout(() => {
+      URL.revokeObjectURL(objectUrl)
+      onRevoke?.(objectUrl)
+    }, IDENTITY_EXPORT_URL_REVOKE_MS)
+    return { url: objectUrl, revokeTimeout }
+  } catch (error) {
+    if (url) {
+      URL.revokeObjectURL(url)
+    }
+    throw error
+  }
+}
+
+const disposeIdentityDownloadHandle = (handle: IdentityDownloadHandle | null) => {
+  if (!handle) return
+  window.clearTimeout(handle.revokeTimeout)
+  URL.revokeObjectURL(handle.url)
+}
+
+function DismissibleNotice({ message, role = 'status', onDismiss }: DismissibleNoticeProps) {
+  return (
+    <div className="identity-map-notice" role={role}>
+      <span className="chapter-copy">{message}</span>
+      <button
+        type="button"
+        className="identity-map-notice-dismiss label-tracked"
+        onClick={onDismiss}
+      >
+        Dismiss
+      </button>
+    </div>
+  )
+}
 
 const getIdentityActionPhase = ({
   bulletDepthCount,
@@ -282,6 +375,7 @@ export function IdentityMapPage() {
   const validatedReturn = validateReturnUrl(requestedReturn)
 
   const [staleNotice, setStaleNotice] = useState<string | null>(null)
+  const [exportNotice, setExportNotice] = useState<ExportNotice | null>(null)
   const [showActionItems, setShowActionItems] = useState(false)
   const [thesisRequestId, setThesisRequestId] = useState(0)
   const [profileRequestId, setProfileRequestId] = useState(0)
@@ -295,6 +389,9 @@ export function IdentityMapPage() {
   const actionHighlightTimeoutRef = useRef<number | null>(null)
   const actionFocusRestoreTimeoutRef = useRef<number | null>(null)
   const actionDeferredRunTimeoutRef = useRef<number | null>(null)
+  const exportNoticeTimeoutRef = useRef<number | null>(null)
+  const exportNoticeIdRef = useRef(0)
+  const exportDownloadHandleRef = useRef<IdentityDownloadHandle | null>(null)
   const actionDialogRef = useRef<HTMLDivElement | null>(null)
   const actionTriggerRef = useRef<HTMLButtonElement | null>(null)
   // One-shot signal from forward → reverse: when forward dispatches
@@ -455,6 +552,61 @@ export function IdentityMapPage() {
     void navigate({ to: '/identity/import' })
   }
 
+  const dismissExportNotice = () => {
+    if (exportNoticeTimeoutRef.current !== null) {
+      window.clearTimeout(exportNoticeTimeoutRef.current)
+      exportNoticeTimeoutRef.current = null
+    }
+    setExportNotice(null)
+  }
+
+  const exportIdentity = () => {
+    if (!identity) return
+    const fileName = buildIdentityExportFileName(identity)
+    let shouldAutoDismissNotice = true
+    if (exportDownloadHandleRef.current) {
+      disposeIdentityDownloadHandle(exportDownloadHandleRef.current)
+      exportDownloadHandleRef.current = null
+    }
+    try {
+      exportDownloadHandleRef.current = downloadIdentityJson(identity, (revokedUrl) => {
+        if (exportDownloadHandleRef.current?.url === revokedUrl) {
+          exportDownloadHandleRef.current = null
+        }
+      })
+      const nextNotice: ExportNotice = {
+        id: exportNoticeIdRef.current + 1,
+        // Browser download APIs do not report whether the file was ultimately saved.
+        message: `Prepared export file for ${fileName}. Check your browser downloads.`,
+        role: 'status',
+      }
+      exportNoticeIdRef.current = nextNotice.id
+      setExportNotice(nextNotice)
+    } catch (error) {
+      console.error('Could not start identity export.', error)
+      exportDownloadHandleRef.current = null
+      const nextNotice: ExportNotice = {
+        id: exportNoticeIdRef.current + 1,
+        message: getIdentityExportErrorMessage(error),
+        role: 'alert',
+      }
+      exportNoticeIdRef.current = nextNotice.id
+      setExportNotice(nextNotice)
+      shouldAutoDismissNotice = false
+    }
+    if (exportNoticeTimeoutRef.current !== null) {
+      window.clearTimeout(exportNoticeTimeoutRef.current)
+      exportNoticeTimeoutRef.current = null
+    }
+    if (!shouldAutoDismissNotice) {
+      return
+    }
+    exportNoticeTimeoutRef.current = window.setTimeout(() => {
+      setExportNotice(null)
+      exportNoticeTimeoutRef.current = null
+    }, IDENTITY_EXPORT_NOTICE_TTL_MS)
+  }
+
   const goToSkillEnrichment = () => {
     if (!identity) return
     const target = resolveIdentityMapSkillDraftSelection(identity)
@@ -483,6 +635,11 @@ export function IdentityMapPage() {
       if (actionDeferredRunTimeoutRef.current !== null) {
         window.clearTimeout(actionDeferredRunTimeoutRef.current)
       }
+      if (exportNoticeTimeoutRef.current !== null) {
+        window.clearTimeout(exportNoticeTimeoutRef.current)
+      }
+      disposeIdentityDownloadHandle(exportDownloadHandleRef.current)
+      exportDownloadHandleRef.current = null
     }
   }, [])
 
@@ -784,6 +941,15 @@ export function IdentityMapPage() {
             >
               <Upload size={12} aria-hidden="true" /> Go to Identity Import
             </button>
+            {identity ? (
+              <button
+                type="button"
+                className="identity-map-topbar-action label-tracked"
+                onClick={exportIdentity}
+              >
+                <Download size={12} aria-hidden="true" /> Export Identity
+              </button>
+            ) : null}
           </div>
         </div>
 
@@ -886,16 +1052,16 @@ export function IdentityMapPage() {
         </div>
 
         {staleNotice ? (
-          <div className="identity-map-notice" role="status">
-            <span className="chapter-copy">{staleNotice}</span>
-            <button
-              type="button"
-              className="identity-map-notice-dismiss label-tracked"
-              onClick={() => setStaleNotice(null)}
-            >
-              Dismiss
-            </button>
-          </div>
+          <DismissibleNotice message={staleNotice} onDismiss={() => setStaleNotice(null)} />
+        ) : null}
+
+        {exportNotice ? (
+          <DismissibleNotice
+            key={`${exportNotice.role}:${exportNotice.id}`}
+            message={exportNotice.message}
+            role={exportNotice.role}
+            onDismiss={dismissExportNotice}
+          />
         ) : null}
 
         <ThesisBand thesisRequestId={thesisRequestId} />
