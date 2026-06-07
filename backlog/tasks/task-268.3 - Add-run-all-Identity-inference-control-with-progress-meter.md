@@ -4,11 +4,13 @@ title: Add run-all Identity inference control with progress meter
 status: To Do
 assignee: []
 created_date: '2026-05-31 20:48'
+updated_date: '2026-06-07 02:44'
 labels:
   - feature
   - identity
   - inference
   - progress
+milestone: m-35
 dependencies: []
 references:
   - TODO.md
