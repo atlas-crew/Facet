@@ -7,9 +7,12 @@ import {
   generateSearchVectorsFromIdentity,
   generateSelfKnowledgeFromIdentity,
   generateStrategicPositioningFromIdentity,
+  normalizeAnswerPatch,
+  proposeAnswerPatch,
 } from '../utils/identityParametersGeneration'
 import { JsonExtractionError } from '../utils/llmProxy'
 import { RESEARCH_PROFILE_INFERENCE_TIMEOUT_MS } from '../utils/researchProfileInferenceConfig'
+import { importProfessionalIdentity } from '../identity/schema'
 
 describe('identityParametersGeneration', () => {
   beforeEach(() => {
@@ -749,6 +752,367 @@ describe('identityParametersGeneration', () => {
     expect(profileRequest).toMatchObject({
       feature: 'research.profile-inference',
       model: 'opus',
+    })
+  })
+
+  describe('normalizeAnswerPatch', () => {
+    it('normalizes a well-formed role-bullet patch', () => {
+      const identity = cloneIdentityFixture()
+      const payload = {
+        kind: 'role-bullet',
+        roleId: 'contoso',
+        bullet: {
+          problem: 'Deploys were flaky.',
+          action: 'Automated the pipeline.',
+          outcome: 'Deploys became reliable.',
+          impact: ['Reduced incidents by half'],
+          technologies: ['GitHub Actions'],
+          tags: ['reliability'],
+        },
+      }
+      const patch = normalizeAnswerPatch(payload, identity)
+      expect(patch.kind).toBe('role-bullet')
+      if (patch.kind !== 'role-bullet') return
+      expect(patch.roleId).toBe('contoso')
+      expect(patch.bullet.problem).toBe('Deploys were flaky.')
+      expect(patch.bullet.action).toBe('Automated the pipeline.')
+      expect(patch.bullet.outcome).toBe('Deploys became reliable.')
+      expect(patch.bullet.impact).toEqual(['Reduced incidents by half'])
+      expect(patch.bullet.technologies).toEqual(['GitHub Actions'])
+      expect(patch.bullet.tags).toEqual(['reliability'])
+    })
+
+    it('normalizes a well-formed skill patch', () => {
+      const identity = cloneIdentityFixture()
+      const patch = normalizeAnswerPatch(
+        { kind: 'skill', groupId: 'platform', skillName: 'Helm' },
+        identity,
+      )
+      expect(patch).toEqual({ kind: 'skill', groupId: 'platform', skillName: 'Helm' })
+    })
+
+    it('normalizes a well-formed self-model-arc patch', () => {
+      const identity = cloneIdentityFixture()
+      const patch = normalizeAnswerPatch(
+        { kind: 'self-model-arc', entry: { company: 'Contoso', chapter: 'Platform buildout era' } },
+        identity,
+      )
+      expect(patch).toEqual({
+        kind: 'self-model-arc',
+        entry: { company: 'Contoso', chapter: 'Platform buildout era' },
+      })
+    })
+
+    it('normalizes a well-formed competitive-moat patch', () => {
+      const identity = cloneIdentityFixture()
+      const patch = normalizeAnswerPatch(
+        { kind: 'competitive-moat', text: 'Security + platform overlap is rare.' },
+        identity,
+      )
+      expect(patch).toEqual({
+        kind: 'competitive-moat',
+        text: 'Security + platform overlap is rare.',
+      })
+    })
+
+    it('normalizes a well-formed unfair-advantage patch', () => {
+      const identity = cloneIdentityFixture()
+      const patch = normalizeAnswerPatch(
+        { kind: 'unfair-advantage', items: ['Zero-trust implementation at startup scale'] },
+        identity,
+      )
+      expect(patch).toEqual({
+        kind: 'unfair-advantage',
+        items: ['Zero-trust implementation at startup scale'],
+      })
+    })
+
+    it('rejects an unknown kind', () => {
+      const identity = cloneIdentityFixture()
+      expect(() =>
+        normalizeAnswerPatch({ kind: 'mystery-kind', foo: 'bar' }, identity),
+      ).toThrow('unknown kind')
+    })
+
+    it('rejects a role-bullet with an unknown roleId', () => {
+      const identity = cloneIdentityFixture()
+      expect(() =>
+        normalizeAnswerPatch(
+          {
+            kind: 'role-bullet',
+            roleId: 'nonexistent-role',
+            bullet: { problem: 'p', action: 'a', outcome: 'o' },
+          },
+          identity,
+        ),
+      ).toThrow('unknown roleId')
+    })
+
+    it('rejects a skill with an unknown groupId', () => {
+      const identity = cloneIdentityFixture()
+      expect(() =>
+        normalizeAnswerPatch(
+          { kind: 'skill', groupId: 'nonexistent-group', skillName: 'Rust' },
+          identity,
+        ),
+      ).toThrow('unknown groupId')
+    })
+
+    it('does not fabricate metrics when the answer payload omits them', () => {
+      const identity = cloneIdentityFixture()
+      const patch = normalizeAnswerPatch(
+        {
+          kind: 'role-bullet',
+          roleId: 'contoso',
+          bullet: {
+            problem: 'Cache was cold on every deploy.',
+            action: 'Warmed the cache via a pre-deploy script.',
+            outcome: 'Cold-start latency dropped.',
+          },
+        },
+        identity,
+      )
+      expect(patch.kind).toBe('role-bullet')
+      if (patch.kind !== 'role-bullet') return
+      expect(patch.bullet.metrics).toBeUndefined()
+    })
+
+    it('strips non-primitive metric values and keeps only valid entries', () => {
+      const identity = cloneIdentityFixture()
+      const patch = normalizeAnswerPatch(
+        {
+          kind: 'role-bullet',
+          roleId: 'contoso',
+          bullet: {
+            problem: 'p',
+            action: 'a',
+            outcome: 'o',
+            metrics: { count: 5, label: 'fast', flag: true, bad: null, nested: {} },
+          },
+        },
+        identity,
+      )
+      expect(patch.kind).toBe('role-bullet')
+      if (patch.kind !== 'role-bullet') return
+      expect(patch.bullet.metrics).toEqual({ count: 5, label: 'fast', flag: true })
+    })
+
+    it('removes em-dash voice tells from role-bullet text fields', () => {
+      const identity = cloneIdentityFixture()
+      const patch = normalizeAnswerPatch(
+        {
+          kind: 'role-bullet',
+          roleId: 'contoso',
+          bullet: {
+            problem: 'System — fragile.',
+            action: 'Rebuilt — from scratch.',
+            outcome: 'Stable — now.',
+          },
+        },
+        identity,
+      )
+      expect(patch.kind).toBe('role-bullet')
+      if (patch.kind !== 'role-bullet') return
+      expect(patch.bullet.problem).toBe('System, fragile.')
+      expect(patch.bullet.action).toBe('Rebuilt, from scratch.')
+      expect(patch.bullet.outcome).toBe('Stable, now.')
+    })
+  })
+
+  describe('proposeAnswerPatch', () => {
+    const baseQuestion = {
+      id: 'oq-1',
+      topic: 'Platform leadership',
+      description: 'No evidence of cross-team platform ownership.',
+      action: 'Describe a platform project where you led across teams.',
+    }
+
+    it('propagates JsonExtractionError from malformed JSON response', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [{ message: { content: 'not json at all' } }],
+        }),
+      } as Response)
+
+      await expect(
+        proposeAnswerPatch(cloneIdentityFixture(), baseQuestion, 'I led a big project.', 'https://ai.example/proxy'),
+      ).rejects.toBeInstanceOf(JsonExtractionError)
+    })
+
+    it('returns a normalized patch from a valid LLM response', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  kind: 'role-bullet',
+                  roleId: 'contoso',
+                  bullet: {
+                    problem: 'No shared deploy tooling.',
+                    action: 'Built a unified deploy pipeline.',
+                    outcome: 'Cut deploy time for three teams.',
+                    impact: ['Three teams adopted it'],
+                  },
+                }),
+              },
+            },
+          ],
+        }),
+      } as Response)
+
+      const patch = await proposeAnswerPatch(
+        cloneIdentityFixture(),
+        baseQuestion,
+        'I built a deploy pipeline shared by three teams.',
+        'https://ai.example/proxy',
+      )
+
+      expect(patch.kind).toBe('role-bullet')
+      if (patch.kind !== 'role-bullet') return
+      expect(patch.roleId).toBe('contoso')
+      expect(patch.bullet.impact).toEqual(['Three teams adopted it'])
+    })
+
+    it('throws for an LLM response with an unknown roleId', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  kind: 'role-bullet',
+                  roleId: 'made-up-company',
+                  bullet: { problem: 'p', action: 'a', outcome: 'o' },
+                }),
+              },
+            },
+          ],
+        }),
+      } as Response)
+
+      await expect(
+        proposeAnswerPatch(cloneIdentityFixture(), baseQuestion, 'Some answer.', 'https://ai.example/proxy'),
+      ).rejects.toThrow('unknown roleId')
+    })
+
+    it('uses the profile-inference feature flag and opus model', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  kind: 'competitive-moat',
+                  text: 'Security meets platform.',
+                }),
+              },
+            },
+          ],
+        }),
+      } as Response)
+
+      await proposeAnswerPatch(cloneIdentityFixture(), baseQuestion, 'I bridge security and platform.', 'https://ai.example/proxy')
+
+      const requestBody = JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body))
+      expect(requestBody).toMatchObject({ feature: 'research.profile-inference', model: 'opus' })
+    })
+  })
+
+  describe('parseAwareness answer/resolved round-trip', () => {
+    it('parses a question with answer and resolved fields without error', () => {
+      const raw = {
+        version: 3,
+        schema_revision: '3.1',
+        model_revision: 0,
+        identity: {
+          name: 'Alex',
+          email: 'a@example.com',
+          phone: '555-0100',
+          location: 'Denver, CO',
+          links: [],
+          thesis: 'I build platforms.',
+        },
+        self_model: {
+          arc: [],
+          philosophy: [],
+          interview_style: { strengths: [], weaknesses: [], prep_strategy: '' },
+        },
+        preferences: {
+          compensation: { priorities: [] },
+          work_model: { preference: 'remote' },
+          matching: { prioritize: [], avoid: [] },
+        },
+        skills: { groups: [] },
+        profiles: [],
+        roles: [],
+        projects: [],
+        education: [],
+        generator_rules: { voice_skill: 'v', resume_skill: 'r' },
+        awareness: {
+          open_questions: [
+            {
+              id: 'oq-1',
+              topic: 'Platform leadership',
+              description: 'Gap.',
+              action: 'Describe it.',
+              answer: 'I led the migration.',
+              resolved: true,
+            },
+          ],
+        },
+      }
+
+      const { data } = importProfessionalIdentity(raw)
+      const question = data.awareness?.open_questions[0]
+      expect(question?.answer).toBe('I led the migration.')
+      expect(question?.resolved).toBe(true)
+    })
+
+    it('omits answer and resolved when not present in the snapshot', () => {
+      const raw = {
+        version: 3,
+        schema_revision: '3.1',
+        model_revision: 0,
+        identity: {
+          name: 'Alex',
+          email: 'a@example.com',
+          phone: '555-0100',
+          location: 'Denver, CO',
+          links: [],
+          thesis: 'I build platforms.',
+        },
+        self_model: {
+          arc: [],
+          philosophy: [],
+          interview_style: { strengths: [], weaknesses: [], prep_strategy: '' },
+        },
+        preferences: {
+          compensation: { priorities: [] },
+          work_model: { preference: 'remote' },
+          matching: { prioritize: [], avoid: [] },
+        },
+        skills: { groups: [] },
+        profiles: [],
+        roles: [],
+        projects: [],
+        education: [],
+        generator_rules: { voice_skill: 'v', resume_skill: 'r' },
+        awareness: {
+          open_questions: [
+            { id: 'oq-1', topic: 'Scope', description: 'Gap.', action: 'Fix it.' },
+          ],
+        },
+      }
+
+      const { data } = importProfessionalIdentity(raw)
+      const question = data.awareness?.open_questions[0]
+      expect(question?.answer).toBeUndefined()
+      expect(question?.resolved).toBeUndefined()
     })
   })
 })
