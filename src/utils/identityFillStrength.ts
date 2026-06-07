@@ -1,4 +1,5 @@
 import type { ProfessionalIdentityV3 } from '../identity/schema'
+import type { BandLayer } from '../routes/identity/IdentityBand'
 import { isGenericSkillGroupLabel, skillNamesMatch } from './identityEnrichment'
 
 export type FillStrengthTone = 'ok' | 'warn'
@@ -13,6 +14,12 @@ type ThesisFillLabel = 'Empty' | 'Draft' | 'Sparse' | 'Solid' | 'Strong'
 type DescribedThesisFillLabel = Exclude<ThesisFillLabel, 'Empty'>
 type ThesisFillStrength = FillStrength & { label: ThesisFillLabel }
 type DescribedThesisFillStrength = FillStrength & { label: DescribedThesisFillLabel }
+type SelfModelFillLabel = 'Empty' | 'Sparse' | 'Solid' | 'Strong'
+type ProfilesFillLabel = 'Empty' | 'Sparse' | 'Solid'
+type RolesFillLabel = 'Empty' | 'Thin' | 'Sparse' | 'Solid' | 'Dense'
+type SkillsFillLabel = 'Empty' | 'Sparse' | 'Solid' | 'Strong' | 'Messy'
+type SearchStrategyFillLabel = 'Empty' | 'Sparse' | 'Solid' | 'Strong'
+type PreferencesFillLabel = 'Empty' | 'Thin' | 'Solid' | 'Strong'
 export const EMPTY_THESIS_FILL_DESCRIPTION =
   'Empty: generate a thesis or add one before this section can be evaluated.'
 const THESIS_SCORE_THRESHOLDS = [
@@ -36,8 +43,34 @@ const labelForPercent = <Label extends string>(
 }
 
 const assertNever = (value: never): never => {
-  throw new Error(`Unhandled thesis fill label: ${String(value)}`)
+  throw new Error(`Unhandled fill value: ${String(value)}`)
 }
+
+const isFillLabel = <Label extends string>(
+  label: string,
+  allowed: ReadonlyArray<Label>,
+): label is Label => allowed.includes(label as Label)
+
+const isSelfModelFillLabel = (label: string): label is SelfModelFillLabel =>
+  isFillLabel(label, ['Empty', 'Sparse', 'Solid', 'Strong'])
+
+const isThesisFillLabel = (label: string): label is ThesisFillLabel =>
+  isFillLabel(label, ['Empty', 'Draft', 'Sparse', 'Solid', 'Strong'])
+
+const isProfilesFillLabel = (label: string): label is ProfilesFillLabel =>
+  isFillLabel(label, ['Empty', 'Sparse', 'Solid'])
+
+const isRolesFillLabel = (label: string): label is RolesFillLabel =>
+  isFillLabel(label, ['Empty', 'Thin', 'Sparse', 'Solid', 'Dense'])
+
+const isSkillsFillLabel = (label: string): label is SkillsFillLabel =>
+  isFillLabel(label, ['Empty', 'Sparse', 'Solid', 'Strong', 'Messy'])
+
+const isSearchStrategyFillLabel = (label: string): label is SearchStrategyFillLabel =>
+  isFillLabel(label, ['Empty', 'Sparse', 'Solid', 'Strong'])
+
+const isPreferencesFillLabel = (label: string): label is PreferencesFillLabel =>
+  isFillLabel(label, ['Empty', 'Thin', 'Solid', 'Strong'])
 
 // THEORY (TASK-194): Prose-only. The thesis is the load-bearing claim itself.
 // `origin` and `elaboration` are private scaffolding for the user's own
@@ -216,6 +249,68 @@ export function describeThesisFillStrength(identity: ProfessionalIdentityV3): st
       return `Draft: thesis text exists, but it needs more concrete examples, named technologies, or organizations. Current signals: ${sentenceCopy}, ${specificityCopy}, and ${lowSignalCopy}.`
     default:
       return assertNever(fill.label)
+  }
+}
+
+export function describeIdentityFillStrength(
+  layer: BandLayer,
+  fill: FillStrength,
+): string {
+  const status = `${fill.label} at ${Math.round(fill.percent)}%.`
+
+  switch (layer) {
+    case 'thesis':
+      if (!isThesisFillLabel(fill.label) || fill.label === 'Sparse' || fill.label === 'Draft') {
+        return `${status} Thesis strength checks sentence structure, named systems, and generic or hedging language. Add concrete examples, named technologies, or organizations.`
+      }
+      if (fill.label === 'Empty') {
+        return `${status} Thesis strength checks the claim you make about yourself. Add or generate a thesis before this band can be evaluated.`
+      }
+      return `${status} Thesis strength checks whether the claim is structured and specific enough to reuse downstream. Keep named systems and evidence in the prose.`
+    case 'self':
+      if (!isSelfModelFillLabel(fill.label) || fill.label === 'Empty' || fill.label === 'Sparse') {
+        return `${status} Self Model strength checks career arc, philosophy, interview style, moat, and advantages. Add the missing narrative pieces that explain how you work.`
+      }
+      return `${status} Self Model strength checks whether your narrative layer has enough arc, philosophy, interview, and positioning material. Keep it current as your story changes.`
+    case 'profiles':
+      if (!isProfilesFillLabel(fill.label) || fill.label === 'Empty' || fill.label === 'Sparse') {
+        return `${status} Profile strength checks for reusable profile statements with tags. Add tagged profile copy for the angles you use most often.`
+      }
+      return `${status} Profile strength checks for tagged reusable profile statements. Keep at least a few distinct angles ready for generated artifacts.`
+    case 'roles':
+      if (
+        !isRolesFillLabel(fill.label) ||
+        fill.label === 'Empty' ||
+        fill.label === 'Thin' ||
+        fill.label === 'Sparse'
+      ) {
+        return `${status} Roles strength checks whether roles have enough bullets and whether projects exist. Add at least two strong bullets per role and attach project evidence.`
+      }
+      return `${status} Roles strength checks role bullet depth plus project evidence. Keep bullets specific so downstream resumes can select evidence confidently.`
+    case 'skills':
+      if (!isSkillsFillLabel(fill.label) || fill.label === 'Messy') {
+        return `${status} Skills strength checks enriched skills plus taxonomy hygiene. Fix untagged skills, generic group names, and duplicate skill names before deepening more.`
+      }
+      if (fill.label === 'Sparse' || fill.label === 'Empty') {
+        return `${status} Skills strength checks how many skills have depth metadata. Add skill depth, tags, and evidence links for the skills you want Facet to use.`
+      }
+      return `${status} Skills strength checks enriched depth metadata and taxonomy hygiene. Keep tags, evidence, and group names clean as new skills are inferred.`
+    case 'prefs':
+      if (!isPreferencesFillLabel(fill.label) || fill.label === 'Thin' || fill.label === 'Empty') {
+        return `${status} Preference strength checks compensation, work model, constraints, matching rules, and interview-process signals. Fill the must-haves and hard-nos first.`
+      }
+      return `${status} Preference strength checks whether matching constraints and interview preferences are complete enough to guide search and filtering.`
+    case 'search':
+      if (
+        !isSearchStrategyFillLabel(fill.label) ||
+        fill.label === 'Sparse' ||
+        fill.label === 'Empty'
+      ) {
+        return `${status} Search Strategy strength checks usable vectors and open questions. Add positioning vectors plus questions that should steer research and outreach.`
+      }
+      return `${status} Search Strategy strength checks whether vectors and open questions are ready to guide discovery. Keep the questions actionable.`
+    default:
+      return assertNever(layer)
   }
 }
 

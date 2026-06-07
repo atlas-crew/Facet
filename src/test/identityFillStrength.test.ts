@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  describeIdentityFillStrength,
   describeThesisFillStrength,
   preferencesFillStrength,
   profilesFillStrength,
@@ -15,6 +16,106 @@ import { cloneIdentityFixture } from './fixtures/identityFixture'
 const empty = (): ProfessionalIdentityV3 => cloneIdentityFixture()
 
 describe('identityFillStrength', () => {
+  describe('describeIdentityFillStrength', () => {
+    it('explains a healthy thesis meter with its local heuristic', () => {
+      expect(
+        describeIdentityFillStrength('thesis', { label: 'Strong', percent: 88, tone: 'ok' }),
+      ).toBe(
+        'Strong at 88%. Thesis strength checks whether the claim is structured and specific enough to reuse downstream. Keep named systems and evidence in the prose.',
+      )
+    })
+
+    it('explains empty and draft thesis states separately', () => {
+      expect(
+        describeIdentityFillStrength('thesis', { label: 'Empty', percent: 0, tone: 'warn' }),
+      ).toBe(
+        'Empty at 0%. Thesis strength checks the claim you make about yourself. Add or generate a thesis before this band can be evaluated.',
+      )
+      expect(
+        describeIdentityFillStrength('thesis', { label: 'Draft', percent: 5, tone: 'warn' }),
+      ).toBe(
+        'Draft at 5%. Thesis strength checks sentence structure, named systems, and generic or hedging language. Add concrete examples, named technologies, or organizations.',
+      )
+    })
+
+    it('gives targeted correction advice for messy skills', () => {
+      expect(
+        describeIdentityFillStrength('skills', { label: 'Messy', percent: 45, tone: 'warn' }),
+      ).toBe(
+        'Messy at 45%. Skills strength checks enriched skills plus taxonomy hygiene. Fix untagged skills, generic group names, and duplicate skill names before deepening more.',
+      )
+    })
+
+    it('gives targeted correction advice for thin preferences', () => {
+      expect(
+        describeIdentityFillStrength('prefs', { label: 'Thin', percent: 18, tone: 'warn' }),
+      ).toContain('Fill the must-haves and hard-nos first.')
+    })
+
+    it('does not rely on optional tone to choose corrective copy', () => {
+      expect(
+        describeIdentityFillStrength('profiles', { label: 'Sparse', percent: 20, tone: 'ok' }),
+      ).toContain('Add tagged profile copy')
+    })
+
+    it('gives corrective copy for empty roles', () => {
+      expect(
+        describeIdentityFillStrength('roles', { label: 'Empty', percent: 0, tone: 'warn' }),
+      ).toContain('Add at least two strong bullets per role')
+    })
+
+    it('explains self model corrective and healthy states', () => {
+      expect(
+        describeIdentityFillStrength('self', { label: 'Sparse', percent: 12, tone: 'warn' }),
+      ).toContain('Add the missing narrative pieces')
+      expect(
+        describeIdentityFillStrength('self', { label: 'Strong', percent: 92, tone: 'ok' }),
+      ).toContain('narrative layer has enough arc')
+    })
+
+    it('explains search strategy corrective and healthy states', () => {
+      expect(
+        describeIdentityFillStrength('search', { label: 'Sparse', percent: 10, tone: 'warn' }),
+      ).toContain('Add positioning vectors plus questions')
+      expect(
+        describeIdentityFillStrength('search', { label: 'Strong', percent: 85, tone: 'ok' }),
+      ).toContain('ready to guide discovery')
+    })
+
+    it('explains sparse skills as a depth metadata problem', () => {
+      expect(
+        describeIdentityFillStrength('skills', { label: 'Sparse', percent: 20, tone: 'warn' }),
+      ).toContain('Add skill depth, tags, and evidence links')
+    })
+
+    it('rounds fractional percentages in help copy', () => {
+      expect(
+        describeIdentityFillStrength('roles', { label: 'Solid', percent: 66.7, tone: 'ok' }),
+      ).toContain('Solid at 67%.')
+      expect(
+        describeIdentityFillStrength('roles', { label: 'Solid', percent: 66.7, tone: 'ok' }),
+      ).toContain('Keep bullets specific')
+    })
+
+    it('explains healthy profile, skill, and preference states', () => {
+      expect(
+        describeIdentityFillStrength('profiles', { label: 'Solid', percent: 100, tone: 'ok' }),
+      ).toContain('Keep at least a few distinct angles')
+      expect(
+        describeIdentityFillStrength('skills', { label: 'Strong', percent: 90, tone: 'ok' }),
+      ).toContain('Keep tags, evidence, and group names clean')
+      expect(
+        describeIdentityFillStrength('prefs', { label: 'Strong', percent: 90, tone: 'ok' }),
+      ).toContain('complete enough to guide search and filtering')
+    })
+
+    it('routes unrecognized labels to corrective copy', () => {
+      expect(
+        describeIdentityFillStrength('profiles', { label: 'Bogus', percent: 50, tone: 'ok' }),
+      ).toContain('Add tagged profile copy')
+    })
+  })
+
   describe('thesisFillStrength (prose-only theory, TASK-194)', () => {
     it('returns Empty for null identity', () => {
       const result = thesisFillStrength(null)

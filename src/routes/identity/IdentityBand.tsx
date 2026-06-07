@@ -1,5 +1,9 @@
 import type { ReactNode } from 'react'
-import { FillBar, type FillBarProps } from '../../components/FillBar'
+import { FillBar } from '../../components/FillBar'
+import {
+  describeIdentityFillStrength,
+  type FillStrength,
+} from '../../utils/identityFillStrength'
 
 export type BandLayer = 'thesis' | 'self' | 'profiles' | 'roles' | 'skills' | 'prefs' | 'search'
 
@@ -7,7 +11,7 @@ export interface IdentityBandProps {
   layer: BandLayer
   name: string
   subtitle?: string
-  fill?: FillBarProps
+  fill?: FillStrength
   children: ReactNode
 }
 
@@ -18,6 +22,14 @@ export interface IdentityBandProps {
  * - a content slot that bands fill in with their layout
  */
 export function IdentityBand({ layer, name, subtitle, fill, children }: IdentityBandProps) {
+  const fillHelp = fill
+    ? {
+        ...fill,
+        helpText: describeIdentityFillStrength(layer, fill),
+        helpLabel: `${name} fill strength help`,
+      }
+    : null
+
   return (
     <section className="identity-band" data-layer={layer}>
       <div className="identity-band-rail" aria-hidden="true" />
@@ -26,7 +38,7 @@ export function IdentityBand({ layer, name, subtitle, fill, children }: Identity
           <h2 className="label-tracked identity-band-name">{name}</h2>
           {subtitle ? <span className="chapter-copy identity-band-sub">{subtitle}</span> : null}
         </div>
-        {fill ? <FillBar {...fill} /> : null}
+        {fillHelp ? <FillBar {...fillHelp} /> : null}
       </header>
       <div className="identity-band-content">{children}</div>
     </section>
