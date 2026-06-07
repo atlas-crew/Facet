@@ -4,9 +4,11 @@ title: Replace native clear-workspace confirm with shared in-app flow
 status: To Do
 assignee: []
 created_date: '2026-06-01 14:40'
+updated_date: '2026-06-07 02:44'
 labels:
   - feature
   - remediation
+milestone: m-36
 dependencies: []
 modified_files:
   - src/components/LocalWorkspaceDialog.tsx
