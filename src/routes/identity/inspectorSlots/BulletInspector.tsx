@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ProfessionalIdentityV3 } from '../../../identity/schema'
-import { getCurrentBulletDeepenKey, useIdentityStore } from '../../../store/identityStore'
+import {
+  getActiveResumeScan,
+  getCurrentBulletDeepenKey,
+  useIdentityStore,
+} from '../../../store/identityStore'
+import type { IdentityConfidence, ResumeScanBulletExplanation } from '../../../types/identity'
 import { facetClientEnv } from '../../../utils/facetEnv'
 import { sanitizeEndpointUrl } from '../../../utils/idUtils'
 import { deepenIdentityBullet } from '../../../utils/identityExtraction'
@@ -27,6 +32,20 @@ interface MetricsSheetState {
 
 const metricsToDocument = (metrics: Record<string, string | number | boolean>): string =>
   JSON.stringify(metrics, null, 2)
+
+const formatMetricLabel = (key: string) =>
+  key
+    .trim()
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/^./, (char) => char.toUpperCase())
+
+const CONFIDENCE_LABELS: Record<IdentityConfidence, string> = {
+  stated: 'Stated',
+  confirmed: 'Confirmed',
+  guessing: 'Guessing',
+  corrected: 'Corrected',
+}
 
 const parseMetricsDocument = (
   value: string,
@@ -64,6 +83,96 @@ const parseMetricsDocument = (
   }
 }
 
+function BulletListSection({
+  label,
+  items,
+}: {
+  label: string
+  items: readonly string[]
+}) {
+  const normalizedItems = items.map((item) => item.trim()).filter(Boolean)
+  if (normalizedItems.length === 0) return null
+
+  return (
+    <div className="inspector-read-section">
+      <p className="inspector-read-label label-tracked">{label}</p>
+      <ul className="inspector-read-list">
+        {normalizedItems.map((item, index) => (
+          <li key={`${label}:${index}`}>{item}</li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+function MetricsRows({ metrics }: { metrics: Record<string, string | number | boolean> }) {
+  const entries = Object.entries(metrics)
+  if (entries.length === 0) return null
+
+  return (
+    <div className="inspector-read-section">
+      <p className="inspector-read-label label-tracked">Metrics</p>
+      <dl className="inspector-kv-list">
+        {entries.map(([key, value]) => (
+          <div key={key} className="inspector-kv-row">
+            <dt>{formatMetricLabel(key)}</dt>
+            <dd>{String(value)}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  )
+}
+
+function DeepenEvidence({ explanation }: { explanation: ResumeScanBulletExplanation }) {
+  const showExplanation =
+    Boolean(explanation.summary.trim()) ||
+    Boolean(explanation.rewrite.trim()) ||
+    explanation.assumptions.length > 0 ||
+    explanation.warnings.length > 0
+
+  if (!showExplanation) return null
+
+  return (
+    <section className="inspector-deepen-evidence" aria-label="Deepening evidence">
+      {explanation.summary.trim() ? (
+        <p className="inspector-deepen-summary">{explanation.summary}</p>
+      ) : null}
+      {explanation.rewrite.trim() ? (
+        <div className="inspector-read-section">
+          <p className="inspector-read-label label-tracked">Current AI rewrite</p>
+          <p className="inspector-deepen-rewrite">{explanation.rewrite}</p>
+        </div>
+      ) : null}
+      {explanation.assumptions.length > 0 ? (
+        <div className="inspector-read-section">
+          <p className="inspector-read-label label-tracked">Assumptions</p>
+          <div className="inspector-chip-row">
+            {explanation.assumptions.map((assumption, index) => (
+              <span
+                key={`assumption:${index}`}
+                className={`inspector-confidence-chip tone-${assumption.confidence}`}
+              >
+                {assumption.label} · {CONFIDENCE_LABELS[assumption.confidence]}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      {explanation.warnings.length > 0 ? (
+        <div className="inspector-read-section">
+          <p className="inspector-read-label label-tracked">Warnings</p>
+          <ul className="inspector-read-list warning">
+            {explanation.warnings.map((warning, index) => (
+              <li key={`warning:${index}`}>{warning}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </section>
+  )
+}
+
 export function BulletInspector({
   identity,
   roleId,
@@ -79,6 +188,7 @@ export function BulletInspector({
   const failCurrentBulletDeepen = useIdentityStore((s) => s.failCurrentBulletDeepen)
   const currentBulletDeepen = useIdentityStore((s) => s.currentBulletDeepen)
   const correctionNotes = useIdentityStore((s) => s.correctionNotes)
+  const scanResult = useIdentityStore(getActiveResumeScan)
   const role = identity.roles.find((r) => r.id === roleId)
   const bullet = role?.bullets.find((b) => b.id === bulletId)
   const [editing, setEditing] = useState(false)
@@ -179,6 +289,8 @@ export function BulletInspector({
   const sourceTextButtonLabel = bullet.source_text?.trim() ? 'Edit source text' : 'Add source text'
   const metricsEntries = Object.entries(bullet.metrics)
   const metricsButtonLabel = metricsEntries.length ? 'Edit metrics' : 'Add metrics'
+  const scanBulletProgress = scanResult?.progress.bullets[`${roleId}::${bulletId}`] ?? null
+  const deepenExplanation = scanBulletProgress?.explanation ?? null
 
   const deepenKey = getCurrentBulletDeepenKey(roleId, bulletId)
   const deepenEntry = currentBulletDeepen[deepenKey]
@@ -404,16 +516,11 @@ export function BulletInspector({
         <BulletPair label="Problem" value={bullet.problem} tone="problem" />
         <BulletPair label="Action" value={bullet.action} tone="action" />
         <BulletPair label="Outcome" value={bullet.outcome} tone="outcome" />
-        {bullet.impact?.length ? (
-          <BulletPair label="Impact" value={bullet.impact.join(' · ')} tone="impact" />
-        ) : null}
-        {metricsEntries.length ? (
-          <BulletPair
-            label="Metrics"
-            value={metricsEntries.map(([key, value]) => `${key}: ${String(value)}`).join(' · ')}
-            tone="impact"
-          />
-        ) : null}
+        <BulletListSection label="Impact" items={bullet.impact} />
+        <MetricsRows metrics={bullet.metrics} />
+        <BulletListSection label="Technologies" items={bullet.technologies} />
+        <BulletListSection label="Tags" items={bullet.tags} />
+        {deepenExplanation ? <DeepenEvidence explanation={deepenExplanation} /> : null}
         {deepenStatus === 'failed' && deepenEntry?.lastError ? (
           <p className="inspector-warning" role="alert">
             {deepenEntry.lastError}
