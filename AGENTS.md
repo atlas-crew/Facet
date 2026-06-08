@@ -22,7 +22,7 @@ Personal reference artifacts (prep transcripts, search reports, prior-engagement
 - `facet-workspace-topology.md` — workspace topology and pipeline-as-canonical principle
 - `identity-canonical-data.md` — identity-canonical-data diagnostic rule for per-listing artifact fields
 
-Read these before making structural changes. Architectural ADRs (decision-N) and design notes (doc-N) live in `backlog/decisions/` and `backlog/docs/`.
+Read these before making structural changes. Architectural ADRs live in `docs/architecture/decisions/`; design notes and rollout plans live under `docs/development/` (`design/`, `plans/`).
 
 **Domain model** — `docs/development/domain-model.md`. Covers the override system, type architecture, render pipeline, routing setup, and feature deep-dives (UI layout, JD analyzer, presets). Read the relevant section before working in those areas.
 
@@ -51,7 +51,7 @@ Use the tool that keeps the work clearest and most reviewable.
 - Prefer normal shell commands for straightforward repo inspection, Git operations, and test/build runs.
 - Use the dedicated edit tools (`Edit`, `Write`, `apply_patch`, or your harness's equivalent) for file changes — never echo content into files via shell.
 - For codebase-wide symbol questions, prefer the `codanna` MCP tools (semantic search, call graphs, impact analysis) over `grep`/`find`. The repo has a `.codanna/` index.
-- For task tracking and design notes, use the `backlog` MCP tools — this repo uses Backlog.md (see the Backlog section at the bottom).
+- For task tracking, use **GitHub Issues** + the Facet project board via `gh issue`/`gh project` (see the Task tracking section at the bottom).
 - Agent discretion is appropriate for choosing between equivalent tools.
 
 ## Coding Style & Naming Conventions
@@ -74,37 +74,15 @@ Vitest and Testing Library are the test stack. Name tests `*.test.ts` or `*.test
 
 ## Commit & Pull Request Guidelines
 
-Recent history follows Conventional Commits such as `feat(research): add deep job research workflow` and `refactor(priority): simplify vectors to include-exclude`. Use the pattern `<type>(scope): summary`. Keep commits atomic and avoid bundling unrelated file churn. PRs should include a short summary, linked backlog task or issue, verification commands run, and screenshots or recordings for visible UI changes.
+Recent history follows Conventional Commits such as `feat(research): add deep job research workflow` and `refactor(priority): simplify vectors to include-exclude`. Use the pattern `<type>(scope): summary`. Keep commits atomic and avoid bundling unrelated file churn. PRs should include a short summary, the linked GitHub issue, verification commands run, and screenshots or recordings for visible UI changes.
 
 ## Security & Configuration Tips
 
 Never commit secrets. Client AI features rely on `VITE_ANTHROPIC_PROXY_URL`; the local proxy under `proxy/` expects `ANTHROPIC_API_KEY` and `PROXY_API_KEY` in its `.env`. Treat persisted local data carefully: storage-backed changes should include migration or normalization coverage when schemas evolve.
 
-<!-- BACKLOG.MD MCP GUIDELINES START -->
+## Task tracking
 
-<CRITICAL_INSTRUCTION>
-
-## BACKLOG WORKFLOW INSTRUCTIONS
-
-This project uses Backlog.md MCP for all task and project management activities.
-
-**CRITICAL GUIDANCE**
-
-- If your client supports MCP resources, read `backlog://workflow/overview` to understand when and how to use Backlog for this project.
-- If your client only supports tools or the above request fails, call `backlog.get_workflow_overview()` tool to load the tool-oriented overview (it lists the matching guide tools).
-
-- **First time working here?** Read the overview resource IMMEDIATELY to learn the workflow
-- **Already familiar?** You should have the overview cached ("## Backlog.md Overview (MCP)")
-- **When to read it**: BEFORE creating tasks, or when you're unsure whether to track work
-
-These guides cover:
-- Decision framework for when to create tasks
-- Search-first workflow to avoid duplicates
-- Links to detailed guides for task creation, execution, and finalization
-- MCP tools reference
-
-You MUST read the overview resource to understand the complete workflow. The information is NOT summarized here.
-
-</CRITICAL_INSTRUCTION>
-
-<!-- BACKLOG.MD MCP GUIDELINES END -->
+Tasks live in **GitHub Issues**, on the **Facet** project board
+(<https://github.com/orgs/atlas-crew/projects/9>). Use `gh issue` and `gh project`
+to create and update work; execution order (from `blocked-by` dependencies) comes
+from `gh seq`. Completed tasks remain under `backlog/` as a frozen archive.

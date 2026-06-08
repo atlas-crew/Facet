@@ -1,9 +1,5 @@
 {
   "mcpServers": {
-    "backlog": {
-      "command": "/opt/homebrew/bin/backlog",
-      "args": ["mcp", "start", "--cwd", "/Users/nick/Developer/Facet"]
-    },
     "codanna": {
       "command": "codanna",
       "args": ["--config", ".codanna/settings.toml", "serve", "--watch"]
