@@ -1,9 +1,11 @@
 ---
 id: TASK-287
 title: Identity Self Model & Thesis UI polish pass
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-06-07 20:27'
+updated_date: '2026-06-08 01:16'
 labels:
   - identity
   - ui-polish
