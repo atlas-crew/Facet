@@ -38,7 +38,7 @@ fine to PR directly.
 ### Clone and install
 
 ```bash
-git clone https://github.com/NickCrew/Facet.git
+git clone https://github.com/atlas-crew/Facet.git
 cd Facet
 corepack enable
 pnpm install
@@ -87,7 +87,7 @@ Run `just ci` before opening a PR — it's the same gate CI uses.
   wordmark only.
 - **Drag-and-drop** via `@dnd-kit`; icons from `lucide-react`.
 - **Comments are sparse.** Default to no comments. Add one only when
-  the *why* is non-obvious — a hidden constraint, a subtle invariant,
+  the _why_ is non-obvious — a hidden constraint, a subtle invariant,
   a workaround for a specific bug.
 
 For deeper style notes, see [`CLAUDE.md`](CLAUDE.md) (project
@@ -107,8 +107,8 @@ voice. The full reference lives in:
 
 Quick rules:
 
-- **Brand verb is `recut`** (never *tailor* / *generate* / *customize*).
-- **The user's data is a *model***, never a *profile* or *career data*.
+- **Brand verb is `recut`** (never _tailor_ / _generate_ / _customize_).
+- **The user's data is a _model_**, never a _profile_ or _career data_.
 - **Avoid AI-marketing-speak** — describe what the system does
   (extracts, refines, recuts), not what tech it uses.
 - **Don't lead with hype** ("revolutionary," "next-generation,"
@@ -160,7 +160,7 @@ By participating in this project, you agree to abide by the
 [Code of Conduct](CODE_OF_CONDUCT.md). It's the
 Contributor Covenant 2.1 — please read it.
 
-Reports of unacceptable behavior go to **nick@atlascrew.dev**.
+Reports of unacceptable behavior go to **<nick@atlascrew.dev>**.
 
 ## Security
 
@@ -172,6 +172,6 @@ expectations.
 
 For questions that aren't bugs or features, the GitHub Issues tab
 with the `question` label is the right place. For private inquiries,
-reach **nick@atlascrew.dev**.
+reach **<nick@atlascrew.dev>**.
 
 Thanks for helping build this in the open.
