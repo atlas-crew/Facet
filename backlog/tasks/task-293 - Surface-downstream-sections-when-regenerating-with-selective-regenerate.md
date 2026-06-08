@@ -35,14 +35,16 @@ Relevant files: src/routes/identity/IdentityMapPage.tsx, src/routes/identity/ide
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 The section dependency graph (bullets→skills→thesis→profiles→chapters→self-knowledge→positioning→search) is encoded in a single reusable module
-- [ ] #2 Triggering a regenerate on a section surfaces which sections are downstream of it
-- [ ] #3 The user can choose to regenerate some or all downstream sections, or defer
-- [ ] #4 Deferred downstream sections are visibly indicated as potentially stale after an upstream regenerate
-- [ ] #5 The flow reuses the existing inference runtime/sequencing rather than duplicating generator calls
-- [ ] #6 Unit test covers the dependency-graph resolution (given section X, correct downstream set)
-- [ ] #7 Interaction is documented in the relevant identity domain-model doc section
+- [x] #1 The section dependency graph (bullets→skills→thesis→profiles→chapters→self-knowledge→positioning→search) is encoded in a single reusable module
+- [x] #2 Triggering a regenerate on a section surfaces which sections are downstream of it
+- [x] #3 The user can choose to regenerate some or all downstream sections, or defer
+- [x] #4 Deferred downstream sections are visibly indicated as potentially stale after an upstream regenerate
+- [x] #5 The flow reuses the existing inference runtime/sequencing rather than duplicating generator calls
+- [x] #6 Unit test covers the dependency-graph resolution (given section X, correct downstream set)
+- [x] #7 Interaction is documented in the relevant identity domain-model doc section
 <!-- AC:END -->
+
+
 
 ## Implementation Notes
 
@@ -58,10 +60,10 @@ Added Identity Map downstream regeneration controls and stale-state recovery for
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
-- [ ] #3 Automatic formatting was applied to touched files
-- [ ] #4 Regression tests pass (scoped to touched files)
-- [ ] #5 Linters report no warnings or errors in touched files
-- [ ] #6 Relevant documentation updates landed or tasks created
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
+- [x] #3 Automatic formatting was applied to touched files
+- [x] #4 Regression tests pass (scoped to touched files)
+- [x] #5 Linters report no warnings or errors in touched files
+- [x] #6 Relevant documentation updates landed or tasks created
 <!-- DOD:END -->
