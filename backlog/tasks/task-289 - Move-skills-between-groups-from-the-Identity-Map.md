@@ -1,9 +1,11 @@
 ---
 id: TASK-289
 title: Move skills between groups from the Identity Map
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-06-07 20:28'
+updated_date: '2026-06-08 00:37'
 labels:
   - identity
   - skills
