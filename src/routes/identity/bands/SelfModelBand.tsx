@@ -85,6 +85,7 @@ export function SelfModelBand({
   const updateInterviewStyle = useIdentityStore((s) => s.updateCurrentInterviewStyle)
   const updateVectors = useIdentityStore((s) => s.updateCurrentSearchVectors)
   const updateQuestions = useIdentityStore((s) => s.updateCurrentAwarenessQuestions)
+  const recordAiGenerationUndo = useIdentityStore((s) => s.recordAiGenerationUndo)
   const fill = selfModelFillStrength(identity)
   const identityGenerationKey = useMemo(
     () => (identity ? getPositioningGenerationKey(identity) : null),
@@ -210,12 +211,13 @@ export function SelfModelBand({
     }
 
     updateArc(chapters)
+    recordAiGenerationUndo('drafted career chapters', currentIdentity)
     showSelfKnowledgeMessage({
       tone: 'info',
       text: `Generated ${chapters.length} career chapter${chapters.length === 1 ? '' : 's'} from roles.`,
       autoDismiss: true,
     })
-  }, [showSelfKnowledgeMessage, updateArc])
+  }, [recordAiGenerationUndo, showSelfKnowledgeMessage, updateArc])
 
   useInferenceRequest({
     requestId: chapterRequestId,
@@ -276,7 +278,10 @@ export function SelfModelBand({
         return false
       }
 
-      if (hasPhilosophy) updatePhilosophy(generatedPhilosophy)
+      const beforeIdentity = latestIdentity
+      if (hasPhilosophy) {
+        updatePhilosophy(generatedPhilosophy)
+      }
       if (hasInterview) {
         updateInterviewStyle({
           strengths: generatedInterview.strengths ?? [],
@@ -284,6 +289,7 @@ export function SelfModelBand({
           prep_strategy: generatedInterview.prep_strategy ?? '',
         })
       }
+      recordAiGenerationUndo('generated self-knowledge', beforeIdentity)
 
       showSelfKnowledgeMessage({
         tone: 'info',
@@ -320,6 +326,7 @@ export function SelfModelBand({
   }, [
     onSelfKnowledgeRequestStarted,
     showSelfKnowledgeMessage,
+    recordAiGenerationUndo,
     updateInterviewStyle,
     updatePhilosophy,
   ])
@@ -467,6 +474,7 @@ export function SelfModelBand({
       sections,
     })
 
+    const beforeIdentity = latestIdentity
     if (application.shouldReplaceMoat) {
       updateCompetitiveMoat(application.draftMoat)
     }
@@ -482,6 +490,7 @@ export function SelfModelBand({
     if (application.nextQuestions.length > 0) {
       updateQuestions([...application.existingQuestions, ...application.nextQuestions])
     }
+    recordAiGenerationUndo('applied positioning draft', beforeIdentity)
 
     showPositioningMessage({
       tone: 'info',

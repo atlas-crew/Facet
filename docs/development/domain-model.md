@@ -127,6 +127,25 @@ preserved through immutable `updateCurrentSkillGroups` updates. Per-group revert
 is intentionally deferred; after applying, the user can edit any individual
 group name from the existing Skill Group inspector.
 
+## Identity AI Generation Undo
+
+Identity AI generation undo is a one-entry safety affordance, not a general edit
+history. When a reviewed generation is applied, the store captures the
+pre-generation `currentIdentity` in a transient `aiGenerationUndo` slot that is
+intentionally excluded from persisted workspace snapshots. The global app
+topbar surfaces the undo control while that slot is valid.
+
+Undo restores the pre-generation identity content only if the live
+`model_revision` still matches the recorded post-generation revision. If the
+user makes any later identity edit, the undo expires instead of silently
+clobbering that newer work. A successful undo writes the restored identity
+through the normal identity synchronization path and advances `model_revision`,
+so downstream generated artifacts remain correctly marked stale.
+
+The stack depth is exactly one: each newly applied Identity AI generation
+replaces the previous undo slot. Per-section local undo controls are deferred;
+the global topbar control is the shared recovery surface.
+
 ---
 
 ## UI Layout (Build Route)

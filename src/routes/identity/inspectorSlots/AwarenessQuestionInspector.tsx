@@ -378,6 +378,7 @@ export function AwarenessQuestionInspector({
   const setSelection = useIdentityStore((s) => s.setMapSelection)
   const applyPatch = useIdentityStore((s) => s.applyAnswerPatch)
   const resolveQuestion = useIdentityStore((s) => s.resolveAwarenessQuestion)
+  const recordAiGenerationUndo = useIdentityStore((s) => s.recordAiGenerationUndo)
   const question = identity.awareness?.open_questions.find((q) => q.id === questionId)
 
   const topicHintId = useId()
@@ -487,9 +488,13 @@ export function AwarenessQuestionInspector({
   }
 
   const handleAccept = () => {
-    if (!proposal) return
+    if (!proposal || !question) return
+    const beforeIdentity = useIdentityStore.getState().currentIdentity
     applyPatch(proposal)
     resolveQuestion(question.id, answer)
+    if (beforeIdentity) {
+      recordAiGenerationUndo('applied answer suggestion', beforeIdentity)
+    }
     setProposal(null)
     setAnswerPhase('idle')
   }
@@ -501,10 +506,14 @@ export function AwarenessQuestionInspector({
   }
 
   const handleAcceptEdit = () => {
-    if (!editDraft || !proposal) return
+    if (!editDraft || !proposal || !question) return
+    const beforeIdentity = useIdentityStore.getState().currentIdentity
     const updatedPatch = applyEditToPatch(editDraft, proposal)
     applyPatch(updatedPatch)
     resolveQuestion(question.id, answer)
+    if (beforeIdentity) {
+      recordAiGenerationUndo('applied edited answer suggestion', beforeIdentity)
+    }
     setProposal(null)
     setEditDraft(null)
     setAnswerPhase('idle')

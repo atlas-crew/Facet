@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cloneIdentityFixture } from './fixtures/identityFixture'
 import {
   IDENTITY_STORE_STORAGE_KEY,
+  getIdentityAiGenerationUndoStatus,
   getActiveResumeScan,
   hasAiDeepenExplanation,
   parseScanBulletKey,
@@ -14,6 +15,7 @@ import type {
   ResumeScanBulletProgress,
   ResumeScanResult,
 } from '../types/identity'
+import type { ProfessionalIdentityV3 } from '../identity/schema'
 import { parseDeepenIdentityBulletResponse } from '../utils/identityExtraction'
 import { findStaleArtifacts } from '../types/artifactMeta'
 
@@ -174,6 +176,7 @@ const readPersistedIdentityState = async () => {
       intakeSources?: IntakeSource[]
       warnings?: string[]
       mapSelection?: unknown
+      aiGenerationUndo?: unknown
     }
     version: number
   }
@@ -194,6 +197,7 @@ beforeEach(() => {
     warnings: [],
     changelog: [],
     lastError: null,
+    aiGenerationUndo: null,
   })
 })
 
@@ -1820,6 +1824,7 @@ describe('identityStore model_revision', () => {
       warnings: [],
       changelog: [],
       lastError: null,
+      aiGenerationUndo: null,
     })
   }
 
@@ -2040,6 +2045,500 @@ describe('identityStore model_revision', () => {
 
     // max(2, 12) + 1 = 13
     expect(useIdentityStore.getState().currentIdentity?.model_revision).toBe(13)
+  })
+
+  it('undoes the most recent AI generation snapshot and advances model_revision', () => {
+    seedCurrent(3)
+    const beforeIdentity = structuredClone(useIdentityStore.getState().currentIdentity!)
+    useIdentityStore.setState({
+      thesisDraft: { thesis: 'Generated stale draft' },
+      thesisDraftRevision: 4,
+      mapSelection: { type: 'profile', id: 'generated-platform' },
+      lastError: 'Previous identity error',
+    })
+
+    useIdentityStore.getState().updateCurrentProfiles([
+      {
+        id: 'generated-platform',
+        text: 'Generated platform leadership lens.',
+        tags: ['platform'],
+      },
+    ])
+    useIdentityStore
+      .getState()
+      .recordAiGenerationUndo('generated profile lenses', beforeIdentity)
+
+    expect(useIdentityStore.getState().currentIdentity?.profiles).toHaveLength(1)
+    expect(useIdentityStore.getState().aiGenerationUndo).toMatchObject({
+      label: 'generated profile lenses',
+      beforeRevision: 3,
+      afterRevision: 4,
+    })
+
+    const result = useIdentityStore.getState().undoLastAiGeneration()
+    const currentRevision = useIdentityStore.getState().currentIdentity?.model_revision ?? 0
+
+    expect(result).toEqual({ status: 'restored', label: 'generated profile lenses' })
+    expect(useIdentityStore.getState().currentIdentity?.profiles).toEqual(beforeIdentity.profiles)
+    expect(currentRevision).toBe(5)
+    expect(useIdentityStore.getState().draftDocument).not.toContain(
+      'Generated platform leadership lens.',
+    )
+    expect(JSON.parse(useIdentityStore.getState().draftDocument)).toEqual(
+      useIdentityStore.getState().currentIdentity,
+    )
+    expect(
+      findStaleArtifacts(currentRevision, {
+        theses: [{ id: 'generated-thesis', identityVersion: 4 }],
+      }),
+    ).toEqual([{ artifactType: 'thesis', artifactId: 'generated-thesis', identityVersion: 4 }])
+    expect(useIdentityStore.getState().aiGenerationUndo).toBeNull()
+    expect(useIdentityStore.getState().mapSelection).toBeNull()
+    expect(useIdentityStore.getState().thesisDraft).toBeNull()
+    expect(useIdentityStore.getState().thesisDraftRevision).toBeNull()
+    expect(useIdentityStore.getState().lastError).toBeNull()
+  })
+
+  it('preserves an active draft document when undo restores an AI generation snapshot', () => {
+    seedCurrent(3)
+    const beforeIdentity = structuredClone(useIdentityStore.getState().currentIdentity!)
+    useIdentityStore.getState().updateCurrentProfiles([
+      {
+        id: 'generated-platform',
+        text: 'Generated platform leadership lens.',
+        tags: ['platform'],
+      },
+    ])
+    useIdentityStore
+      .getState()
+      .recordAiGenerationUndo('generated profile lenses', beforeIdentity)
+    const activeDraftIdentity = cloneIdentityFixture()
+    const activeDraftDocument = JSON.stringify(
+      { draft: 'active user review document' },
+      null,
+      2,
+    )
+    useIdentityStore.setState({
+      draft: {
+        identity: activeDraftIdentity,
+        summary: 'active draft',
+        followUpQuestions: [],
+        warnings: [],
+        generatedAt: '2026-04-20T00:00:00.000Z',
+        bullets: [],
+      },
+      draftDocument: activeDraftDocument,
+    })
+
+    const result = useIdentityStore.getState().undoLastAiGeneration()
+
+    expect(result).toEqual({ status: 'restored', label: 'generated profile lenses' })
+    expect(useIdentityStore.getState().currentIdentity?.profiles).toEqual(beforeIdentity.profiles)
+    expect(useIdentityStore.getState().draftDocument).toBe(activeDraftDocument)
+  })
+
+  it('does not record an AI generation undo snapshot when no identity change occurred', () => {
+    seedCurrent(3)
+    const beforeIdentity = structuredClone(useIdentityStore.getState().currentIdentity!)
+
+    useIdentityStore
+      .getState()
+      .recordAiGenerationUndo('generated profile lenses', beforeIdentity)
+
+    expect(useIdentityStore.getState().aiGenerationUndo).toBeNull()
+  })
+
+  it('does not record an AI generation undo snapshot when only the revision changed', () => {
+    seedCurrent(3)
+    const beforeIdentity = structuredClone(useIdentityStore.getState().currentIdentity!)
+    useIdentityStore.setState({
+      currentIdentity: { ...beforeIdentity, model_revision: 4 },
+    })
+
+    useIdentityStore.getState().recordAiGenerationUndo('revision-only identity', beforeIdentity)
+
+    expect(useIdentityStore.getState().aiGenerationUndo).toBeNull()
+  })
+
+  it('classifies AI generation undo availability for topbar consumers', () => {
+    const beforeIdentity = cloneIdentityFixture()
+    beforeIdentity.model_revision = 3
+    const snapshot = {
+      id: 'ai-undo-1',
+      label: 'generated profile lenses',
+      beforeIdentity,
+      beforeRevision: 3,
+      afterRevision: 4,
+    }
+
+    expect(
+      getIdentityAiGenerationUndoStatus({
+        currentIdentity: null,
+        aiGenerationUndo: null,
+      }),
+    ).toEqual({ canUndo: false, label: null, reason: 'empty' })
+    expect(
+      getIdentityAiGenerationUndoStatus({
+        currentIdentity: { model_revision: 4 },
+        aiGenerationUndo: null,
+      }),
+    ).toEqual({ canUndo: false, label: null, reason: 'empty' })
+    expect(
+      getIdentityAiGenerationUndoStatus({
+        currentIdentity: null,
+        aiGenerationUndo: snapshot,
+      }),
+    ).toEqual({ canUndo: false, label: null, reason: 'empty' })
+    expect(
+      getIdentityAiGenerationUndoStatus({
+        currentIdentity: { model_revision: 5 },
+        aiGenerationUndo: snapshot,
+      }),
+    ).toEqual({ canUndo: false, label: 'generated profile lenses', reason: 'expired' })
+    expect(
+      getIdentityAiGenerationUndoStatus({
+        currentIdentity: { model_revision: 4 },
+        aiGenerationUndo: snapshot,
+      }),
+    ).toEqual({ canUndo: true, label: 'generated profile lenses', reason: null })
+    expect(
+      getIdentityAiGenerationUndoStatus({
+        currentIdentity: {} as Pick<ProfessionalIdentityV3, 'model_revision'>,
+        aiGenerationUndo: { ...snapshot, afterRevision: 0 },
+      }),
+    ).toEqual({ canUndo: true, label: 'generated profile lenses', reason: null })
+    expect(
+      getIdentityAiGenerationUndoStatus({
+        currentIdentity: {} as Pick<ProfessionalIdentityV3, 'model_revision'>,
+        aiGenerationUndo: { ...snapshot, afterRevision: 1 },
+      }),
+    ).toEqual({ canUndo: false, label: 'generated profile lenses', reason: 'expired' })
+  })
+
+  it('records multi-step AI generation undo only when identity content changed', () => {
+    seedCurrent(3)
+    const beforeIdentity = structuredClone(useIdentityStore.getState().currentIdentity!)
+
+    useIdentityStore.getState().updateCurrentProfiles([
+      {
+        id: 'generated-platform',
+        text: 'Generated platform leadership lens.',
+        tags: ['platform'],
+      },
+    ])
+    useIdentityStore.getState().updateCurrentWorkModel({ preference: 'hybrid' })
+    useIdentityStore
+      .getState()
+      .recordAiGenerationUndo('generated multi-section identity', beforeIdentity)
+
+    expect(useIdentityStore.getState().aiGenerationUndo).toMatchObject({
+      label: 'generated multi-section identity',
+      beforeRevision: 3,
+      afterRevision: 5,
+    })
+
+    const beforeSecondGeneration = structuredClone(useIdentityStore.getState().currentIdentity!)
+    useIdentityStore.getState().updateCurrentProfiles([
+      ...beforeSecondGeneration.profiles,
+      {
+        id: 'generated-executive',
+        text: 'Generated executive leadership lens.',
+        tags: ['leadership'],
+      },
+    ])
+    useIdentityStore
+      .getState()
+      .recordAiGenerationUndo('generated replacement identity', beforeSecondGeneration)
+
+    expect(useIdentityStore.getState().aiGenerationUndo).toMatchObject({
+      label: 'generated replacement identity',
+      beforeRevision: 5,
+      afterRevision: 6,
+    })
+
+    const result = useIdentityStore.getState().undoLastAiGeneration()
+
+    expect(result).toEqual({ status: 'restored', label: 'generated replacement identity' })
+    expect(useIdentityStore.getState().currentIdentity?.profiles).toEqual(
+      beforeSecondGeneration.profiles,
+    )
+
+    useIdentityStore.getState().clearAiGenerationUndo()
+    useIdentityStore.setState({
+      currentIdentity: { ...beforeIdentity, model_revision: 6 },
+    })
+    useIdentityStore.getState().recordAiGenerationUndo('revision-only identity', beforeIdentity)
+    expect(useIdentityStore.getState().aiGenerationUndo).toBeNull()
+  })
+
+  it('does not record an AI generation undo snapshot when no identity is loaded', () => {
+    const beforeIdentity = cloneIdentityFixture()
+    beforeIdentity.model_revision = 3
+    useIdentityStore.setState({ currentIdentity: null, aiGenerationUndo: null })
+
+    useIdentityStore
+      .getState()
+      .recordAiGenerationUndo('generated profile lenses', beforeIdentity)
+
+    expect(useIdentityStore.getState().aiGenerationUndo).toBeNull()
+  })
+
+  it('does not record AI generation undo when identity content changed without a revision advance', () => {
+    seedCurrent(3)
+    const beforeIdentity = structuredClone(useIdentityStore.getState().currentIdentity!)
+    const changedWithoutRevision = {
+      ...beforeIdentity,
+      profiles: [
+        {
+          id: 'generated-platform',
+          text: 'Generated platform leadership lens.',
+          tags: ['platform'],
+        },
+      ],
+    }
+    useIdentityStore.setState({ currentIdentity: changedWithoutRevision })
+
+    useIdentityStore
+      .getState()
+      .recordAiGenerationUndo('generated profile lenses', beforeIdentity)
+
+    expect(useIdentityStore.getState().aiGenerationUndo).toBeNull()
+  })
+
+  it('returns empty when undo is requested without an AI generation snapshot', () => {
+    seedCurrent(3)
+    const beforeIdentity = structuredClone(useIdentityStore.getState().currentIdentity!)
+
+    const result = useIdentityStore.getState().undoLastAiGeneration()
+
+    expect(result).toEqual({ status: 'empty' })
+    expect(useIdentityStore.getState().currentIdentity).toEqual(beforeIdentity)
+  })
+
+  it('returns empty when undo is requested with a snapshot but no current identity', () => {
+    const beforeIdentity = cloneIdentityFixture()
+    beforeIdentity.model_revision = 3
+    useIdentityStore.setState({
+      currentIdentity: null,
+      aiGenerationUndo: {
+        id: 'ai-undo-no-current-identity',
+        label: 'generated profile lenses',
+        beforeIdentity,
+        beforeRevision: 3,
+        afterRevision: 4,
+      },
+    })
+
+    const result = useIdentityStore.getState().undoLastAiGeneration()
+
+    expect(result).toEqual({ status: 'empty' })
+    expect(useIdentityStore.getState().currentIdentity).toBeNull()
+  })
+
+  it('clears AI generation undo snapshots explicitly', () => {
+    seedCurrent(3)
+    const beforeIdentity = structuredClone(useIdentityStore.getState().currentIdentity!)
+    useIdentityStore.getState().updateCurrentProfiles([
+      {
+        id: 'generated-platform',
+        text: 'Generated platform leadership lens.',
+        tags: ['platform'],
+      },
+    ])
+    useIdentityStore
+      .getState()
+      .recordAiGenerationUndo('generated profile lenses', beforeIdentity)
+
+    useIdentityStore.getState().clearAiGenerationUndo()
+
+    expect(useIdentityStore.getState().aiGenerationUndo).toBeNull()
+  })
+
+  it('expires AI generation undo when storage has a newer cross-tab identity', () => {
+    seedCurrent(3)
+    const beforeIdentity = structuredClone(useIdentityStore.getState().currentIdentity!)
+    useIdentityStore.getState().updateCurrentProfiles([
+      {
+        id: 'generated-platform',
+        text: 'Generated platform leadership lens.',
+        tags: ['platform'],
+      },
+    ])
+    useIdentityStore
+      .getState()
+      .recordAiGenerationUndo('generated profile lenses', beforeIdentity)
+    const newerIdentity = cloneIdentityFixture()
+    newerIdentity.model_revision = 7
+    newerIdentity.identity.name = 'Newer Tab Identity'
+
+    resolveStorage().setItem(
+      IDENTITY_STORE_STORAGE_KEY,
+      JSON.stringify({
+        state: {
+          currentIdentity: newerIdentity,
+          draft: null,
+          draftDocument: JSON.stringify(newerIdentity, null, 2),
+          intakeSources: [],
+          warnings: [],
+          changelog: [],
+        },
+        version: 5,
+      }),
+    )
+
+    const result = useIdentityStore.getState().undoLastAiGeneration()
+
+    expect(result).toEqual({ status: 'expired', label: 'generated profile lenses' })
+    expect(useIdentityStore.getState().currentIdentity?.identity.name).toBe('Newer Tab Identity')
+    expect(useIdentityStore.getState().currentIdentity?.model_revision).toBe(7)
+    expect(useIdentityStore.getState().lastError).toBe(
+      'Identity was updated in another tab. Review the latest model and retry your change.',
+    )
+    expect(useIdentityStore.getState().aiGenerationUndo).toBeNull()
+  })
+
+  it('clears AI generation undo snapshots when importing or applying a full identity', () => {
+    seedCurrent(3)
+    const beforeIdentity = structuredClone(useIdentityStore.getState().currentIdentity!)
+    useIdentityStore.getState().updateCurrentProfiles([
+      {
+        id: 'generated-platform',
+        text: 'Generated platform leadership lens.',
+        tags: ['platform'],
+      },
+    ])
+    useIdentityStore
+      .getState()
+      .recordAiGenerationUndo('generated profile lenses', beforeIdentity)
+
+    const imported = cloneIdentityFixture()
+    imported.model_revision = 0
+    useIdentityStore.getState().importIdentity(imported)
+    expect(useIdentityStore.getState().aiGenerationUndo).toBeNull()
+
+    const current = structuredClone(useIdentityStore.getState().currentIdentity!)
+    useIdentityStore.getState().updateCurrentProfiles([
+      {
+        id: 'generated-security',
+        text: 'Generated security leadership lens.',
+        tags: ['security'],
+      },
+    ])
+    useIdentityStore
+      .getState()
+      .recordAiGenerationUndo('generated profile lenses', current)
+    const draft = cloneIdentityFixture()
+    useIdentityStore.setState({
+      draft: {
+        identity: draft,
+        summary: 'test',
+        followUpQuestions: [],
+        warnings: [],
+        generatedAt: '2026-04-20T00:00:00.000Z',
+        bullets: [],
+      },
+      draftDocument: JSON.stringify(draft, null, 2),
+    })
+
+    useIdentityStore.getState().applyDraft('replace')
+
+    expect(useIdentityStore.getState().aiGenerationUndo).toBeNull()
+  })
+
+  it('bumps model_revision when a current bullet deepen completes', () => {
+    seedCurrent(3)
+    useIdentityStore.setState({ lastError: 'Previous error' })
+    useIdentityStore.getState().startCurrentBulletDeepen('contoso', 'platform-migration')
+    useIdentityStore.getState().completeCurrentBulletDeepen(createDeepenedBullet())
+
+    const state = useIdentityStore.getState()
+    const bullet = state.currentIdentity?.roles[0]?.bullets[0]
+    expect(state.currentIdentity?.model_revision).toBe(4)
+    expect(state.lastError).toBeNull()
+    expect(state.draftDocument).toContain('Cloud-only delivery blocked on-prem installs.')
+    expect(bullet?.problem).toBe('Cloud-only delivery blocked on-prem installs.')
+    expect(bullet?.source_text).toBeUndefined()
+  })
+
+  it('preserves an active draft document when a current bullet deepen completes', () => {
+    seedCurrent(3)
+    const activeDraftIdentity = cloneIdentityFixture()
+    const activeDraftDocument = JSON.stringify(
+      { draft: 'active user review document' },
+      null,
+      2,
+    )
+    useIdentityStore.setState({
+      draft: {
+        identity: activeDraftIdentity,
+        summary: 'active draft',
+        followUpQuestions: [],
+        warnings: [],
+        generatedAt: '2026-04-20T00:00:00.000Z',
+        bullets: [],
+      },
+      draftDocument: activeDraftDocument,
+      lastError: 'Previous error',
+    })
+
+    useIdentityStore.getState().startCurrentBulletDeepen('contoso', 'platform-migration')
+    useIdentityStore.getState().completeCurrentBulletDeepen(createDeepenedBullet())
+
+    const state = useIdentityStore.getState()
+    expect(state.currentIdentity?.model_revision).toBe(4)
+    expect(state.lastError).toBeNull()
+    expect(state.draftDocument).toBe(activeDraftDocument)
+  })
+
+  it('expires AI generation undo instead of clobbering later identity edits', () => {
+    seedCurrent(3)
+    const beforeIdentity = structuredClone(useIdentityStore.getState().currentIdentity!)
+
+    useIdentityStore.getState().updateCurrentProfiles([
+      {
+        id: 'generated-platform',
+        text: 'Generated platform leadership lens.',
+        tags: ['platform'],
+      },
+    ])
+    useIdentityStore
+      .getState()
+      .recordAiGenerationUndo('generated profile lenses', beforeIdentity)
+    useIdentityStore.getState().updateCurrentWorkModel({ preference: 'hybrid' })
+
+    const result = useIdentityStore.getState().undoLastAiGeneration()
+
+    expect(result).toEqual({ status: 'expired', label: 'generated profile lenses' })
+    expect(useIdentityStore.getState().currentIdentity?.profiles).toEqual([
+      {
+        id: 'generated-platform',
+        text: 'Generated platform leadership lens.',
+        tags: ['platform'],
+      },
+    ])
+    expect(useIdentityStore.getState().currentIdentity?.preferences.work_model).toEqual({
+      preference: 'hybrid',
+    })
+    expect(useIdentityStore.getState().aiGenerationUndo).toBeNull()
+  })
+
+  it('excludes AI generation undo snapshots from persisted identity state', async () => {
+    seedCurrent(3)
+    const beforeIdentity = structuredClone(useIdentityStore.getState().currentIdentity!)
+
+    useIdentityStore.getState().updateCurrentProfiles([
+      {
+        id: 'generated-platform',
+        text: 'Generated platform leadership lens.',
+        tags: ['platform'],
+      },
+    ])
+    useIdentityStore
+      .getState()
+      .recordAiGenerationUndo('generated profile lenses', beforeIdentity)
+
+    const persisted = await readPersistedIdentityState()
+    expect(persisted.state.aiGenerationUndo).toBeUndefined()
   })
 
   it('merges draft identity sections without dropping current-only records', () => {

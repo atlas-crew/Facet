@@ -190,6 +190,7 @@ export function SearchStrategyBand({
   const updateUnfairAdvantages = useIdentityStore((s) => s.updateCurrentUnfairAdvantages)
   const updateVectors = useIdentityStore((s) => s.updateCurrentSearchVectors)
   const updateQuestions = useIdentityStore((s) => s.updateCurrentAwarenessQuestions)
+  const recordAiGenerationUndo = useIdentityStore((s) => s.recordAiGenerationUndo)
   const fill = searchStrategyFillStrength(identity)
   // The ref closes the pre-render double-click window; state drives the UI.
   const generatingRef = useRef<StrategyGenerationKind | null>(null)
@@ -305,6 +306,10 @@ export function SearchStrategyBand({
       }
 
       updateItems([...existing, ...nextGenerated])
+      recordAiGenerationUndo(
+        kind === 'vectors' ? 'generated search vectors' : 'generated open questions',
+        latestIdentity,
+      )
       setSelection({ type: selectionType, id: firstGenerated.id })
       showGenerationMessage({
         kind,
@@ -383,6 +388,7 @@ export function SearchStrategyBand({
         getSignature: (question) => question.topic,
       })
 
+      const beforeIdentity = latestIdentity
       if (addedMoat && generated.competitive_moat) {
         updateCompetitiveMoat(generated.competitive_moat)
       }
@@ -395,6 +401,7 @@ export function SearchStrategyBand({
       if (nextQuestions.length > 0) {
         updateQuestions([...existingQuestions, ...nextQuestions])
       }
+      recordAiGenerationUndo('generated search strategy', beforeIdentity)
 
       const [firstVector] = nextVectors
       const [firstQuestion] = nextQuestions
@@ -433,6 +440,7 @@ export function SearchStrategyBand({
     }
   }, [
     setSelection,
+    recordAiGenerationUndo,
     showGenerationMessage,
     updateCompetitiveMoat,
     updateQuestions,

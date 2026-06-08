@@ -58,6 +58,7 @@ export function ProfilesBand({
   const selection = useIdentityStore((s) => s.mapSelection)
   const setSelection = useIdentityStore((s) => s.setMapSelection)
   const updateProfiles = useIdentityStore((s) => s.updateCurrentProfiles)
+  const recordAiGenerationUndo = useIdentityStore((s) => s.recordAiGenerationUndo)
   const fill = profilesFillStrength(identity)
   const profiles = identity?.profiles ?? []
   const generationRef = useRef(false)
@@ -136,6 +137,7 @@ export function ProfilesBand({
       }
 
       updateProfiles(generated)
+      recordAiGenerationUndo('generated profile lenses', latestIdentity)
       showMessage({
         tone: 'info',
         text: `Generated ${generated.length} profile lens${generated.length === 1 ? '' : 'es'}.`,
@@ -168,7 +170,7 @@ export function ProfilesBand({
         setGenerating(false)
       }
     }
-  }, [showMessage, updateProfiles])
+  }, [recordAiGenerationUndo, showMessage, updateProfiles])
 
   useInferenceRequest({
     requestId: profileRequestId,

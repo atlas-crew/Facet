@@ -47,6 +47,7 @@ export function SkillsBand({
   const selection = useIdentityStore((s) => s.mapSelection)
   const setMapSelection = useIdentityStore((s) => s.setMapSelection)
   const updateGroups = useIdentityStore((s) => s.updateCurrentSkillGroups)
+  const recordAiGenerationUndo = useIdentityStore((s) => s.recordAiGenerationUndo)
   const [isDeepeningAll, setIsDeepeningAll] = useState(false)
   const [isNamingGroups, setIsNamingGroups] = useState(false)
   const [bulkMessage, setBulkMessage] = useState<string | null>(null)
@@ -79,7 +80,11 @@ export function SkillsBand({
       : null)
   const visibleNamingMessage = namingMessage ?? aiConfigMessage
   const canStartNaming =
-    groups.length > 0 && Boolean(aiEndpoint) && !isNamingGroups && !isDeepeningAll
+    groups.length > 0 &&
+    Boolean(aiEndpoint) &&
+    !isNamingGroups &&
+    !isDeepeningAll &&
+    !hasNameSuggestions
   const canStartDeepening = Boolean(
     enrichmentProgress &&
       enrichmentProgress.pending > 0 &&
@@ -182,6 +187,7 @@ export function SkillsBand({
     const changed = nextGroups.some((group, index) => group !== currentIdentity.skills.groups[index])
     if (changed) {
       updateGroups(nextGroups)
+      recordAiGenerationUndo('applied skill group names', currentIdentity)
     }
     setNameSuggestions([])
     setNamingMessage(
@@ -190,7 +196,7 @@ export function SkillsBand({
         : 'Suggested skill group names already match the current taxonomy.',
     )
     window.setTimeout(() => namingButtonRef.current?.focus(), 0)
-  }, [hasNameSuggestions, nameSuggestions, updateGroups])
+  }, [hasNameSuggestions, nameSuggestions, recordAiGenerationUndo, updateGroups])
 
   const handleDiscardNameSuggestions = useCallback(() => {
     setNameSuggestions([])
@@ -232,6 +238,7 @@ export function SkillsBand({
     const controller = new AbortController()
     bulkAbortRef.current = controller
     bulkRunningRef.current = true
+    const beforeIdentity = identity
     setIsDeepeningAll(true)
     setBulkMessage(`Deepening ${pendingTargets.length} skill(s)...`)
 
@@ -341,6 +348,7 @@ export function SkillsBand({
       }
 
       if (!controller.signal.aborted) {
+        recordAiGenerationUndo('deepened skill taxonomy', beforeIdentity)
         setBulkMessage(
           [
             applied > 0 ? `Deepened ${applied} skill(s)` : 'No skills deepened',
@@ -364,7 +372,7 @@ export function SkillsBand({
         setIsDeepeningAll(false)
       }
     }
-  }, [aiEndpoint, identity, namingBlocksDeepening, updateGroups])
+  }, [aiEndpoint, identity, namingBlocksDeepening, recordAiGenerationUndo, updateGroups])
 
   useEffect(
     () => () => {

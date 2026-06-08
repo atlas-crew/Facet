@@ -220,6 +220,7 @@ export function BulletInspector({
   const startCurrentBulletDeepen = useIdentityStore((s) => s.startCurrentBulletDeepen)
   const completeCurrentBulletDeepen = useIdentityStore((s) => s.completeCurrentBulletDeepen)
   const failCurrentBulletDeepen = useIdentityStore((s) => s.failCurrentBulletDeepen)
+  const recordAiGenerationUndo = useIdentityStore((s) => s.recordAiGenerationUndo)
   const currentBulletDeepen = useIdentityStore((s) => s.currentBulletDeepen)
   const correctionNotes = useIdentityStore((s) => s.correctionNotes)
   const scanResult = useIdentityStore(getActiveResumeScan)
@@ -366,6 +367,7 @@ export function BulletInspector({
       })
       if (controller.signal.aborted) return
       completeCurrentBulletDeepen(result)
+      recordAiGenerationUndo('deepened identity bullet', liveIdentity)
     } catch (error) {
       if (controller?.signal.aborted && error instanceof DOMException) return
       const message = error instanceof Error ? error.message : 'Deepening this bullet failed.'

@@ -63,6 +63,7 @@ const seed = (modifier?: (id: ProfessionalIdentityV3) => void) => {
     changelog: [],
     lastError: null,
     mapSelection: null,
+    aiGenerationUndo: null,
   })
   return identity
 }
@@ -252,18 +253,27 @@ describe('AwarenessQuestionInspector — happy path (answer → propose → acce
       expect(screen.getByRole('button', { name: /^accept$/i })).toBeTruthy()
     })
 
+    const beforeAcceptRevision = getIdentity().model_revision
+
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /^accept$/i }))
     })
 
     // Store: question resolved with answer
-    const q = getIdentity().awareness?.open_questions.find((q) => q.id === 'q1')!
+    const q = (getIdentity().awareness?.open_questions ?? []).find((q) => q.id === 'q1')!
     expect(q.resolved).toBe(true)
     expect(q.answer).toBe('We shipped tracing')
 
     // Store: role bullet appended
     const contoso = getIdentity().roles.find((r) => r.id === 'contoso')!
     expect(contoso.bullets.at(-1)?.problem).toBe('No observability stack')
+    expect(useIdentityStore.getState().aiGenerationUndo).toMatchObject({
+      label: 'applied answer suggestion',
+      beforeRevision: beforeAcceptRevision,
+    })
+    expect(useIdentityStore.getState().aiGenerationUndo?.afterRevision).toBeGreaterThan(
+      beforeAcceptRevision,
+    )
 
     // UI: resolved badge visible
     expect(screen.getByText(/^resolved$/i)).toBeTruthy()
@@ -304,7 +314,7 @@ describe('AwarenessQuestionInspector — skip path', () => {
     expect(screen.queryByText(/proposed update/i)).toBeNull()
 
     // Store: question NOT resolved
-    const q = getIdentity().awareness?.open_questions.find((q) => q.id === 'q1')!
+    const q = (getIdentity().awareness?.open_questions ?? []).find((q) => q.id === 'q1')!
     expect(q.resolved).toBeUndefined()
     expect(q.answer).toBeUndefined()
 
@@ -381,7 +391,7 @@ describe('AwarenessQuestionInspector — error path', () => {
     expect(textarea.value).toBe('My important answer')
 
     // Store: no mutation
-    const q = getIdentity().awareness?.open_questions.find((q) => q.id === 'q1')!
+    const q = (getIdentity().awareness?.open_questions ?? []).find((q) => q.id === 'q1')!
     expect(q.resolved).toBeUndefined()
   })
 
@@ -518,6 +528,7 @@ describe('AwarenessQuestionInspector — edit proposal flow', () => {
     // Edit the problem field
     const problemField = screen.getByDisplayValue('No observability stack')
     fireEvent.change(problemField, { target: { value: 'Observability was absent' } })
+    const beforeAcceptRevision = getIdentity().model_revision
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /^accept$/i }))
@@ -525,6 +536,13 @@ describe('AwarenessQuestionInspector — edit proposal flow', () => {
 
     const contoso = getIdentity().roles.find((r) => r.id === 'contoso')!
     expect(contoso.bullets.at(-1)?.problem).toBe('Observability was absent')
+    expect(useIdentityStore.getState().aiGenerationUndo).toMatchObject({
+      label: 'applied edited answer suggestion',
+      beforeRevision: beforeAcceptRevision,
+    })
+    expect(useIdentityStore.getState().aiGenerationUndo?.afterRevision).toBeGreaterThan(
+      beforeAcceptRevision,
+    )
   })
 })
 

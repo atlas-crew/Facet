@@ -160,6 +160,7 @@ export function IdentityPage() {
   const finishScanBulkDeepen = useIdentityStore((state) => state.finishScanBulkDeepen)
   const importIdentity = useIdentityStore((state) => state.importIdentity)
   const applyDraft = useIdentityStore((state) => state.applyDraft)
+  const recordAiGenerationUndo = useIdentityStore((state) => state.recordAiGenerationUndo)
   const acceptProposedVector = useIdentityStore((state) => state.acceptProposedVector)
   const rejectProposedVector = useIdentityStore((state) => state.rejectProposedVector)
   const editProposedVector = useIdentityStore((state) => state.editProposedVector)
@@ -870,7 +871,11 @@ export function IdentityPage() {
     }
 
     try {
+      const beforeIdentity = useIdentityStore.getState().currentIdentity
       const result = applyDraft(mode)
+      if (beforeIdentity) {
+        recordAiGenerationUndo('applied identity draft', beforeIdentity)
+      }
       setPageError(null)
       setPageNotice(result.summary)
       void navigate({ to: '/identity' })

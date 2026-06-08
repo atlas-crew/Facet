@@ -66,6 +66,7 @@ export function ThesisBand({
   const thesisDraft = useIdentityStore((s) => s.thesisDraft)
   const thesisDraftRevision = useIdentityStore((s) => s.thesisDraftRevision)
   const setThesisDraft = useIdentityStore((s) => s.setThesisDraft)
+  const recordAiGenerationUndo = useIdentityStore((s) => s.recordAiGenerationUndo)
   const fill = thesisFillStrength(identity)
   const core = identity?.identity
   const generationRef = useRef(false)
@@ -202,7 +203,11 @@ export function ThesisBand({
       })
       return
     }
+    const beforeIdentity = useIdentityStore.getState().currentIdentity
     updateCore(thesisDraft)
+    if (beforeIdentity) {
+      recordAiGenerationUndo('generated identity thesis', beforeIdentity)
+    }
     setThesisDraft(null, null)
     showMessage({
       tone: 'info',

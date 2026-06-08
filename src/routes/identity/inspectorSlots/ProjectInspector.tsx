@@ -157,6 +157,7 @@ export function ProjectInspector({
   projectId: string
 }) {
   const updateProjects = useIdentityStore((s) => s.updateCurrentProjects)
+  const recordAiGenerationUndo = useIdentityStore((s) => s.recordAiGenerationUndo)
   const correctionNotes = useIdentityStore((s) => s.correctionNotes)
   const project = identity.projects.find((p) => p.id === projectId)
   const [editing, setEditing] = useState(false)
@@ -310,6 +311,7 @@ export function ProjectInspector({
           entry.id === projectId ? mergeDeepenedProject(entry, result.project) : entry,
         ),
       )
+      recordAiGenerationUndo('deepened identity project', latestIdentity)
       setDeepenNotes([
         ...result.warnings,
         ...result.assumptions.map((assumption) => `${assumption.label} (${assumption.confidence})`),

@@ -21,10 +21,15 @@ import {
   Home,
   X,
   ShieldCheck,
+  Undo2,
 } from 'lucide-react'
 import { useUiStore } from '../store/uiStore'
 import { useCoverLetterStore } from '../store/coverLetterStore'
-import { IDENTITY_STORE_STORAGE_KEY } from '../store/identityStore'
+import {
+  IDENTITY_STORE_STORAGE_KEY,
+  getIdentityAiGenerationUndoStatus,
+  useIdentityStore,
+} from '../store/identityStore'
 import { usePrepStore } from '../store/prepStore'
 import { useSearchStore } from '../store/searchStore'
 import { DEFAULT_LOCAL_WORKSPACE_NAME, type FacetWorkspaceSnapshot } from '../persistence'
@@ -222,6 +227,9 @@ export function AppShell() {
   const isAdmin = useIsAdmin()
   const routerState = useRouterState()
   const currentPath = routerState.location.pathname
+  const identityAiUndo = useIdentityStore((state) => state.aiGenerationUndo)
+  const identityRevision = useIdentityStore((state) => state.currentIdentity?.model_revision ?? null)
+  const undoLastAiGeneration = useIdentityStore((state) => state.undoLastAiGeneration)
   const isHelpRoute = isRouteActive(currentPath, HELP_ROUTE)
   const isHomeRoute = currentPath === HOME_ROUTE
   const isPublicLegalRoute = PUBLIC_LEGAL_ROUTES.has(currentPath)
@@ -243,6 +251,16 @@ export function AppShell() {
       })).filter((group) => group.items.length > 0),
     [visibleNavItems],
   )
+  const identityAiUndoStatus = getIdentityAiGenerationUndoStatus({
+    currentIdentity: identityRevision === null ? null : { model_revision: identityRevision },
+    aiGenerationUndo: identityAiUndo,
+  })
+  const identityAiUndoAvailable = identityAiUndoStatus.canUndo
+  const identityAiUndoLabel = identityAiUndo
+    ? identityAiUndoAvailable
+      ? `Undo ${identityAiUndo.label}`
+      : `Undo expired for ${identityAiUndo.label}; newer identity edits exist`
+    : null
   const activeNavItem = useMemo(
     () => visibleNavItems.find(({ to }) => isRouteActive(currentPath, to)) ?? null,
     [currentPath, visibleNavItems],
@@ -974,6 +992,21 @@ export function AppShell() {
                 <span className="app-topbar-sync-alert-dot" />
                 <span className="app-topbar-sync-alert-label">{syncLabel}</span>
               </div>
+            ) : null}
+            {identityAiUndo ? (
+              <button
+                className="app-topbar-theme-toggle app-topbar-ai-undo"
+                type="button"
+                onClick={() => {
+                  if (!identityAiUndoAvailable) return
+                  undoLastAiGeneration()
+                }}
+                aria-disabled={!identityAiUndoAvailable}
+                aria-label={identityAiUndoLabel ?? undefined}
+                title={identityAiUndoLabel ?? undefined}
+              >
+                <Undo2 size={16} strokeWidth={1.75} />
+              </button>
             ) : null}
             <Link
               to={HELP_ROUTE}

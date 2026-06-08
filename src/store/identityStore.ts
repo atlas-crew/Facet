@@ -71,6 +71,10 @@ interface IdentityState {
   changelog: IdentityChangeLogEntry[]
   lastError: string | null
   mapSelection: MapSelection | null
+  aiGenerationUndo: IdentityAiGenerationUndo | null
+  recordAiGenerationUndo: (label: string, beforeIdentity: ProfessionalIdentityV3) => void
+  undoLastAiGeneration: () => IdentityAiGenerationUndoResult
+  clearAiGenerationUndo: () => void
   currentBulletDeepen: Record<string, CurrentBulletDeepenEntry>
   startCurrentBulletDeepen: (roleId: string, bulletId: string) => void
   completeCurrentBulletDeepen: (value: IdentityDeepenedBullet) => void
@@ -190,6 +194,46 @@ interface IdentityState {
   clearLastError: () => void
   importIdentity: (value: unknown, summary?: string) => IdentityApplyResult
   applyDraft: (mode: IdentityApplyMode) => IdentityApplyResult
+}
+
+export type IdentityAiGenerationUndo = {
+  id: string
+  label: string
+  beforeIdentity: ProfessionalIdentityV3
+  beforeRevision: number
+  afterRevision: number
+}
+
+export type IdentityAiGenerationUndoResult =
+  | { status: 'restored'; label: string }
+  | { status: 'empty' }
+  | { status: 'expired'; label: string }
+
+export const getIdentityAiGenerationUndoStatus = ({
+  currentIdentity,
+  aiGenerationUndo,
+}: {
+  currentIdentity: Pick<ProfessionalIdentityV3, 'model_revision'> | null
+  aiGenerationUndo: IdentityAiGenerationUndo | null
+}): {
+  canUndo: boolean
+  label: string | null
+  reason: 'empty' | 'expired' | null
+} => {
+  if (!aiGenerationUndo || !currentIdentity) {
+    return { canUndo: false, label: null, reason: 'empty' }
+  }
+
+  if ((currentIdentity.model_revision ?? 0) !== aiGenerationUndo.afterRevision) {
+    return { canUndo: false, label: aiGenerationUndo.label, reason: 'expired' }
+  }
+
+  return { canUndo: true, label: aiGenerationUndo.label, reason: null }
+}
+
+const identityUndoContentSignature = (identity: ProfessionalIdentityV3): string => {
+  const { model_revision: _modelRevision, ...content } = identity
+  return JSON.stringify(content)
 }
 
 const formatIdentityDocument = (identity: ProfessionalIdentityV3): string =>
@@ -878,6 +922,61 @@ export const useIdentityStore = create<IdentityState>()(
       changelog: [],
       lastError: null,
       mapSelection: null,
+      aiGenerationUndo: null,
+      recordAiGenerationUndo: (label, beforeIdentity) =>
+        set((state) => {
+          if (!state.currentIdentity) return {}
+          const beforeRevision = beforeIdentity.model_revision ?? 0
+          const afterRevision = state.currentIdentity.model_revision ?? 0
+          if (afterRevision <= beforeRevision) return {}
+          if (
+            identityUndoContentSignature(state.currentIdentity) ===
+            identityUndoContentSignature(beforeIdentity)
+          ) {
+            return {}
+          }
+          return {
+            // Intentional one-level undo: the latest AI generation replaces any prior snapshot.
+            aiGenerationUndo: {
+              id: createId('ai-undo'),
+              label,
+              beforeIdentity,
+              beforeRevision,
+              afterRevision,
+            },
+          }
+        }),
+      undoLastAiGeneration: () => {
+        const state = get()
+        const status = getIdentityAiGenerationUndoStatus(state)
+        if (!state.aiGenerationUndo || !state.currentIdentity || status.reason === 'empty') {
+          return { status: 'empty' }
+        }
+        const label = state.aiGenerationUndo.label
+        const staleConflict = resolveStaleIdentityConflict(state)
+        if (staleConflict) {
+          set({ ...staleConflict, aiGenerationUndo: null })
+          return { status: 'expired', label }
+        }
+        if (!status.canUndo) {
+          set({ aiGenerationUndo: null })
+          return { status: 'expired', label }
+        }
+        const beforeIdentity = state.aiGenerationUndo.beforeIdentity
+
+        // The snapshot restores the pre-generation identity content, then advances
+        // the revision so artifacts generated from the reverted AI output become stale.
+        set((current) => ({
+          ...syncIdentityDocument(current, beforeIdentity),
+          aiGenerationUndo: null,
+          mapSelection: null,
+          thesisDraft: null,
+          thesisDraftRevision: null,
+          lastError: null,
+        }))
+        return { status: 'restored', label }
+      },
+      clearAiGenerationUndo: () => set({ aiGenerationUndo: null }),
       currentBulletDeepen: {},
       startCurrentBulletDeepen: (roleId, bulletId) =>
         set((state) => {
@@ -926,8 +1025,9 @@ export const useIdentityStore = create<IdentityState>()(
           })
           const key = getCurrentBulletDeepenKey(value.roleId, value.bulletId)
           const { [key]: _removed, ...rest } = state.currentBulletDeepen
+          const synced = syncIdentityDocument(state, identity)
           return {
-            currentIdentity: identity,
+            ...synced,
             currentBulletDeepen: rest,
             warnings: Array.from(new Set([...state.warnings, ...value.warnings])),
           }
@@ -2097,6 +2197,7 @@ export const useIdentityStore = create<IdentityState>()(
               details: result.details,
             }),
           ),
+          aiGenerationUndo: null,
         }))
 
         return result
@@ -2140,6 +2241,7 @@ export const useIdentityStore = create<IdentityState>()(
               details: result.details,
             }),
           ),
+          aiGenerationUndo: null,
         }))
 
         return result

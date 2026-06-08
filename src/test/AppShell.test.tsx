@@ -5,7 +5,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import type { ReactNode } from 'react'
 import { AppShell } from '../components/AppShell'
 import { usePersistenceRuntimeStore } from '../persistence/runtime'
-import { IDENTITY_STORE_STORAGE_KEY } from '../store/identityStore'
+import { IDENTITY_STORE_STORAGE_KEY, useIdentityStore } from '../store/identityStore'
 import { useCoverLetterStore } from '../store/coverLetterStore'
 import { useHostedAppStore } from '../store/hostedAppStore'
 import { usePrepStore } from '../store/prepStore'
@@ -251,6 +251,15 @@ describe('AppShell hosted workspace bootstrap', () => {
       backupReminderSnoozedUntil: null,
       lastBackupAt: null,
       tourCompleted: false,
+    })
+    useIdentityStore.setState({
+      currentIdentity: null,
+      draftDocument: '',
+      thesisDraft: null,
+      thesisDraftRevision: null,
+      aiGenerationUndo: null,
+      lastError: null,
+      mapSelection: null,
     })
 
     runtimeMocks.captureLocalWorkspaceSnapshotForMigration.mockReset()
@@ -543,6 +552,156 @@ describe('AppShell hosted workspace bootstrap', () => {
     expect(screen.getByRole('link', { name: /account/i }).getAttribute('href')).toBe('/account')
     expect(screen.getByRole('button', { name: 'Theme: Light' })).toBeTruthy()
     expect(document.querySelector('.app-footer-sync')?.textContent).toContain('Ready')
+  })
+
+  it('renders a topbar control that undoes the last Identity AI generation', () => {
+    setHostedStore({})
+    setPersistenceHydration(true, 'ws-1')
+    runtimeMocks.replacePersistenceRuntime.mockResolvedValue({
+      start: vi.fn(async () => {
+        setPersistenceHydration(true, 'ws-1')
+      }),
+      flush: vi.fn().mockResolvedValue(undefined),
+      exportWorkspaceSnapshot: vi.fn().mockResolvedValue(buildWorkspaceSnapshot()),
+      importWorkspaceSnapshot: vi.fn().mockResolvedValue(buildWorkspaceSnapshot()),
+      dispose: vi.fn(),
+    })
+    const identity = cloneIdentityFixture()
+    identity.model_revision = 3
+    identity.profiles = []
+    useIdentityStore.setState({
+      currentIdentity: identity,
+      draftDocument: JSON.stringify(identity, null, 2),
+    })
+    const beforeIdentity = structuredClone(useIdentityStore.getState().currentIdentity!)
+    useIdentityStore.getState().updateCurrentProfiles([
+      {
+        id: 'generated-platform',
+        text: 'Generated platform leadership lens.',
+        tags: ['platform'],
+      },
+    ])
+    useIdentityStore
+      .getState()
+      .recordAiGenerationUndo('generated profile lenses', beforeIdentity)
+
+    render(<AppShell />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Undo generated profile lenses' }))
+
+    expect(useIdentityStore.getState().currentIdentity?.profiles).toEqual([])
+    expect(useIdentityStore.getState().currentIdentity?.model_revision).toBe(5)
+    expect(screen.queryByRole('button', { name: /Undo generated profile lenses/i })).toBeNull()
+  })
+
+  it('omits the topbar Identity AI undo control without pending undo state', () => {
+    setHostedStore({})
+    setPersistenceHydration(true, 'ws-1')
+    runtimeMocks.replacePersistenceRuntime.mockResolvedValue({
+      start: vi.fn(async () => {
+        setPersistenceHydration(true, 'ws-1')
+      }),
+      flush: vi.fn().mockResolvedValue(undefined),
+      exportWorkspaceSnapshot: vi.fn().mockResolvedValue(buildWorkspaceSnapshot()),
+      importWorkspaceSnapshot: vi.fn().mockResolvedValue(buildWorkspaceSnapshot()),
+      dispose: vi.fn(),
+    })
+
+    render(<AppShell />)
+
+    expect(screen.queryByRole('button', { name: /^Undo\b/i })).toBeNull()
+  })
+
+  it('disables the topbar Identity AI undo control after later identity edits', () => {
+    setHostedStore({})
+    setPersistenceHydration(true, 'ws-1')
+    runtimeMocks.replacePersistenceRuntime.mockResolvedValue({
+      start: vi.fn(async () => {
+        setPersistenceHydration(true, 'ws-1')
+      }),
+      flush: vi.fn().mockResolvedValue(undefined),
+      exportWorkspaceSnapshot: vi.fn().mockResolvedValue(buildWorkspaceSnapshot()),
+      importWorkspaceSnapshot: vi.fn().mockResolvedValue(buildWorkspaceSnapshot()),
+      dispose: vi.fn(),
+    })
+    const identity = cloneIdentityFixture()
+    identity.model_revision = 3
+    identity.profiles = []
+    useIdentityStore.setState({
+      currentIdentity: identity,
+      draftDocument: JSON.stringify(identity, null, 2),
+    })
+    const beforeIdentity = structuredClone(useIdentityStore.getState().currentIdentity!)
+    useIdentityStore.getState().updateCurrentProfiles([
+      {
+        id: 'generated-platform',
+        text: 'Generated platform leadership lens.',
+        tags: ['platform'],
+      },
+    ])
+    useIdentityStore
+      .getState()
+      .recordAiGenerationUndo('generated profile lenses', beforeIdentity)
+    useIdentityStore.getState().updateCurrentWorkModel({ preference: 'hybrid' })
+
+    render(<AppShell />)
+
+    const undoButton = screen.getByRole('button', {
+      name: 'Undo expired for generated profile lenses; newer identity edits exist',
+    })
+    expect(undoButton.getAttribute('aria-disabled')).toBe('true')
+
+    fireEvent.click(undoButton)
+
+    expect(useIdentityStore.getState().currentIdentity?.model_revision).toBe(5)
+    expect(useIdentityStore.getState().currentIdentity?.profiles).toEqual([
+      {
+        id: 'generated-platform',
+        text: 'Generated platform leadership lens.',
+        tags: ['platform'],
+      },
+    ])
+    expect(useIdentityStore.getState().currentIdentity?.preferences.work_model).toEqual({
+      preference: 'hybrid',
+    })
+  })
+
+  it('treats the topbar Identity AI undo control as expired when the identity revision is absent', () => {
+    setHostedStore({})
+    setPersistenceHydration(true, 'ws-1')
+    runtimeMocks.replacePersistenceRuntime.mockResolvedValue({
+      start: vi.fn(async () => {
+        setPersistenceHydration(true, 'ws-1')
+      }),
+      flush: vi.fn().mockResolvedValue(undefined),
+      exportWorkspaceSnapshot: vi.fn().mockResolvedValue(buildWorkspaceSnapshot()),
+      importWorkspaceSnapshot: vi.fn().mockResolvedValue(buildWorkspaceSnapshot()),
+      dispose: vi.fn(),
+    })
+    const beforeIdentity = cloneIdentityFixture()
+    beforeIdentity.model_revision = 1
+    const currentIdentity = {
+      ...cloneIdentityFixture(),
+      model_revision: undefined,
+    } as unknown as ReturnType<typeof cloneIdentityFixture>
+    useIdentityStore.setState({
+      currentIdentity,
+      draftDocument: JSON.stringify(currentIdentity, null, 2),
+      aiGenerationUndo: {
+        id: 'ai-undo-null-revision',
+        label: 'generated profile lenses',
+        beforeIdentity,
+        beforeRevision: 1,
+        afterRevision: 2,
+      },
+    })
+
+    render(<AppShell />)
+
+    const undoButton = screen.getByRole('button', {
+      name: 'Undo expired for generated profile lenses; newer identity edits exist',
+    })
+    expect(undoButton.getAttribute('aria-disabled')).toBe('true')
   })
 
   it('passes the selected hosted workspace id when clearing hosted workspace data', async () => {
