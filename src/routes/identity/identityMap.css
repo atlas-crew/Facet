@@ -543,16 +543,6 @@
   font-size: 12px;
   font-style: italic;
 }
-.thesis-strength-note {
-  margin: var(--space-3) 0 0;
-  color: var(--text-tertiary);
-  font-size: 13px;
-  line-height: 1.45;
-}
-.thesis-strength-note:empty {
-  margin: 0;
-}
-
 /* ===== Self Model band ===== */
 .self-grid {
   display: grid;
@@ -602,10 +592,15 @@
 }
 .self-knowledge-status {
   grid-column: 1 / -1;
+  margin-top: calc(var(--space-2) * -1);
+  min-height: 0;
 }
 .self-knowledge-status .strategy-generation-message.empty {
   opacity: 0;
   pointer-events: none;
+  min-height: 0;
+  padding: 0;
+  border: 0;
 }
 .arc-label {
   font-size: 12px;
@@ -620,9 +615,9 @@
   color: var(--text-tertiary);
   font-size: 11px;
   letter-spacing: 0.05em;
-  margin-left: 5px;
-  border-left: solid 1px;
-  padding-left: 10px;
+  margin-left: var(--space-1);
+  border-left: solid 1px var(--border-subtle);
+  padding-left: var(--space-2);
 }
 .arc-flow {
   display: flex;
@@ -721,13 +716,18 @@
 }
 .interview-block {
   margin-bottom: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-left: 2px solid var(--border-default);
+  border-radius: 6px;
+  background: var(--bg-inset);
 }
 .interview-block:last-child {
   margin-bottom: 0;
 }
 .interview-block-label {
   font-size: 10.5px;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   letter-spacing: 0.1em;
   margin-bottom: var(--space-1);
 }
@@ -744,14 +744,23 @@
   position: relative;
   margin-bottom: var(--space-1);
 }
+.interview-block li:last-child {
+  margin-bottom: 0;
+}
 .interview-block li:before {
   content: '—';
   position: absolute;
   left: 0;
-  color: var(--border-strong);
+  color: var(--text-tertiary);
 }
-.interview-weak li:before {
-  color: color-mix(in srgb, var(--warning) 50%, transparent);
+.interview-strength {
+  border-left-color: var(--success);
+}
+.interview-weakness {
+  border-left-color: var(--warning);
+}
+.interview-strategy {
+  border-left-color: var(--accent-primary);
 }
 
 .self-positioning {
@@ -781,11 +790,15 @@
 
 .self-positioning-status {
   margin-top: calc(var(--space-2) * -1);
+  min-height: 0;
 }
 
 .self-positioning-status .strategy-generation-message.empty {
   opacity: 0;
   pointer-events: none;
+  min-height: 0;
+  padding: 0;
+  border: 0;
 }
 
 .self-positioning-block {
@@ -1635,6 +1648,11 @@
   margin-bottom: var(--space-2);
 }
 
+.thesis-generation-actions {
+  margin-top: var(--space-3);
+  margin-bottom: 0;
+}
+
 .search-section {
   margin-top: var(--space-3);
 }
@@ -2287,7 +2305,8 @@
 
 .identity-inspector {
   background: var(--bg-inset);
-  padding: var(--space-8) calc(var(--space-6) + var(--space-1));
+  padding: var(--space-8) calc(var(--space-6) + var(--space-1))
+    calc(var(--space-8) + var(--space-4));
   position: sticky;
   top: 0;
   height: calc(100vh - var(--app-topbar-height));

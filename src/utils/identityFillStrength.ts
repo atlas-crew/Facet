@@ -93,9 +93,7 @@ export const describeFillStrengthLegend = (): string =>
   ).join(' | ')
 
 type ThesisFillLabel = 'Empty' | 'Draft' | 'Sparse' | 'Solid' | 'Strong'
-type DescribedThesisFillLabel = Exclude<ThesisFillLabel, 'Empty'>
 type ThesisFillStrength = FillStrength & { label: ThesisFillLabel }
-type DescribedThesisFillStrength = FillStrength & { label: DescribedThesisFillLabel }
 type SelfModelFillLabel = 'Empty' | 'Sparse' | 'Solid' | 'Strong'
 type ProfilesFillLabel = 'Empty' | 'Sparse' | 'Solid'
 type RolesFillLabel = 'Empty' | 'Thin' | 'Sparse' | 'Solid' | 'Dense'
@@ -315,47 +313,9 @@ function thesisFillStrengthFromSignals(signals: ThesisSignals): ThesisFillStreng
   }
 }
 
-function isDescribedThesisFillStrength(
-  fill: ThesisFillStrength,
-): fill is DescribedThesisFillStrength {
-  return fill.label !== 'Empty'
-}
-
 export function thesisFillStrength(identity: ProfessionalIdentityV3 | null): FillStrength {
   if (!identity) return { label: 'Empty', percent: 0, tone: 'warn' }
   return thesisFillStrengthFromSignals(computeThesisSignals(identity.identity?.thesis ?? ''))
-}
-
-export function describeThesisFillStrength(identity: ProfessionalIdentityV3): string {
-  const signals = computeThesisSignals(identity.identity?.thesis ?? '')
-  if (!signals.text) {
-    return EMPTY_THESIS_FILL_DESCRIPTION
-  }
-
-  if (signals.wordCount < 5) {
-    return `Draft: thesis text exists, but it is very short at ${signals.wordCount} word${signals.wordCount === 1 ? '' : 's'}. Add concrete examples, named technologies, or organizations to strengthen it.`
-  }
-
-  const fill = thesisFillStrengthFromSignals(signals)
-  if (!isDescribedThesisFillStrength(fill)) {
-    return EMPTY_THESIS_FILL_DESCRIPTION
-  }
-  const sentenceCopy = `${signals.sentences} sentence${signals.sentences === 1 ? '' : 's'}`
-  const specificityCopy = `${signals.specificityCount} specific signal${signals.specificityCount === 1 ? '' : 's'}`
-  const lowSignalCopy = `${signals.lowSignalCount} generic or hedging signal${signals.lowSignalCount === 1 ? '' : 's'}`
-
-  switch (fill.label) {
-    case 'Strong':
-      return `Strong: the thesis has enough structure and specificity, with ${sentenceCopy}, ${specificityCopy}, and ${lowSignalCopy}.`
-    case 'Solid':
-      return `Solid: the thesis is usable and has some evidence signal, with ${sentenceCopy}, ${specificityCopy}, and ${lowSignalCopy}.`
-    case 'Sparse':
-      return `Sparse: the thesis is present, but it needs more concrete evidence or named systems. Current signals: ${sentenceCopy}, ${specificityCopy}, and ${lowSignalCopy}.`
-    case 'Draft':
-      return `Draft: thesis text exists, but it needs more concrete examples, named technologies, or organizations. Current signals: ${sentenceCopy}, ${specificityCopy}, and ${lowSignalCopy}.`
-    default:
-      return assertNever(fill.label)
-  }
 }
 
 export function describeIdentityFillStrength(layer: BandLayer, fill: FillStrength): string {

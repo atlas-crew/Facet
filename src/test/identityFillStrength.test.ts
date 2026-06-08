@@ -3,7 +3,6 @@ import {
   FILL_STRENGTH_LEGEND,
   describeFillStrengthLegend,
   describeIdentityFillStrength,
-  describeThesisFillStrength,
   preferencesFillStrength,
   profilesFillStrength,
   rolesFillStrength,
@@ -190,14 +189,6 @@ describe('identityFillStrength', () => {
       expect(r.tone).toBe('warn')
     })
 
-    it('explains the blank thesis state', () => {
-      const id = empty()
-      id.identity.thesis = '   '
-      expect(describeThesisFillStrength(id)).toBe(
-        'Empty: generate a thesis or add one before this section can be evaluated.',
-      )
-    })
-
     it('returns Empty for whitespace-only thesis text', () => {
       const id = empty()
       id.identity.thesis = '   '
@@ -205,89 +196,6 @@ describe('identityFillStrength', () => {
       expect(r.label).toBe('Empty')
       expect(r.percent).toBe(0)
       expect(r.tone).toBe('warn')
-    })
-
-    it('explains very short thesis drafts with word counts', () => {
-      const singular = empty()
-      singular.identity.thesis = 'Platforms.'
-      expect(describeThesisFillStrength(singular)).toBe(
-        'Draft: thesis text exists, but it is very short at 1 word. Add concrete examples, named technologies, or organizations to strengthen it.',
-      )
-
-      const plural = empty()
-      plural.identity.thesis = 'I do platforms.'
-      expect(describeThesisFillStrength(plural)).toBe(
-        'Draft: thesis text exists, but it is very short at 3 words. Add concrete examples, named technologies, or organizations to strengthen it.',
-      )
-    })
-
-    it('explains why a present thesis is scored as Draft', () => {
-      const id = empty()
-      id.identity.thesis = 'I turn platform complexity into product leverage.'
-      expect(describeThesisFillStrength(id)).toBe(
-        'Draft: thesis text exists, but it needs more concrete examples, named technologies, or organizations. Current signals: 1 sentence, 0 specific signals, and 1 generic or hedging signal.',
-      )
-    })
-
-    it('switches to scored thesis descriptions at 5 words', () => {
-      const four = empty()
-      four.identity.thesis = 'I do good things.'
-      expect(describeThesisFillStrength(four)).toContain('very short at 4 words')
-
-      const five = empty()
-      five.identity.thesis = 'I build things at scale.'
-      expect(describeThesisFillStrength(five)).toBe(
-        'Draft: thesis text exists, but it needs more concrete examples, named technologies, or organizations. Current signals: 1 sentence, 0 specific signals, and 0 generic or hedging signals.',
-      )
-    })
-
-    it('uses singular copy for one specific signal', () => {
-      const id = empty()
-      id.identity.thesis = 'I build platforms on AWS for teams that need steady delivery.'
-      expect(describeThesisFillStrength(id)).toBe(
-        'Draft: thesis text exists, but it needs more concrete examples, named technologies, or organizations. Current signals: 1 sentence, 1 specific signal, and 0 generic or hedging signals.',
-      )
-    })
-
-    it('explains Sparse, Solid, and Strong thesis states', () => {
-      const sparse = empty()
-      sparse.identity.thesis =
-        'I help teams do better work in complicated situations. ' +
-        'I make complex tradeoffs easier for product teams.'
-      expect(describeThesisFillStrength(sparse)).toBe(
-        'Sparse: the thesis is present, but it needs more concrete evidence or named systems. Current signals: 2 sentences, 0 specific signals, and 0 generic or hedging signals.',
-      )
-
-      const solid = empty()
-      solid.identity.thesis =
-        'I build platforms on AWS and GCP. ' + 'I ship SQL systems that help teams move faster.'
-      expect(describeThesisFillStrength(solid)).toBe(
-        'Solid: the thesis is usable and has some evidence signal, with 2 sentences, 3 specific signals, and 0 generic or hedging signals.',
-      )
-
-      const strong = empty()
-      strong.identity.thesis =
-        'I build security platforms that ship eBPF agents on AWS at scale. ' +
-        'At A10 I owned WAF sensor lifecycle across 400+ deployments. ' +
-        'Now I want platform leadership where the substrate is the product.'
-      expect(describeThesisFillStrength(strong)).toBe(
-        'Strong: the thesis has enough structure and specificity, with 3 sentences, 4 specific signals, and 0 generic or hedging signals.',
-      )
-    })
-
-    it('uses singular copy inside higher-scoring thesis states', () => {
-      const solid = empty()
-      solid.identity.thesis = 'I build AWS, GCP, SQL, EKS, and WAF systems.'
-      expect(describeThesisFillStrength(solid)).toBe(
-        'Solid: the thesis is usable and has some evidence signal, with 1 sentence, 5 specific signals, and 0 generic or hedging signals.',
-      )
-
-      const sparse = empty()
-      sparse.identity.thesis =
-        'I help teams leverage better results. I make tradeoffs clearer for engineers.'
-      expect(describeThesisFillStrength(sparse)).toBe(
-        'Sparse: the thesis is present, but it needs more concrete evidence or named systems. Current signals: 2 sentences, 0 specific signals, and 1 generic or hedging signal.',
-      )
     })
 
     it('does NOT score origin/elaboration (prose-only theory)', () => {

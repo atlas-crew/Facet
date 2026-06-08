@@ -589,11 +589,12 @@ export function SelfModelBand({
 
         <div className="self-interview">
           <div className="arc-label label-tracked">Interview Self-Knowledge</div>
-          <InterviewBlock label="Strengths" items={interview?.strengths ?? []} />
-          <InterviewBlock label="Weaknesses" items={interview?.weaknesses ?? []} weak />
+          <InterviewBlock label="Strengths" items={interview?.strengths ?? []} tone="strength" />
+          <InterviewBlock label="Weaknesses" items={interview?.weaknesses ?? []} tone="weakness" />
           <InterviewBlock
             label="Prep Strategy"
             items={interview?.prep_strategy?.trim() ? [interview.prep_strategy.trim()] : []}
+            tone="strategy"
           />
         </div>
 
@@ -843,9 +844,17 @@ function DraftSection({
   )
 }
 
-function InterviewBlock({ label, items, weak = false }: { label: string; items: string[]; weak?: boolean }) {
+function InterviewBlock({
+  label,
+  items,
+  tone,
+}: {
+  label: string
+  items: string[]
+  tone: 'strength' | 'weakness' | 'strategy'
+}) {
   return (
-    <div className={`interview-block${weak ? ' interview-weak' : ''}`}>
+    <div className={`interview-block interview-${tone}`}>
       <div className="interview-block-label label-tracked">{label}</div>
       {items.length === 0 ? (
         <p className="chapter-copy self-empty">— not captured</p>

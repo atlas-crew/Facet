@@ -676,18 +676,16 @@ describe('Identity Map — match-rule add/remove', () => {
     expect(thesisMeta?.textContent).toContain(
       'Grounded in deployment architecture and product judgment.',
     )
-    const note = within(container.querySelector('[data-layer="thesis"]') as HTMLElement).getByText(
-      'Strong: the thesis has enough structure and specificity, with 3 sentences, 4 specific signals, and 0 generic or hedging signals.',
-    )
-    expect(note).toBeTruthy()
+    const thesisBand = container.querySelector('[data-layer="thesis"]') as HTMLElement
+    expect(thesisBand.querySelector('.thesis-strength-note')).toBeNull()
     expect(
-      within(container.querySelector('[data-layer="thesis"]') as HTMLElement)
+      within(thesisBand)
         .getByRole('button', { name: /I build security platforms/i })
         .getAttribute('aria-describedby'),
-    ).toBe(note.id)
+    ).toBeNull()
   })
 
-  it('renders an intermediate thesis strength explanation on the thesis band', () => {
+  it('does not duplicate intermediate thesis strength copy below a filled thesis', () => {
     seed((id) => {
       id.identity.thesis =
         'I help teams do better work in complicated situations. ' +
@@ -697,14 +695,17 @@ describe('Identity Map — match-rule add/remove', () => {
     const { container } = render(<IdentityMapPage />)
     const thesisBand = container.querySelector('[data-layer="thesis"]')
     expect(thesisBand).toBeTruthy()
-    const note = within(thesisBand as HTMLElement).getByText(
-      'Sparse: the thesis is present, but it needs more concrete evidence or named systems. Current signals: 2 sentences, 0 specific signals, and 0 generic or hedging signals.',
-    )
+    expect(
+      within(thesisBand as HTMLElement).queryByText(
+        'Sparse: the thesis is present, but it needs more concrete evidence or named systems. Current signals: 2 sentences, 0 specific signals, and 0 generic or hedging signals.',
+      ),
+    ).toBeNull()
+    expect(thesisBand?.querySelector('.thesis-strength-note')).toBeNull()
     expect(
       within(thesisBand as HTMLElement)
         .getByRole('button', { name: /I help teams do better work/i })
         .getAttribute('aria-describedby'),
-    ).toBe(note.id)
+    ).toBeNull()
   })
 
   it('explains an empty thesis status on the thesis band', () => {
@@ -720,7 +721,7 @@ describe('Identity Map — match-rule add/remove', () => {
         'Empty: generate a thesis or add one before this section can be evaluated.',
       ),
     ).toBeTruthy()
-    expect(thesisBand?.querySelector('.thesis-strength-note')?.textContent).toBe('')
+    expect(thesisBand?.querySelector('.thesis-strength-note')).toBeNull()
     expect(
       within(thesisBand as HTMLElement)
         .getByRole('button', { name: /Empty: generate a thesis or add one/i })
@@ -2070,7 +2071,10 @@ describe('Identity Map — match-rule add/remove', () => {
 
     render(<IdentityMapPage />)
 
-    const actionPanel = screen.getByRole('region', { name: 'Deepen skill evidence' })
+    const actionPanel = screen
+      .getAllByRole('region', { name: 'Deepen skill evidence' })
+      .find((panel) => within(panel).queryByText('Next action'))
+    if (!actionPanel) throw new Error('Expected next-action skill evidence panel.')
     expect(
       within(actionPanel).getByText(
         'Bullets → skills → thesis → profiles → chapters → self-knowledge → positioning → search',
@@ -2189,17 +2193,12 @@ describe('Identity Map — match-rule add/remove', () => {
     expect(thesisBand).toBeTruthy()
     expect(within(thesisBand as HTMLElement).queryByText(/^Empty$/)).toBeNull()
     expect(within(thesisBand as HTMLElement).getByText(/^Draft$/)).toBeTruthy()
-    expect(
-      within(thesisBand as HTMLElement).getByText(
-        /Draft: thesis text exists, but it needs more concrete examples, named technologies, or organizations/i,
-      ),
-    ).toBeTruthy()
-    const note = within(thesisBand as HTMLElement).getByText(/Draft: thesis text exists/i)
+    expect(thesisBand?.querySelector('.thesis-strength-note')).toBeNull()
     expect(
       within(thesisBand as HTMLElement)
         .getByRole('button', { name: /I turn platform complexity/i })
         .getAttribute('aria-describedby'),
-    ).toBe(note.id)
+    ).toBeNull()
   })
 
   it('generates philosophy and interview self-knowledge from the action list', async () => {
@@ -2286,6 +2285,24 @@ describe('Identity Map — match-rule add/remove', () => {
         'Lead with the customer access problem, then use platform proof.',
       ),
     ).toBeTruthy()
+    expect(
+      within(interviewSection)
+        .getByText('Translate low-level platform details into product consequences.')
+        .closest('.interview-block')
+        ?.classList.contains('interview-strength'),
+    ).toBe(true)
+    expect(
+      within(interviewSection)
+        .getByText('Can over-explain architecture before naming the buyer constraint.')
+        .closest('.interview-block')
+        ?.classList.contains('interview-weakness'),
+    ).toBe(true)
+    expect(
+      within(interviewSection)
+        .getByText('Lead with the customer access problem, then use platform proof.')
+        .closest('.interview-block')
+        ?.classList.contains('interview-strategy'),
+    ).toBe(true)
   })
 
   it('renders empty interview self-knowledge placeholders', () => {
@@ -3068,7 +3085,10 @@ describe('Identity Map — match-rule add/remove', () => {
 
     render(<IdentityMapPage />)
 
-    const actionPanel = screen.getByRole('region', { name: 'Deepen bullet evidence' })
+    const actionPanel = screen
+      .getAllByRole('region', { name: 'Deepen bullet evidence' })
+      .find((panel) => within(panel).queryByText('Next action'))
+    if (!actionPanel) throw new Error('Expected next-action bullet evidence panel.')
     expect(within(actionPanel).getByText('1 pending')).toBeTruthy()
     fireEvent.click(
       within(actionPanel).getByRole('button', { name: /run next action: review bullets \(1\)/i }),
@@ -3632,7 +3652,7 @@ describe('Identity Map — match-rule add/remove', () => {
     expect(screen.getByText('No identity yet')).toBeTruthy()
     expect(screen.getByText(/Bring in resumes, source notes, or identity JSON/i)).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Fill strength legend' })).toBeTruthy()
-    expect(container.querySelector('.thesis-strength-note')?.textContent).toBe('')
+    expect(container.querySelector('.thesis-strength-note')).toBeNull()
     expect(
       within(container.querySelector('[data-layer="thesis"]') as HTMLElement).getByText(
         'Empty: generate a thesis or add one before this section can be evaluated.',
