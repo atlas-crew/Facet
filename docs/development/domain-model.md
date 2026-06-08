@@ -116,6 +116,19 @@ draft; downstream sections remain visible as potentially stale.
 
 ---
 
+## Identity Skill Group Naming
+
+The Skills band can ask AI for standardized skill group labels. This is an
+Identity-only taxonomy assist: the proposal is generated from the current skill
+groups and candidate context, then held as a reviewable UI draft until the user
+applies it. Applying a suggestion updates only `skills.groups[].label`; group
+metadata (`positioning`, `calibration`, `is_differentiator`) and `items` are
+preserved through immutable `updateCurrentSkillGroups` updates. Per-group revert
+is intentionally deferred; after applying, the user can edit any individual
+group name from the existing Skill Group inspector.
+
+---
+
 ## UI Layout (Build Route)
 
 Two-panel split: **Component Library** (left, ~45%) and **Live Preview** (right, ~55%) with a draggable splitter. A vector selector bar sits at the top; a status bar at the bottom shows page usage. The split ratio is persisted in `uiStore`.
