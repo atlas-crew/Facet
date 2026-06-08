@@ -1,9 +1,11 @@
 ---
 id: TASK-290
 title: 'AI feature: suggest standardized skill group names'
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-06-07 20:28'
+updated_date: '2026-06-08 02:56'
 labels:
   - identity
   - skills
