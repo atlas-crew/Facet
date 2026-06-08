@@ -18,7 +18,13 @@ import {
 } from '../../../utils/skillEnrichment'
 import { IdentityBand } from '../IdentityBand'
 
-export function SkillsBand({ bulkRequestId = 0 }: { bulkRequestId?: number }) {
+export function SkillsBand({
+  bulkRequestId = 0,
+  onBulkRequestSettled,
+}: {
+  bulkRequestId?: number
+  onBulkRequestSettled?: (requestId: number, status: 'succeeded' | 'failed') => void
+}) {
   const identity = useIdentityStore((s) => s.currentIdentity)
   const selection = useIdentityStore((s) => s.mapSelection)
   const setMapSelection = useIdentityStore((s) => s.setMapSelection)
@@ -58,10 +64,10 @@ export function SkillsBand({ bulkRequestId = 0 }: { bulkRequestId?: number }) {
   const isDuplicate = (name: string): boolean =>
     duplicateSkillNames.has(name.trim().toLocaleLowerCase())
   const handleDeepenAllSkills = useCallback(async () => {
-    if (!identity || bulkRunningRef.current) return
+    if (!identity || bulkRunningRef.current) return false
     if (!aiEndpoint) {
       setBulkMessage('AI suggestions are disabled. Configure VITE_ANTHROPIC_PROXY_URL.')
-      return
+      return false
     }
 
     const pendingTargets = identity.skills.groups.flatMap((group) =>
@@ -71,7 +77,7 @@ export function SkillsBand({ bulkRequestId = 0 }: { bulkRequestId?: number }) {
     )
     if (pendingTargets.length === 0) {
       setBulkMessage('No pending skills to deepen.')
-      return
+      return false
     }
 
     bulkAbortRef.current?.abort()
@@ -197,10 +203,12 @@ export function SkillsBand({ bulkRequestId = 0 }: { bulkRequestId?: number }) {
             .join('; ') + '.',
         )
       }
+      return applied > 0 || skipped > 0
     } catch {
       if (!controller.signal.aborted) {
         setBulkMessage('Skill deepening stopped before finishing.')
       }
+      return false
     } finally {
       if (bulkAbortRef.current === controller) {
         bulkAbortRef.current = null
@@ -222,11 +230,15 @@ export function SkillsBand({ bulkRequestId = 0 }: { bulkRequestId?: number }) {
   useEffect(() => {
     if (bulkRequestId <= 0 || honoredBulkRequestRef.current === bulkRequestId) return
     honoredBulkRequestRef.current = bulkRequestId
+    const requestId = bulkRequestId
     const timeout = window.setTimeout(() => {
-      void handleDeepenAllSkills()
+      void handleDeepenAllSkills().then(
+        (result) => onBulkRequestSettled?.(requestId, result === false ? 'failed' : 'succeeded'),
+        () => onBulkRequestSettled?.(requestId, 'failed'),
+      )
     }, 0)
     return () => window.clearTimeout(timeout)
-  }, [bulkRequestId, handleDeepenAllSkills])
+  }, [bulkRequestId, handleDeepenAllSkills, onBulkRequestSettled])
 
   return (
     <IdentityBand layer="skills" name="Skills" subtitle="taxonomy" fill={fill}>

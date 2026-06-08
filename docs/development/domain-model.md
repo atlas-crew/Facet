@@ -94,6 +94,28 @@ inventory. The pre-implementation Pipeline/Prep spec was archived at
 
 ---
 
+## Identity Inference Dependencies
+
+The Identity Map treats generated sections as a dependency chain:
+bullets -> skills -> thesis -> profiles -> chapters -> self-knowledge ->
+positioning -> search. The graph is encoded in
+`src/routes/identity/identityInferenceDependencies.ts` and should be reused by
+run-all, regenerate, stale-state, and action-list flows instead of duplicating
+the order in each band.
+
+When an upstream generation runs from the Identity action controls, the page
+surfaces the downstream sections before dispatching requests. Users can
+regenerate selected downstream sections, regenerate all of them, or defer. A
+deferred downstream section is marked as potentially stale in the Identity Map
+until it is regenerated or the marker is cleared. The page still triggers
+generation through the existing request-id based band handlers; parent code
+does not call the LLM generators directly. Cascades advance in dependency order
+after the prior section changes. Sections that produce review drafts, such as
+thesis and positioning, stop the automatic cascade until the user applies the
+draft; downstream sections remain visible as potentially stale.
+
+---
+
 ## UI Layout (Build Route)
 
 Two-panel split: **Component Library** (left, ~45%) and **Live Preview** (right, ~55%) with a draggable splitter. A vector selector bar sits at the top; a status bar at the bottom shows page usage. The split ratio is persisted in `uiStore`.

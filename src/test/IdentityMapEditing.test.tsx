@@ -102,6 +102,13 @@ const getSelfKnowledgeControls = () => {
   return controls as HTMLElement
 }
 
+const deferDownstreamPrompt = async () => {
+  const prompt = await screen.findByRole('dialog', {
+    name: 'Regenerate downstream sections?',
+  })
+  fireEvent.click(within(prompt).getByRole('button', { name: 'Defer downstream' }))
+}
+
 const seedNoAttentionIdentity = () => {
   seed((id) => {
     id.identity.thesis =
@@ -964,6 +971,10 @@ describe('Identity Map — match-rule add/remove', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
     fireEvent.click(screen.getByRole('button', { name: /run action: regenerate profiles/i }))
+    const prompt = await screen.findByRole('dialog', {
+      name: 'Regenerate downstream sections?',
+    })
+    fireEvent.click(within(prompt).getByRole('button', { name: 'Defer downstream' }))
 
     await waitFor(() => {
       expect(identityParameterMocks.generateIdentityProfilesFromIdentityMock).toHaveBeenCalledTimes(
@@ -977,6 +988,265 @@ describe('Identity Map — match-rule add/remove', () => {
         text: 'Action-list generated profile lens.',
       },
     ])
+    const stalePanel = screen.getByRole('region', {
+      name: 'Potentially stale identity sections',
+    })
+    expect(within(stalePanel).getByText('Career chapters')).toBeTruthy()
+    expect(within(stalePanel).getByText('Self-knowledge')).toBeTruthy()
+    expect(within(stalePanel).getByText('Positioning')).toBeTruthy()
+    expect(within(stalePanel).getByText('Search parameters')).toBeTruthy()
+  })
+
+  it('regenerates selected downstream sections through existing request triggers', async () => {
+    seed((id) => {
+      id.self_model.arc = []
+    })
+    identityParameterMocks.generateIdentityProfilesFromIdentityMock.mockResolvedValueOnce([
+      {
+        id: 'platform-strategy',
+        tags: ['platform'],
+        text: 'Profile regenerated before chapters.',
+      },
+    ])
+
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
+    fireEvent.click(screen.getByRole('button', { name: /run action: regenerate profiles/i }))
+    const dialog = await screen.findByRole('dialog', { name: 'Regenerate downstream sections?' })
+    fireEvent.click(within(dialog).getByLabelText(/Self-knowledge/i))
+    fireEvent.click(within(dialog).getByLabelText(/Positioning/i))
+    fireEvent.click(within(dialog).getByLabelText(/Search parameters/i))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Regenerate selected' }))
+
+    await waitFor(() => {
+      expect(identityParameterMocks.generateIdentityProfilesFromIdentityMock).toHaveBeenCalledTimes(
+        1,
+      )
+      expect(useIdentityStore.getState().currentIdentity?.self_model.arc.length).toBeGreaterThan(0)
+    })
+    expect(screen.queryByRole('dialog', { name: 'Regenerate downstream sections?' })).toBeNull()
+    const stalePanel = screen.getByRole('region', {
+      name: 'Potentially stale identity sections',
+    })
+    expect(within(stalePanel).queryByText('Profiles')).toBeNull()
+    expect(within(stalePanel).queryByText('Career chapters')).toBeNull()
+    expect(within(stalePanel).getByText('Self-knowledge')).toBeTruthy()
+    expect(within(stalePanel).getByText('Positioning')).toBeTruthy()
+    expect(within(stalePanel).getByText('Search parameters')).toBeTruthy()
+  })
+
+  it('regenerates stale downstream sections from the stale panel', async () => {
+    seed()
+    identityParameterMocks.generateIdentityProfilesFromIdentityMock.mockResolvedValueOnce([
+      {
+        id: 'platform-strategy',
+        tags: ['platform'],
+        text: 'Profile regenerated before stale recovery.',
+      },
+    ])
+    identityParameterMocks.generateSelfKnowledgeFromIdentityMock.mockResolvedValueOnce({
+      philosophy: [
+        {
+          id: 'platform-judgment',
+          text: 'Favor platform moves when they unlock product access.',
+          tags: ['platform'],
+        },
+      ],
+      interview_style: {
+        strengths: ['Frames platform proof through customer access.'],
+        weaknesses: [],
+        prep_strategy: '',
+      },
+    })
+    identityParameterMocks.generateStrategicPositioningFromIdentityMock.mockResolvedValueOnce({
+      unfair_advantages: ['Turns platform constraints into market access.'],
+      search_vectors: [],
+      open_questions: [],
+    })
+
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
+    fireEvent.click(screen.getByRole('button', { name: /run action: regenerate profiles/i }))
+    await deferDownstreamPrompt()
+
+    const stalePanel = await screen.findByRole('region', {
+      name: 'Potentially stale identity sections',
+    })
+    fireEvent.click(within(stalePanel).getByRole('button', { name: 'Regenerate all stale' }))
+
+    await waitFor(() => {
+      expect(identityParameterMocks.generateSelfKnowledgeFromIdentityMock).toHaveBeenCalledTimes(1)
+      expect(
+        identityParameterMocks.generateStrategicPositioningFromIdentityMock,
+      ).toHaveBeenCalledTimes(1)
+    })
+    expect(within(stalePanel).queryByText('Self-knowledge')).toBeNull()
+    expect(within(stalePanel).getByText('Search parameters')).toBeTruthy()
+  })
+
+  it('clears stale downstream markers without regenerating', async () => {
+    seed()
+    identityParameterMocks.generateIdentityProfilesFromIdentityMock.mockResolvedValueOnce([
+      {
+        id: 'platform-strategy',
+        tags: ['platform'],
+        text: 'Profile regenerated before stale clear.',
+      },
+    ])
+
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
+    fireEvent.click(screen.getByRole('button', { name: /run action: regenerate profiles/i }))
+    await deferDownstreamPrompt()
+
+    const stalePanel = await screen.findByRole('region', {
+      name: 'Potentially stale identity sections',
+    })
+    fireEvent.click(within(stalePanel).getByRole('button', { name: 'Clear stale markers' }))
+
+    expect(screen.queryByRole('region', { name: 'Potentially stale identity sections' })).toBeNull()
+    expect(identityParameterMocks.generateSelfKnowledgeFromIdentityMock).not.toHaveBeenCalled()
+  })
+
+  it('marks queued downstream sections stale if a cascade request does not settle', async () => {
+    vi.useFakeTimers()
+    try {
+      seed((id) => {
+        id.self_model.arc = []
+      })
+      const deferred =
+        createDeferred<
+          Awaited<ReturnType<typeof identityParameterMocks.generateIdentityProfilesFromIdentityMock>>
+        >()
+      identityParameterMocks.generateIdentityProfilesFromIdentityMock.mockReturnValueOnce(
+        deferred.promise,
+      )
+
+      render(<IdentityMapPage />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
+      fireEvent.click(screen.getByRole('button', { name: /run action: regenerate profiles/i }))
+      await act(async () => {
+        vi.runOnlyPendingTimers()
+        await Promise.resolve()
+      })
+      const dialog = screen.getByRole('dialog', { name: 'Regenerate downstream sections?' })
+      fireEvent.click(within(dialog).getByLabelText(/Self-knowledge/i))
+      fireEvent.click(within(dialog).getByLabelText(/Positioning/i))
+      fireEvent.click(within(dialog).getByLabelText(/Search parameters/i))
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Regenerate selected' }))
+
+      await act(async () => {
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+      expect(identityParameterMocks.generateIdentityProfilesFromIdentityMock).toHaveBeenCalledTimes(
+        1,
+      )
+      const stalePanel = screen.getByRole('region', {
+        name: 'Potentially stale identity sections',
+      })
+      expect(
+        within(stalePanel).getByText(
+          'Waiting for Profiles before regenerating queued downstream sections.',
+        ),
+      ).toBeTruthy()
+      expect(within(stalePanel).queryByText('Career chapters')).toBeNull()
+
+      act(() => {
+        vi.advanceTimersByTime(90_000)
+      })
+      await act(async () => {
+        await Promise.resolve()
+      })
+
+      expect(within(stalePanel).getByText('Career chapters')).toBeTruthy()
+      expect(
+        within(stalePanel).queryByText(
+          'Waiting for Profiles before regenerating queued downstream sections.',
+        ),
+      ).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('marks queued downstream sections stale when an upstream cascade request fails', async () => {
+    seed((id) => {
+      id.self_model.arc = []
+    })
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    identityParameterMocks.generateIdentityProfilesFromIdentityMock.mockRejectedValueOnce(
+      new Error('proxy timeout'),
+    )
+
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
+    fireEvent.click(screen.getByRole('button', { name: /run action: regenerate profiles/i }))
+    const dialog = await screen.findByRole('dialog', { name: 'Regenerate downstream sections?' })
+    fireEvent.click(within(dialog).getByLabelText(/Self-knowledge/i))
+    fireEvent.click(within(dialog).getByLabelText(/Positioning/i))
+    fireEvent.click(within(dialog).getByLabelText(/Search parameters/i))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Regenerate selected' }))
+
+    const stalePanel = await screen.findByRole('region', {
+      name: 'Potentially stale identity sections',
+    })
+    await waitFor(() => {
+      expect(within(stalePanel).getByText('Career chapters')).toBeTruthy()
+    })
+    expect(identityParameterMocks.generateSelfKnowledgeFromIdentityMock).not.toHaveBeenCalled()
+    consoleErrorSpy.mockRestore()
+  })
+
+  it('clears a stale marker when the matching band generation starts directly', async () => {
+    seed()
+    identityParameterMocks.generateIdentityProfilesFromIdentityMock.mockResolvedValueOnce([
+      {
+        id: 'platform-strategy',
+        tags: ['platform'],
+        text: 'Profile regenerated before direct stale clear.',
+      },
+    ])
+    identityParameterMocks.generateSelfKnowledgeFromIdentityMock.mockResolvedValueOnce({
+      philosophy: [
+        {
+          id: 'platform-judgment',
+          text: 'Favor platform moves when they unlock product access.',
+          tags: ['platform'],
+        },
+      ],
+      interview_style: {
+        strengths: ['Frames platform proof through customer access.'],
+        weaknesses: [],
+        prep_strategy: '',
+      },
+    })
+
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
+    fireEvent.click(screen.getByRole('button', { name: /run action: regenerate profiles/i }))
+    await deferDownstreamPrompt()
+
+    const stalePanel = await screen.findByRole('region', {
+      name: 'Potentially stale identity sections',
+    })
+    expect(within(stalePanel).getByText('Self-knowledge')).toBeTruthy()
+
+    fireEvent.click(
+      within(getSelfKnowledgeControls()).getByRole('button', {
+        name: /^generate self-knowledge$/i,
+      }),
+    )
+
+    await waitFor(() => {
+      expect(within(stalePanel).queryByText('Self-knowledge')).toBeNull()
+    })
   })
 
   it('shows a configuration error when profile generation has no AI proxy', async () => {
@@ -1096,6 +1366,7 @@ describe('Identity Map — match-rule add/remove', () => {
     ).toBe('true')
     fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
     fireEvent.click(screen.getByRole('button', { name: /run action: regenerate profiles/i }))
+    await deferDownstreamPrompt()
 
     await waitFor(() => {
       expect(screen.getByText('Profile generation is already running.')).toBeTruthy()
@@ -2119,6 +2390,7 @@ describe('Identity Map — match-rule add/remove', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
     fireEvent.click(screen.getByRole('button', { name: /run action: refresh positioning/i }))
+    await deferDownstreamPrompt()
     await waitFor(() => {
       expect(
         identityParameterMocks.generateStrategicPositioningFromIdentityMock,
@@ -2166,6 +2438,23 @@ describe('Identity Map — match-rule add/remove', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
     fireEvent.click(screen.getByRole('button', { name: /run action: regenerate thesis/i }))
+    const downstreamPrompt = await screen.findByRole('dialog', {
+      name: 'Regenerate downstream sections?',
+    })
+    expect(
+      within(downstreamPrompt).getByText(
+        'This source opens a review draft first. Apply that draft before regenerating downstream sections.',
+      ),
+    ).toBeTruthy()
+    expect(
+      within(downstreamPrompt).getByRole('button', { name: 'Regenerate selected' }),
+    ).toHaveProperty('disabled', true)
+    expect(within(downstreamPrompt).getByRole('button', { name: 'Regenerate all' })).toHaveProperty(
+      'disabled',
+      true,
+    )
+    expect(within(downstreamPrompt).getByLabelText(/Profiles/i)).toHaveProperty('disabled', true)
+    fireEvent.click(within(downstreamPrompt).getByRole('button', { name: 'Defer downstream' }))
 
     await waitFor(() => {
       expect(identityParameterMocks.generateIdentityThesisFromIdentityMock).toHaveBeenCalledWith(
@@ -2229,6 +2518,7 @@ describe('Identity Map — match-rule add/remove', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
     fireEvent.click(screen.getByRole('button', { name: /run action: generate self-knowledge/i }))
+    await deferDownstreamPrompt()
 
     await waitFor(() => {
       expect(identityParameterMocks.generateSelfKnowledgeFromIdentityMock).toHaveBeenCalledWith(
@@ -2391,6 +2681,7 @@ describe('Identity Map — match-rule add/remove', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
     fireEvent.click(screen.getByRole('button', { name: /run action: generate self-knowledge/i }))
+    await deferDownstreamPrompt()
 
     await waitFor(() => {
       expect(
@@ -2488,12 +2779,14 @@ describe('Identity Map — match-rule add/remove', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
     fireEvent.click(screen.getByRole('button', { name: /run action: generate self-knowledge/i }))
+    await deferDownstreamPrompt()
     await waitFor(() => {
       expect(identityParameterMocks.generateSelfKnowledgeFromIdentityMock).toHaveBeenCalledTimes(1)
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
     fireEvent.click(screen.getByRole('button', { name: /run action: generate self-knowledge/i }))
+    await deferDownstreamPrompt()
 
     await waitFor(() => {
       expect(screen.getByText('Self-knowledge generation is already running.')).toBeTruthy()
@@ -2534,6 +2827,7 @@ describe('Identity Map — match-rule add/remove', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
     fireEvent.click(screen.getByRole('button', { name: /run action: generate self-knowledge/i }))
+    await deferDownstreamPrompt()
     await waitFor(() => {
       expect(identityParameterMocks.generateSelfKnowledgeFromIdentityMock).toHaveBeenCalledTimes(1)
     })
@@ -2726,6 +3020,7 @@ describe('Identity Map — match-rule add/remove', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
     fireEvent.click(screen.getByRole('button', { name: /run action: regenerate thesis/i }))
+    await deferDownstreamPrompt()
 
     await waitFor(() => {
       expect(
@@ -2743,6 +3038,7 @@ describe('Identity Map — match-rule add/remove', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
     fireEvent.click(screen.getByRole('button', { name: /run action: regenerate thesis/i }))
+    await deferDownstreamPrompt()
 
     await waitFor(() => {
       expect(identityParameterMocks.generateIdentityThesisFromIdentityMock).toHaveBeenCalledTimes(1)
@@ -2781,12 +3077,14 @@ describe('Identity Map — match-rule add/remove', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
     fireEvent.click(screen.getByRole('button', { name: /run action: regenerate thesis/i }))
+    await deferDownstreamPrompt()
     await waitFor(() => {
       expect(identityParameterMocks.generateIdentityThesisFromIdentityMock).toHaveBeenCalledTimes(1)
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
     fireEvent.click(screen.getByRole('button', { name: /run action: regenerate thesis/i }))
+    await deferDownstreamPrompt()
 
     await waitFor(() => {
       expect(screen.getByText('Thesis generation is already running.')).toBeTruthy()
@@ -2850,6 +3148,7 @@ describe('Identity Map — match-rule add/remove', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
     fireEvent.click(screen.getByRole('button', { name: /run action: regenerate thesis/i }))
+    await deferDownstreamPrompt()
 
     await waitFor(() => {
       expect(identityParameterMocks.generateIdentityThesisFromIdentityMock).toHaveBeenCalledTimes(1)

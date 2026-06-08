@@ -295,6 +295,20 @@
   border-left-color: var(--warning);
 }
 
+.identity-map-stale-panel {
+  max-width: 920px;
+  margin-top: var(--space-4);
+  padding: var(--space-4) calc(var(--space-4) + var(--space-1));
+  border: 1px solid color-mix(in srgb, var(--warning) 36%, var(--border-subtle));
+  border-left: 3px solid var(--warning);
+  border-radius: 8px;
+  background: var(--bg-surface);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-4);
+  align-items: center;
+}
+
 .identity-map-action-panel h2 {
   margin: 0 0 var(--space-2);
   color: var(--text-primary);
@@ -327,6 +341,13 @@
   justify-content: flex-end;
   gap: var(--space-2);
   align-items: center;
+}
+
+.identity-map-stale-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
 }
 
 .identity-action-status {
@@ -2443,6 +2464,55 @@
   gap: var(--space-2);
 }
 
+.identity-downstream-modal {
+  width: min(620px, calc(100vw - var(--space-8)));
+}
+
+.identity-downstream-copy {
+  margin: 0 0 var(--space-4);
+  color: var(--text-secondary);
+}
+
+.identity-downstream-list {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.identity-downstream-option {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: flex-start;
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-inset);
+}
+
+.identity-downstream-option input {
+  margin-top: var(--space-1);
+}
+
+.identity-downstream-option .label-tracked {
+  display: block;
+  color: var(--text-primary);
+}
+
+.identity-downstream-option .chapter-copy {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--text-tertiary);
+  font-size: 13px;
+}
+
+.identity-downstream-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
 @media (max-width: 1100px) {
   .identity-map {
     grid-template-columns: 1fr;
@@ -2455,7 +2525,8 @@
     opacity: 0.25;
     width: 56%;
   }
-  .identity-map-action-panel {
+  .identity-map-action-panel,
+  .identity-map-stale-panel {
     grid-template-columns: 1fr;
     align-items: flex-start;
   }

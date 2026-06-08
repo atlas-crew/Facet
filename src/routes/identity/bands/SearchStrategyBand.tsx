@@ -178,8 +178,10 @@ function StrategyGenerationStatus({
 
 export function SearchStrategyBand({
   strategyRequestId = 0,
+  onRequestSettled,
 }: {
   strategyRequestId?: number
+  onRequestSettled?: (requestId: number, status: 'succeeded' | 'failed') => void
 }) {
   const identity = useIdentityStore((s) => s.currentIdentity)
   const selection = useIdentityStore((s) => s.mapSelection)
@@ -440,6 +442,7 @@ export function SearchStrategyBand({
   useInferenceRequest({
     requestId: strategyRequestId,
     handler: handleGenerateStrategy,
+    onSettled: onRequestSettled,
     skipWhen: () => generatingRef.current !== null,
     onSkipped: () => {
       showGenerationMessage({

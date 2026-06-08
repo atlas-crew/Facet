@@ -54,8 +54,10 @@ function ThesisGenerationStatus({
 
 export function ThesisBand({
   thesisRequestId = 0,
+  onRequestSettled,
 }: {
   thesisRequestId?: number
+  onRequestSettled?: (requestId: number, status: 'succeeded' | 'failed') => void
 }) {
   const identity = useIdentityStore((s) => s.currentIdentity)
   const selection = useIdentityStore((s) => s.mapSelection)
@@ -175,6 +177,7 @@ export function ThesisBand({
   useInferenceRequest({
     requestId: thesisRequestId,
     handler: handleGenerateThesis,
+    onSettled: onRequestSettled,
     skipWhen: () => generationRef.current,
     onSkipped: () => {
       showMessage({

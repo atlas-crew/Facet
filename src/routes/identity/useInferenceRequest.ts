@@ -2,9 +2,10 @@ import { useEffect, useRef } from 'react'
 
 interface InferenceRequestOptions {
   requestId: number
-  handler: () => void | Promise<void>
+  handler: () => void | boolean | Promise<void | boolean>
   skipWhen?: () => boolean
   onSkipped?: () => void
+  onSettled?: (requestId: number, status: 'succeeded' | 'failed') => void
 }
 
 export function useInferenceRequest({
@@ -12,11 +13,13 @@ export function useInferenceRequest({
   handler,
   skipWhen,
   onSkipped,
+  onSettled,
 }: InferenceRequestOptions) {
   const lastRequestIdRef = useRef(requestId)
   const handlerRef = useRef(handler)
   const skipWhenRef = useRef(skipWhen)
   const onSkippedRef = useRef(onSkipped)
+  const onSettledRef = useRef(onSettled)
 
   // Keep the trigger effect keyed only to requestId while still calling the
   // latest render's handler and guard functions.
@@ -24,6 +27,7 @@ export function useInferenceRequest({
     handlerRef.current = handler
     skipWhenRef.current = skipWhen
     onSkippedRef.current = onSkipped
+    onSettledRef.current = onSettled
   })
 
   useEffect(() => {
@@ -35,7 +39,9 @@ export function useInferenceRequest({
       return
     }
 
-    void handlerRef.current()
+    void Promise.resolve(handlerRef.current()).then(
+      (result) => onSettledRef.current?.(requestId, result === false ? 'failed' : 'succeeded'),
+      () => onSettledRef.current?.(requestId, 'failed'),
+    )
   }, [requestId])
 }
-

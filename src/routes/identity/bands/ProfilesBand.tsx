@@ -49,8 +49,10 @@ function ProfileGenerationStatus({
 
 export function ProfilesBand({
   profileRequestId = 0,
+  onRequestSettled,
 }: {
   profileRequestId?: number
+  onRequestSettled?: (requestId: number, status: 'succeeded' | 'failed') => void
 }) {
   const identity = useIdentityStore((s) => s.currentIdentity)
   const selection = useIdentityStore((s) => s.mapSelection)
@@ -93,7 +95,7 @@ export function ProfilesBand({
 
   const handleGenerateProfiles = useCallback(async () => {
     const currentIdentity = useIdentityStore.getState().currentIdentity
-    if (!currentIdentity || generationRef.current) return
+    if (!currentIdentity || generationRef.current) return false
 
     generationRef.current = true
     abortRef.current?.abort()
@@ -121,7 +123,7 @@ export function ProfilesBand({
           text: 'Identity changed during generation; discarded the profile draft.',
           autoDismiss: true,
         })
-        return
+        return false
       }
 
       if (generated.length === 0) {
@@ -130,7 +132,7 @@ export function ProfilesBand({
           text: 'The generated draft did not return profile lenses.',
           autoDismiss: true,
         })
-        return
+        return false
       }
 
       updateProfiles(generated)
@@ -139,6 +141,7 @@ export function ProfilesBand({
         text: `Generated ${generated.length} profile lens${generated.length === 1 ? '' : 'es'}.`,
         autoDismiss: true,
       })
+      return true
     } catch (error) {
       const isAbortError =
         (error instanceof DOMException && error.name === 'AbortError') ||
@@ -157,6 +160,7 @@ export function ProfilesBand({
             : 'Unable to generate profile lenses.',
         autoDismiss: false,
       })
+      return false
     } finally {
       if (mountedRef.current) {
         abortRef.current = null
@@ -169,6 +173,7 @@ export function ProfilesBand({
   useInferenceRequest({
     requestId: profileRequestId,
     handler: handleGenerateProfiles,
+    onSettled: onRequestSettled,
     skipWhen: () => generationRef.current,
     onSkipped: () => {
       showMessage({

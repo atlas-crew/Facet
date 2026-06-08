@@ -62,10 +62,18 @@ export function SelfModelBand({
   chapterRequestId = 0,
   selfKnowledgeRequestId = 0,
   positioningRequestId = 0,
+  onChapterRequestSettled,
+  onSelfKnowledgeRequestSettled,
+  onPositioningRequestSettled,
+  onSelfKnowledgeRequestStarted,
 }: {
   chapterRequestId?: number
   selfKnowledgeRequestId?: number
   positioningRequestId?: number
+  onChapterRequestSettled?: (requestId: number, status: 'succeeded' | 'failed') => void
+  onSelfKnowledgeRequestSettled?: (requestId: number, status: 'succeeded' | 'failed') => void
+  onPositioningRequestSettled?: (requestId: number, status: 'succeeded' | 'failed') => void
+  onSelfKnowledgeRequestStarted?: () => void
 }) {
   const identity = useIdentityStore((s) => s.currentIdentity)
   const selection = useIdentityStore((s) => s.mapSelection)
@@ -212,11 +220,12 @@ export function SelfModelBand({
   useInferenceRequest({
     requestId: chapterRequestId,
     handler: handleGenerateChaptersFromRoles,
+    onSettled: onChapterRequestSettled,
   })
 
   const handleGenerateSelfKnowledge = useCallback(async () => {
     const currentIdentity = useIdentityStore.getState().currentIdentity
-    if (!currentIdentity || selfKnowledgeGenerationRef.current) return
+    if (!currentIdentity || selfKnowledgeGenerationRef.current) return false
 
     try {
       selfKnowledgeGenerationRef.current = true
@@ -225,6 +234,7 @@ export function SelfModelBand({
       selfKnowledgeAbortRef.current = abortController
       const endpoint = ensureSelfKnowledgeEndpoint()
       const generationRevision = currentIdentity.model_revision ?? 0
+      onSelfKnowledgeRequestStarted?.()
       setGeneratingSelfKnowledge(true)
       showSelfKnowledgeMessage({
         tone: 'info',
@@ -243,7 +253,7 @@ export function SelfModelBand({
           text: 'Identity changed during generation; discarded the self-knowledge draft.',
           autoDismiss: true,
         })
-        return
+        return false
       }
 
       const generatedPhilosophy = generated.philosophy ?? []
@@ -263,7 +273,7 @@ export function SelfModelBand({
           text: 'The generated draft did not return new self-knowledge.',
           autoDismiss: true,
         })
-        return
+        return false
       }
 
       if (hasPhilosophy) updatePhilosophy(generatedPhilosophy)
@@ -282,6 +292,7 @@ export function SelfModelBand({
         } and interview self-knowledge.`,
         autoDismiss: true,
       })
+      return true
     } catch (error) {
       const isAbortError =
         (error instanceof DOMException && error.name === 'AbortError') ||
@@ -298,6 +309,7 @@ export function SelfModelBand({
         text: isConfigError ? message : 'Unable to generate philosophy and interview self-knowledge.',
         autoDismiss: false,
       })
+      return false
     } finally {
       if (mountedRef.current) {
         selfKnowledgeAbortRef.current = null
@@ -305,11 +317,17 @@ export function SelfModelBand({
         setGeneratingSelfKnowledge(false)
       }
     }
-  }, [showSelfKnowledgeMessage, updateInterviewStyle, updatePhilosophy])
+  }, [
+    onSelfKnowledgeRequestStarted,
+    showSelfKnowledgeMessage,
+    updateInterviewStyle,
+    updatePhilosophy,
+  ])
 
   useInferenceRequest({
     requestId: selfKnowledgeRequestId,
     handler: handleGenerateSelfKnowledge,
+    onSettled: onSelfKnowledgeRequestSettled,
     skipWhen: () => selfKnowledgeGenerationRef.current,
     onSkipped: () => {
       showSelfKnowledgeMessage({
@@ -337,11 +355,11 @@ export function SelfModelBand({
   }
 
   const handleRefreshPositioning = useCallback(async () => {
-    if (!identity || positioningGenerationRef.current) return
+    if (!identity || positioningGenerationRef.current) return false
 
     try {
       const currentIdentity = useIdentityStore.getState().currentIdentity
-      if (!currentIdentity) return
+      if (!currentIdentity) return false
 
       positioningGenerationRef.current = true
       positioningAbortRef.current?.abort()
@@ -370,7 +388,7 @@ export function SelfModelBand({
           text: 'Identity changed during generation; discarded the positioning draft.',
           autoDismiss: true,
         })
-        return
+        return false
       }
 
       setPositioningDraft(generated)
@@ -383,12 +401,13 @@ export function SelfModelBand({
           : 'The generated draft did not return new positioning sections.',
         autoDismiss: !hasDraftSections,
       })
+      return hasDraftSections
     } catch (error) {
       const isAbortError =
         (error instanceof DOMException && error.name === 'AbortError') ||
         (error instanceof Error && error.name === 'AbortError')
       if (isAbortError) {
-        return
+        return false
       }
       const message = error instanceof Error ? error.message : ''
       const isConfigError = error instanceof IdentityInferenceConfigError
@@ -400,6 +419,7 @@ export function SelfModelBand({
         text: isConfigError ? message : 'Unable to refresh positioning.',
         autoDismiss: false,
       })
+      return false
     } finally {
       if (mountedRef.current) {
         positioningAbortRef.current = null
@@ -411,6 +431,7 @@ export function SelfModelBand({
   useInferenceRequest({
     requestId: positioningRequestId,
     handler: handleRefreshPositioning,
+    onSettled: onPositioningRequestSettled,
     skipWhen: () => positioningGenerationRef.current,
     onSkipped: () => {
       showPositioningMessage({

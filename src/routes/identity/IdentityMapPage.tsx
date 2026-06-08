@@ -34,6 +34,12 @@ import { HelpHint } from '../../components/HelpHint'
 import { IdentityInspector } from './IdentityInspector'
 import type { BandLayer } from './IdentityBand'
 import { getIdentityBandSelector } from './identityBandLayers'
+import {
+  getDownstreamIdentityInferenceSections,
+  getIdentityInferenceSectionLabel,
+  sortIdentityInferenceSections,
+  type IdentityInferenceSection,
+} from './identityInferenceDependencies'
 import { ThesisBand } from './bands/ThesisBand'
 import { SelfModelBand } from './bands/SelfModelBand'
 import { ProfilesBand } from './bands/ProfilesBand'
@@ -44,6 +50,18 @@ import { SearchStrategyBand } from './bands/SearchStrategyBand'
 import './identityMap.css'
 
 const FILL_STRENGTH_LEGEND_HELP = describeFillStrengthLegend()
+
+const ACTION_INFERENCE_SECTIONS: Partial<Record<IdentityActionId, IdentityInferenceSection>> = {
+  bullets: 'bullets',
+  skills: 'skills',
+  thesis: 'thesis',
+  profiles: 'profiles',
+  chapters: 'chapters',
+  selfKnowledge: 'selfKnowledge',
+  positioning: 'positioning',
+  // The action is labeled for the search strategy, while the inference section is search.
+  strategy: 'search',
+}
 
 type IdentityActionId =
   | 'bullets'
@@ -97,6 +115,31 @@ type ExportNotice = {
   id: number
   message: string
   role: 'status' | 'alert'
+}
+type DownstreamRegenerationPrompt = {
+  sourceActionId: IdentityActionId
+  sourceSection: IdentityInferenceSection
+  downstream: IdentityInferenceSection[]
+}
+type PendingInferenceCascade = {
+  sections: IdentityInferenceSection[]
+  waitingFor: IdentityInferenceSection
+  requestId: number | null
+  deadlineAt: number
+}
+type InferenceDispatchResult = {
+  requestId: number | null
+}
+type InferenceRequestStatus = 'succeeded' | 'failed'
+
+const DRAFT_REVIEW_INFERENCE_SECTIONS = new Set<IdentityInferenceSection>([
+  'thesis',
+  'positioning',
+])
+const INFERENCE_CASCADE_STALL_MS = 90_000
+
+const assertNever = (value: never): never => {
+  throw new Error(`Unhandled identity inference section: ${String(value)}`)
 }
 
 // Object URLs need to stay alive after anchor.click while browser download handling resolves.
@@ -382,6 +425,16 @@ export function IdentityMapPage() {
   const [staleNotice, setStaleNotice] = useState<string | null>(null)
   const [exportNotice, setExportNotice] = useState<ExportNotice | null>(null)
   const [showActionItems, setShowActionItems] = useState(false)
+  const [staleInferenceSections, setStaleInferenceSections] = useState<
+    IdentityInferenceSection[]
+  >([])
+  const [downstreamPrompt, setDownstreamPrompt] =
+    useState<DownstreamRegenerationPrompt | null>(null)
+  const [selectedDownstreamSections, setSelectedDownstreamSections] = useState<
+    IdentityInferenceSection[]
+  >([])
+  const [pendingInferenceCascade, setPendingInferenceCascade] =
+    useState<PendingInferenceCascade | null>(null)
   const [thesisRequestId, setThesisRequestId] = useState(0)
   const [profileRequestId, setProfileRequestId] = useState(0)
   const [chapterRequestId, setChapterRequestId] = useState(0)
@@ -398,6 +451,7 @@ export function IdentityMapPage() {
   const exportNoticeIdRef = useRef(0)
   const exportDownloadHandleRef = useRef<IdentityDownloadHandle | null>(null)
   const actionDialogRef = useRef<HTMLDivElement | null>(null)
+  const downstreamDialogRef = useRef<HTMLDivElement | null>(null)
   const actionTriggerRef = useRef<HTMLButtonElement | null>(null)
   // One-shot signal from forward → reverse: when forward dispatches
   // setMapSelection, reverse on the same effect tick still sees pre-dispatch
@@ -421,7 +475,7 @@ export function IdentityMapPage() {
       // bug fixed in TASK-218). Notices are cleared explicitly by the user via
       // the Dismiss button instead.
     } else {
-      setStaleNotice(buildStaleSelectionNotice(parsed)) // eslint-disable-line react-hooks/set-state-in-effect -- URL to notice sync; honored-once via honoredSelRef so no cascade
+      setStaleNotice(buildStaleSelectionNotice(parsed))
       // Drop the now-stale `sel` param so refresh doesn't re-fire the bad link.
       // Per TASK-217 Decision 5, intra-Identity URL writes use replace: true.
       void navigate({
@@ -485,7 +539,7 @@ export function IdentityMapPage() {
       // notice set by the sel effect on the same render (TASK-218). Notices are
       // cleared explicitly by the user via the Dismiss button instead.
     } else {
-      setStaleNotice(buildStaleSelectionNotice(null)) // eslint-disable-line react-hooks/set-state-in-effect -- URL to notice sync; honored-once via honoredFocusRef so no cascade
+      setStaleNotice(buildStaleSelectionNotice(null))
       void navigate({
         to: '/identity',
         search: (prev) => ({ ...prev, focus: undefined }),
@@ -624,11 +678,6 @@ export function IdentityMapPage() {
     scrollToLayer('skills', { highlight: true, focus: true })
   }
 
-  const deepenAllSkills = () => {
-    setSkillBulkRequestId((requestId) => requestId + 1)
-    scrollToLayer('skills', { highlight: true, focus: true })
-  }
-
   useEffect(() => {
     return () => {
       if (actionHighlightTimeoutRef.current !== null) {
@@ -680,38 +729,99 @@ export function IdentityMapPage() {
     }, 1800)
   }
 
-  const refreshPositioning = () => {
-    setPositioningRequestId((requestId) => requestId + 1)
+  const refreshPositioning = (): InferenceDispatchResult => {
+    const nextRequestId = positioningRequestId + 1
+    setPositioningRequestId(nextRequestId)
     scrollToLayer('self', { highlight: true, focus: true })
+    return { requestId: nextRequestId }
   }
 
-  const generateThesis = () => {
-    setThesisRequestId((requestId) => requestId + 1)
+  const generateThesis = (): InferenceDispatchResult => {
+    const nextRequestId = thesisRequestId + 1
+    setThesisRequestId(nextRequestId)
     scrollToLayer('thesis', { highlight: true, focus: true })
+    return { requestId: nextRequestId }
   }
 
-  const generateProfiles = () => {
-    setProfileRequestId((requestId) => requestId + 1)
+  const generateProfiles = (): InferenceDispatchResult => {
+    const nextRequestId = profileRequestId + 1
+    setProfileRequestId(nextRequestId)
     scrollToLayer('profiles', { highlight: true, focus: true })
+    return { requestId: nextRequestId }
   }
 
-  const generateChapters = () => {
-    setChapterRequestId((requestId) => requestId + 1)
+  const generateChapters = (): InferenceDispatchResult => {
+    const nextRequestId = chapterRequestId + 1
+    setChapterRequestId(nextRequestId)
     scrollToLayer('self', { highlight: true, focus: true })
+    return { requestId: nextRequestId }
   }
 
-  const reviewChapters = () => {
+  const reviewChapters = (): InferenceDispatchResult => {
     scrollToLayer('self', { highlight: true, focus: true })
+    return { requestId: null }
   }
 
-  const generateSelfKnowledge = () => {
-    setSelfKnowledgeRequestId((requestId) => requestId + 1)
+  const generateSelfKnowledge = (): InferenceDispatchResult => {
+    const nextRequestId = selfKnowledgeRequestId + 1
+    setSelfKnowledgeRequestId(nextRequestId)
     scrollToLayer('self', { highlight: true, focus: true })
+    return { requestId: nextRequestId }
   }
 
-  const generateSearchStrategy = () => {
-    setStrategyRequestId((requestId) => requestId + 1)
+  const generateSearchStrategy = (): InferenceDispatchResult => {
+    const nextRequestId = strategyRequestId + 1
+    setStrategyRequestId(nextRequestId)
     scrollToLayer('search', { highlight: true, focus: true })
+    return { requestId: nextRequestId }
+  }
+
+  const clearStaleInferenceSections = (sections: readonly IdentityInferenceSection[]) => {
+    if (sections.length === 0) return
+    const clear = new Set(sections)
+    setStaleInferenceSections((current) => current.filter((section) => !clear.has(section)))
+  }
+
+  const markStaleInferenceSections = (sections: readonly IdentityInferenceSection[]) => {
+    if (sections.length === 0) return
+    setStaleInferenceSections((current) => sortIdentityInferenceSections([...current, ...sections]))
+  }
+
+  const runInferenceSectionRequest = (
+    section: IdentityInferenceSection,
+  ): InferenceDispatchResult => {
+    clearStaleInferenceSections([section])
+    switch (section) {
+      case 'bullets':
+        goToBulletDepth()
+        return { requestId: null }
+      case 'skills':
+        if (hasPendingSkillDepth) {
+          const nextRequestId = skillBulkRequestId + 1
+          setSkillBulkRequestId(nextRequestId)
+          scrollToLayer('skills', { highlight: true, focus: true })
+          return { requestId: nextRequestId }
+        }
+        goToSkillEnrichment()
+        return { requestId: null }
+      case 'thesis':
+        return generateThesis()
+      case 'profiles':
+        return generateProfiles()
+      case 'chapters':
+        if (hasChapters) {
+          return reviewChapters()
+        }
+        return generateChapters()
+      case 'selfKnowledge':
+        return generateSelfKnowledge()
+      case 'positioning':
+        return refreshPositioning()
+      case 'search':
+        return generateSearchStrategy()
+      default:
+        return assertNever(section)
+    }
   }
 
   const openActionItems = (event: MouseEvent<HTMLButtonElement>) => {
@@ -719,9 +829,7 @@ export function IdentityMapPage() {
     setShowActionItems(true)
   }
 
-  const closeActionItems = ({ restoreFocus = true }: { restoreFocus?: boolean } = {}) => {
-    setShowActionItems(false)
-    if (!restoreFocus) return
+  const restoreActionTriggerFocus = () => {
     if (actionFocusRestoreTimeoutRef.current !== null) {
       window.clearTimeout(actionFocusRestoreTimeoutRef.current)
     }
@@ -729,6 +837,12 @@ export function IdentityMapPage() {
       actionTriggerRef.current?.focus()
       actionFocusRestoreTimeoutRef.current = null
     }, 0)
+  }
+
+  const closeActionItems = ({ restoreFocus = true }: { restoreFocus?: boolean } = {}) => {
+    setShowActionItems(false)
+    if (!restoreFocus) return
+    restoreActionTriggerFocus()
   }
 
   const afterActionItemsClose = (callback: () => void) => {
@@ -748,23 +862,31 @@ export function IdentityMapPage() {
   }, [showActionItems])
 
   useEffect(() => {
-    if (!showActionItems) return undefined
+    if (!downstreamPrompt) return
+    downstreamDialogRef.current?.focus()
+  }, [downstreamPrompt])
+
+  useEffect(() => {
+    if (!showActionItems && !downstreamPrompt) return undefined
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     return () => {
       document.body.style.overflow = previousOverflow
     }
-  }, [showActionItems])
+  }, [showActionItems, downstreamPrompt])
 
-  const handleActionDialogKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+  const handleModalKeyDown = (
+    event: KeyboardEvent<HTMLDivElement>,
+    dialog: HTMLDivElement | null,
+    onEscape: () => void,
+  ) => {
     if (event.key === 'Escape') {
       event.preventDefault()
-      closeActionItems()
+      onEscape()
       return
     }
 
     if (event.key !== 'Tab') return
-    const dialog = actionDialogRef.current
     if (!dialog) return
 
     const focusable = Array.from(
@@ -803,6 +925,10 @@ export function IdentityMapPage() {
     }
   }
 
+  const handleActionDialogKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    handleModalKeyDown(event, actionDialogRef.current, () => closeActionItems())
+  }
+
   const goToBulletDepth = () => {
     const [target] = bulletDepthTargets
     if (target) {
@@ -811,46 +937,46 @@ export function IdentityMapPage() {
     scrollToLayer('roles', { highlight: true, focus: true })
   }
 
+  const shouldSurfaceDownstreamPrompt = (item: IdentityActionItem) => {
+    if (item.statusTone === 'next') return false
+    if (item.id === 'bullets' || item.id === 'review') return false
+    if (item.id === 'skills' && !hasPendingSkillDepth) return false
+    if (item.id === 'chapters' && hasChapters) return false
+    return true
+  }
+
+  const runIdentityActionNow = (item: IdentityActionItem): InferenceDispatchResult => {
+    if (!item.canRun) return { requestId: null }
+
+    const sourceSection = ACTION_INFERENCE_SECTIONS[item.id]
+    if (sourceSection) {
+      return runInferenceSectionRequest(sourceSection)
+    }
+
+    if (item.id === 'review') {
+      scrollToLayer('thesis', { highlight: true, focus: true })
+    }
+    return { requestId: null }
+  }
+
   const runIdentityAction = (item: IdentityActionItem) => {
     if (!item.canRun) return
+    const sourceSection = ACTION_INFERENCE_SECTIONS[item.id]
+    const downstream = sourceSection
+      ? getDownstreamIdentityInferenceSections(sourceSection)
+      : []
 
-    switch (item.id) {
-      case 'bullets':
-        goToBulletDepth()
-        break
-      case 'skills':
-        if (hasPendingSkillDepth) {
-          deepenAllSkills()
-        } else {
-          goToSkillEnrichment()
-        }
-        break
-      case 'thesis':
-        generateThesis()
-        break
-      case 'profiles':
-        generateProfiles()
-        break
-      case 'chapters':
-        if (hasChapters) {
-          reviewChapters()
-        } else {
-          generateChapters()
-        }
-        break
-      case 'selfKnowledge':
-        generateSelfKnowledge()
-        break
-      case 'positioning':
-        refreshPositioning()
-        break
-      case 'strategy':
-        generateSearchStrategy()
-        break
-      case 'review':
-        scrollToLayer('thesis', { highlight: true, focus: true })
-        break
+    if (sourceSection && downstream.length > 0 && shouldSurfaceDownstreamPrompt(item)) {
+      setDownstreamPrompt({
+        sourceActionId: item.id,
+        sourceSection,
+        downstream,
+      })
+      setSelectedDownstreamSections(downstream)
+      return
     }
+
+    runIdentityActionNow(item)
   }
 
   const actionItems = useMemo<IdentityActionItem[]>(
@@ -887,6 +1013,120 @@ export function IdentityMapPage() {
       skillInferenceLabel,
     ],
   )
+  const pendingDownstreamSourceAction = downstreamPrompt
+    ? actionItems.find((item) => item.id === downstreamPrompt.sourceActionId)
+    : null
+  const toggleDownstreamSection = (section: IdentityInferenceSection) => {
+    setSelectedDownstreamSections((current) =>
+      current.includes(section)
+        ? current.filter((candidate) => candidate !== section)
+        : sortIdentityInferenceSections([...current, section]),
+    )
+  }
+  const closeDownstreamPrompt = ({ restoreFocus = true }: { restoreFocus?: boolean } = {}) => {
+    setDownstreamPrompt(null)
+    setSelectedDownstreamSections([])
+    if (!restoreFocus) return
+    restoreActionTriggerFocus()
+  }
+  const [settledInferenceRequests, setSettledInferenceRequests] = useState<
+    Partial<Record<IdentityInferenceSection, { requestId: number; status: InferenceRequestStatus }>>
+  >({})
+  const markInferenceRequestSettled = (
+    section: IdentityInferenceSection,
+    requestId: number,
+    status: InferenceRequestStatus,
+  ) => {
+    setSettledInferenceRequests((current) => ({
+      ...current,
+      [section]:
+        requestId >= (current[section]?.requestId ?? 0) ? { requestId, status } : current[section],
+    }))
+  }
+  const runQueuedInferenceSections = (sections: readonly IdentityInferenceSection[]) => {
+    const [nextSection, ...remaining] = sortIdentityInferenceSections(sections)
+    if (!nextSection) {
+      setPendingInferenceCascade(null)
+      return
+    }
+
+    const result = runInferenceSectionRequest(nextSection)
+    if (DRAFT_REVIEW_INFERENCE_SECTIONS.has(nextSection)) {
+      markStaleInferenceSections(remaining)
+      setPendingInferenceCascade(null)
+      return
+    }
+
+    setPendingInferenceCascade(
+      remaining.length > 0
+        ? {
+            sections: remaining,
+            waitingFor: nextSection,
+            requestId: result.requestId,
+            deadlineAt: Date.now() + INFERENCE_CASCADE_STALL_MS,
+          }
+        : null,
+    )
+  }
+  const runDownstreamRegenerationPlan = (sections: readonly IdentityInferenceSection[]) => {
+    if (!downstreamPrompt || !pendingDownstreamSourceAction) return
+    const selected = sortIdentityInferenceSections(sections)
+    const selectedSet = new Set(selected)
+    const deferred = downstreamPrompt.downstream.filter((section) => !selectedSet.has(section))
+
+    const result = runIdentityActionNow(pendingDownstreamSourceAction)
+    clearStaleInferenceSections([downstreamPrompt.sourceSection])
+    markStaleInferenceSections(deferred)
+    setPendingInferenceCascade(
+      selected.length > 0 && !DRAFT_REVIEW_INFERENCE_SECTIONS.has(downstreamPrompt.sourceSection)
+        ? {
+            sections: selected,
+            waitingFor: downstreamPrompt.sourceSection,
+            requestId: result.requestId,
+            deadlineAt: Date.now() + INFERENCE_CASCADE_STALL_MS,
+          }
+        : null,
+    )
+    closeDownstreamPrompt({ restoreFocus: false })
+  }
+  const regenerateAllStaleSections = () => {
+    const sections = sortIdentityInferenceSections(staleInferenceSections)
+    runQueuedInferenceSections(sections)
+  }
+  useEffect(() => {
+    if (!pendingInferenceCascade) return
+    const settledRequest = settledInferenceRequests[pendingInferenceCascade.waitingFor]
+    if (
+      pendingInferenceCascade.requestId === null ||
+      (settledRequest && settledRequest.requestId >= pendingInferenceCascade.requestId)
+    ) {
+      if (settledRequest?.status === 'failed') {
+        markStaleInferenceSections(pendingInferenceCascade.sections)
+        setPendingInferenceCascade(null)
+        return
+      }
+      const timeout = window.setTimeout(() => {
+        runQueuedInferenceSections(pendingInferenceCascade.sections)
+      }, 0)
+      return () => window.clearTimeout(timeout)
+    }
+
+    const timeoutMs = Math.max(0, pendingInferenceCascade.deadlineAt - Date.now())
+    const stallTimeout = window.setTimeout(() => {
+      markStaleInferenceSections(pendingInferenceCascade.sections)
+      setPendingInferenceCascade(null)
+    }, timeoutMs)
+    return () => window.clearTimeout(stallTimeout)
+    // Queue advancement intentionally reads the latest dispatcher closures at the tick boundary.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingInferenceCascade, settledInferenceRequests])
+  const staleInferenceLabels = staleInferenceSections.map(getIdentityInferenceSectionLabel)
+  const downstreamSourceRequiresReview = downstreamPrompt
+    ? DRAFT_REVIEW_INFERENCE_SECTIONS.has(downstreamPrompt.sourceSection)
+    : false
+  const pendingInferenceLabel = pendingInferenceCascade
+    ? getIdentityInferenceSectionLabel(pendingInferenceCascade.waitingFor)
+    : null
   const nextAction = useMemo(
     () =>
       actionItems.find((item) => item.statusTone === 'next') ??
@@ -909,6 +1149,7 @@ export function IdentityMapPage() {
     attentionItems.length === 1 &&
     identityAttentionSelectionMatches(nextAttentionItem, mapSelection),
   )
+  const hasModalOpen = showActionItems || Boolean(downstreamPrompt)
   const jumpToNextAttentionItem = () => {
     if (!nextAttentionItem || isOnlyCurrentAttentionItem) return
     setMapSelection(nextAttentionItem.selection)
@@ -916,7 +1157,7 @@ export function IdentityMapPage() {
   }
   return (
     <div className="identity-map">
-      <main className="identity-map-canvas" inert={showActionItems ? true : undefined}>
+      <main className="identity-map-canvas" inert={hasModalOpen ? true : undefined}>
         {validatedReturn ? (
           <button
             type="button"
@@ -1107,6 +1348,54 @@ export function IdentityMapPage() {
                   </button>
                 </div>
               </section>
+              {staleInferenceSections.length > 0 || pendingInferenceCascade ? (
+                <section
+                  className="identity-map-stale-panel"
+                  aria-label="Potentially stale identity sections"
+                >
+                  <div className="identity-map-action-copy">
+                    <p className="label-tracked identity-map-guide-eyebrow">Potentially stale</p>
+                    <h2>Downstream sections may need regeneration</h2>
+                    <p className="chapter-copy">
+                      These sections were downstream of a regenerated source and were deferred.
+                    </p>
+                    {pendingInferenceLabel ? (
+                      <p className="chapter-copy" role="status">
+                        Waiting for {pendingInferenceLabel} before regenerating queued downstream
+                        sections.
+                      </p>
+                    ) : null}
+                    {staleInferenceLabels.length > 0 ? (
+                      <div className="identity-map-stale-list" aria-label="Stale sections">
+                        {staleInferenceLabels.map((label) => (
+                          <span key={label} className="identity-action-status ready label-tracked">
+                            {label}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="identity-map-action-buttons">
+                    <button
+                      type="button"
+                      className="inspector-btn primary"
+                      onClick={regenerateAllStaleSections}
+                      disabled={staleInferenceSections.length === 0}
+                    >
+                      <Sparkles size={14} aria-hidden="true" />
+                      Regenerate all stale
+                    </button>
+                    <button
+                      type="button"
+                      className="inspector-btn"
+                      onClick={() => setStaleInferenceSections([])}
+                      disabled={staleInferenceSections.length === 0}
+                    >
+                      Clear stale markers
+                    </button>
+                  </div>
+                </section>
+              ) : null}
             </>
           ) : (
             <div className="identity-map-empty-cta">
@@ -1138,17 +1427,47 @@ export function IdentityMapPage() {
           />
         ) : null}
 
-        <ThesisBand thesisRequestId={thesisRequestId} />
+        <ThesisBand
+          thesisRequestId={thesisRequestId}
+          onRequestSettled={(requestId, status) =>
+            markInferenceRequestSettled('thesis', requestId, status)
+          }
+        />
         <SelfModelBand
           chapterRequestId={chapterRequestId}
           selfKnowledgeRequestId={selfKnowledgeRequestId}
           positioningRequestId={positioningRequestId}
+          onChapterRequestSettled={(requestId, status) =>
+            markInferenceRequestSettled('chapters', requestId, status)
+          }
+          onSelfKnowledgeRequestSettled={(requestId, status) =>
+            markInferenceRequestSettled('selfKnowledge', requestId, status)
+          }
+          onSelfKnowledgeRequestStarted={() => clearStaleInferenceSections(['selfKnowledge'])}
+          onPositioningRequestSettled={(requestId, status) =>
+            markInferenceRequestSettled('positioning', requestId, status)
+          }
         />
-        <ProfilesBand profileRequestId={profileRequestId} />
+        <ProfilesBand
+          profileRequestId={profileRequestId}
+          onRequestSettled={(requestId, status) =>
+            markInferenceRequestSettled('profiles', requestId, status)
+          }
+        />
         <RolesBand />
-        <SkillsBand bulkRequestId={skillBulkRequestId} />
+        <SkillsBand
+          bulkRequestId={skillBulkRequestId}
+          onBulkRequestSettled={(requestId, status) =>
+            markInferenceRequestSettled('skills', requestId, status)
+          }
+        />
         <PreferencesBand />
-        <SearchStrategyBand strategyRequestId={strategyRequestId} />
+        <SearchStrategyBand
+          strategyRequestId={strategyRequestId}
+          onRequestSettled={(requestId, status) =>
+            markInferenceRequestSettled('search', requestId, status)
+          }
+        />
 
         <footer className="identity-map-footer">
           <span className="label-tracked">
@@ -1160,7 +1479,7 @@ export function IdentityMapPage() {
         </footer>
       </main>
 
-      <div className="identity-map-inspector-slot" inert={showActionItems ? true : undefined}>
+      <div className="identity-map-inspector-slot" inert={hasModalOpen ? true : undefined}>
         <IdentityInspector />
       </div>
 
@@ -1230,6 +1549,97 @@ export function IdentityMapPage() {
                 </li>
               ))}
             </ol>
+          </div>
+        </div>
+      ) : null}
+
+      {downstreamPrompt ? (
+        <div className="modal-overlay">
+          <div
+            className="identity-action-backdrop"
+            role="presentation"
+            onClick={() => closeDownstreamPrompt()}
+          />
+          <div
+            className="modal-card identity-action-modal identity-downstream-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="identity-downstream-title"
+            ref={downstreamDialogRef}
+            tabIndex={-1}
+            onKeyDown={(event) =>
+              handleModalKeyDown(event, downstreamDialogRef.current, () => closeDownstreamPrompt())
+            }
+          >
+            <header className="modal-header">
+              <h3 id="identity-downstream-title">Regenerate downstream sections?</h3>
+              <button
+                type="button"
+                className="identity-map-notice-dismiss label-tracked"
+                onClick={() => closeDownstreamPrompt()}
+              >
+                Close
+              </button>
+            </header>
+            <p className="chapter-copy identity-downstream-copy">
+              {getIdentityInferenceSectionLabel(downstreamPrompt.sourceSection)} feeds the
+              sections below. Choose which downstream sections to regenerate after this action, or
+              defer them and mark them as potentially stale.
+            </p>
+            {downstreamSourceRequiresReview ? (
+              <p className="chapter-copy identity-downstream-copy">
+                This source opens a review draft first. Apply that draft before regenerating
+                downstream sections.
+              </p>
+            ) : null}
+            <div className="identity-downstream-list">
+              {downstreamPrompt.downstream.map((section) => {
+                const checked = selectedDownstreamSections.includes(section)
+                const label = getIdentityInferenceSectionLabel(section)
+                return (
+                  <label key={section} className="identity-downstream-option">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      disabled={downstreamSourceRequiresReview}
+                      onChange={() => toggleDownstreamSection(section)}
+                    />
+                    <span>
+                      <span className="label-tracked">{label}</span>
+                      <span className="chapter-copy">Derived downstream of this section</span>
+                    </span>
+                  </label>
+                )
+              })}
+            </div>
+            <div className="identity-downstream-actions">
+              <button
+                type="button"
+                className="inspector-btn primary"
+                onClick={() => runDownstreamRegenerationPlan(selectedDownstreamSections)}
+                disabled={
+                  selectedDownstreamSections.length === 0 || downstreamSourceRequiresReview
+                }
+              >
+                <Sparkles size={14} aria-hidden="true" />
+                Regenerate selected
+              </button>
+              <button
+                type="button"
+                className="inspector-btn"
+                onClick={() => runDownstreamRegenerationPlan(downstreamPrompt.downstream)}
+                disabled={downstreamSourceRequiresReview}
+              >
+                Regenerate all
+              </button>
+              <button
+                type="button"
+                className="inspector-btn"
+                onClick={() => runDownstreamRegenerationPlan([])}
+              >
+                Defer downstream
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
