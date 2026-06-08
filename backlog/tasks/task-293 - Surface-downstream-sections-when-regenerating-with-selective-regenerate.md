@@ -1,9 +1,11 @@
 ---
 id: TASK-293
 title: 'Surface downstream sections when regenerating, with selective regenerate'
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@codex'
 created_date: '2026-06-07 20:28'
+updated_date: '2026-06-08 01:44'
 labels:
   - identity
   - ai
