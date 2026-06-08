@@ -21,6 +21,7 @@ import {
 } from '../identity/schema'
 import type { ProfessionalIdentityThesisInference } from '../utils/identityParametersGeneration'
 import type {
+  AnswerPatch,
   IdentityApplyMode,
   IdentityApplyResult,
   IdentityChangeLogEntry,
@@ -39,6 +40,7 @@ import type {
 } from '../types/identity'
 import { createId } from '../utils/idUtils'
 import { skillNamesMatch, updateIdentityEnrichmentSkill } from '../utils/identityEnrichment'
+import { dedupeUnfairAdvantages } from '../utils/unfairAdvantagesDedupe'
 import { parseJsonWithRepair } from '../utils/jsonParsing'
 import { mergeProfessionalIdentity, replaceProfessionalIdentity } from '../utils/identityMerge'
 import { resolveStorage } from './storage'
@@ -151,6 +153,8 @@ interface IdentityState {
   ) => void
   updateCurrentSearchVectors: (value: ProfessionalSearchVector[]) => void
   updateCurrentAwarenessQuestions: (value: ProfessionalOpenQuestion[]) => void
+  resolveAwarenessQuestion: (id: string, answer: string) => void
+  applyAnswerPatch: (patch: AnswerPatch) => void
   updateCurrentAccuracyRules: (value: Record<string, string | string[]> | undefined) => void
   thesisDraft: ProfessionalIdentityThesisInference | null
   thesisDraftRevision: number | null
@@ -1632,6 +1636,73 @@ export const useIdentityStore = create<IdentityState>()(
             },
           })),
         ),
+      resolveAwarenessQuestion: (id, answer) =>
+        set((state) =>
+          updateCurrentIdentity(state, (identity) => {
+            const trimmed = answer.trim()
+            return {
+              ...identity,
+              awareness: {
+                open_questions: (identity.awareness?.open_questions ?? []).map((q) =>
+                  q.id === id
+                    ? { ...q, ...(trimmed ? { answer: trimmed } : {}), resolved: true }
+                    : q,
+                ),
+              },
+            }
+          }),
+        ),
+      applyAnswerPatch: (patch) => {
+        const identity = get().currentIdentity
+        if (!identity) return
+
+        switch (patch.kind) {
+          case 'role-bullet': {
+            const role = identity.roles.find((r) => r.id === patch.roleId)
+            if (!role) return
+            const newBullet = {
+              id: createId('bullet'),
+              problem: patch.bullet.problem,
+              action: patch.bullet.action,
+              outcome: patch.bullet.outcome,
+              impact: patch.bullet.impact ?? [],
+              metrics: patch.bullet.metrics ?? {},
+              technologies: patch.bullet.technologies ?? [],
+              tags: patch.bullet.tags ?? [],
+            }
+            get().updateCurrentRoles(
+              identity.roles.map((r) =>
+                r.id === patch.roleId ? { ...r, bullets: [...r.bullets, newBullet] } : r,
+              ),
+            )
+            return
+          }
+          case 'skill': {
+            get().addSkillToCurrentIdentity(patch.groupId, patch.skillName)
+            return
+          }
+          case 'self-model-arc': {
+            get().updateCurrentSelfModelArc([
+              ...(identity.self_model.arc ?? []),
+              patch.entry,
+            ])
+            return
+          }
+          case 'competitive-moat': {
+            get().updateCurrentCompetitiveMoat(patch.text)
+            return
+          }
+          case 'unfair-advantage': {
+            const existing = identity.self_model.unfair_advantages ?? []
+            const merged = dedupeUnfairAdvantages([...existing, ...patch.items])
+            get().updateCurrentUnfairAdvantages(merged)
+            return
+          }
+          default: {
+            patch satisfies never
+          }
+        }
+      },
       updateCurrentAccuracyRules: (value) =>
         set((state) =>
           updateCurrentIdentity(state, (identity) => ({
