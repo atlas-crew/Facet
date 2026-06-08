@@ -1438,6 +1438,54 @@
   line-height: 1.5;
   color: var(--text-secondary);
 }
+.skills-naming-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-4);
+  align-items: center;
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.skills-naming-proposals {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.skills-naming-proposal {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.7fr) auto minmax(160px, 1fr);
+  gap: var(--space-2);
+  align-items: baseline;
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-inset);
+}
+.skills-naming-proposal strong {
+  color: var(--text-primary);
+  font-size: 14px;
+}
+.skills-naming-proposal .chapter-copy {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: 12.5px;
+}
+.skills-naming-arrow {
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.skills-naming-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
 .skill-group {
   display: flex;
   flex-direction: column;
@@ -2517,9 +2565,16 @@
   .identity-map {
     grid-template-columns: 1fr;
   }
-  .skills-enrichment-panel {
+  .skills-enrichment-panel,
+  .skills-naming-panel {
     grid-template-columns: 1fr;
     align-items: flex-start;
+  }
+  .skills-naming-proposal {
+    grid-template-columns: 1fr;
+  }
+  .skills-naming-actions {
+    justify-content: flex-start;
   }
   .identity-map-guide::before {
     opacity: 0.25;

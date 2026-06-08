@@ -2,6 +2,7 @@ export const FACET_AI_FEATURE_KEYS = [
   'build.bullet-reframe',
   'identity.extract',
   'identity.deepen',
+  'identity.skill-group-naming',
   'identity.deepen_project',
   'match.jd-analysis',
   'pipeline.t3.interviewer',

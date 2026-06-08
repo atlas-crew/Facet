@@ -16,23 +16,47 @@ import {
   generateSkillEnrichmentSuggestion,
   hasSkillEnrichmentBulletEvidence,
 } from '../../../utils/skillEnrichment'
+import {
+  applySkillGroupNameSuggestions,
+  generateSkillGroupNameSuggestions,
+  type SkillGroupNameSuggestion,
+} from '../../../utils/skillGroupNaming'
 import { IdentityBand } from '../IdentityBand'
+import type { InferenceRequestStatus } from '../inferenceRequestStatus'
+
+type BulkDeepenResult = boolean | 'blocked' | 'skipped'
+const NAMING_BLOCKS_DEEPENING_MESSAGE =
+  'Apply or discard group name suggestions before deepening skills.'
+const AI_PROXY_CONFIG_MESSAGE =
+  'AI suggestions are disabled. Configure VITE_ANTHROPIC_PROXY_URL.'
+
+const toBulkRequestStatus = (result: BulkDeepenResult): InferenceRequestStatus => {
+  if (result === 'blocked') return 'blocked'
+  if (result === 'skipped') return 'skipped'
+  return result ? 'succeeded' : 'failed'
+}
 
 export function SkillsBand({
   bulkRequestId = 0,
   onBulkRequestSettled,
 }: {
   bulkRequestId?: number
-  onBulkRequestSettled?: (requestId: number, status: 'succeeded' | 'failed') => void
+  onBulkRequestSettled?: (requestId: number, status: InferenceRequestStatus) => void
 }) {
   const identity = useIdentityStore((s) => s.currentIdentity)
   const selection = useIdentityStore((s) => s.mapSelection)
   const setMapSelection = useIdentityStore((s) => s.setMapSelection)
   const updateGroups = useIdentityStore((s) => s.updateCurrentSkillGroups)
   const [isDeepeningAll, setIsDeepeningAll] = useState(false)
+  const [isNamingGroups, setIsNamingGroups] = useState(false)
   const [bulkMessage, setBulkMessage] = useState<string | null>(null)
+  const [namingMessage, setNamingMessage] = useState<string | null>(null)
+  const [nameSuggestions, setNameSuggestions] = useState<SkillGroupNameSuggestion[]>([])
   const bulkAbortRef = useRef<AbortController | null>(null)
+  const namingAbortRef = useRef<AbortController | null>(null)
+  const namingButtonRef = useRef<HTMLButtonElement | null>(null)
   const bulkRunningRef = useRef(false)
+  const namingRunningRef = useRef(false)
   const honoredBulkRequestRef = useRef(0)
   const aiEndpoint = useMemo(() => sanitizeEndpointUrl(facetClientEnv.anthropicProxyUrl), [])
   const fill = skillsFillStrength(identity)
@@ -41,11 +65,32 @@ export function SkillsBand({
     () => (identity ? getIdentityEnrichmentProgress(identity) : null),
     [identity],
   )
+  const hasNameSuggestions = nameSuggestions.length > 0
+  const namingBlocksDeepening = isNamingGroups || hasNameSuggestions
+  const namingBlocksDeepeningMessage = namingBlocksDeepening
+    ? NAMING_BLOCKS_DEEPENING_MESSAGE
+    : null
+  const aiConfigMessage = !aiEndpoint ? AI_PROXY_CONFIG_MESSAGE : null
   const visibleBulkMessage =
     bulkMessage ??
+    namingBlocksDeepeningMessage ??
     (enrichmentProgress && enrichmentProgress.pending === 0
       ? 'No pending skills to deepen.'
       : null)
+  const visibleNamingMessage = namingMessage ?? aiConfigMessage
+  const canStartNaming =
+    groups.length > 0 && Boolean(aiEndpoint) && !isNamingGroups && !isDeepeningAll
+  const canStartDeepening = Boolean(
+    enrichmentProgress &&
+      enrichmentProgress.pending > 0 &&
+      !isDeepeningAll &&
+      !namingBlocksDeepening,
+  )
+  const canApplyNameSuggestions = hasNameSuggestions && !isDeepeningAll
+  const groupLabelSignature = useMemo(
+    () => JSON.stringify(groups.map((group) => [group.id, group.label])),
+    [groups],
+  )
 
   const duplicateSkillNames = useMemo(() => {
     const counts = new Map<string, number>()
@@ -63,10 +108,113 @@ export function SkillsBand({
   }, [groups])
   const isDuplicate = (name: string): boolean =>
     duplicateSkillNames.has(name.trim().toLocaleLowerCase())
-  const handleDeepenAllSkills = useCallback(async () => {
-    if (!identity || bulkRunningRef.current) return false
+
+  const handleSuggestGroupNames = useCallback(async () => {
+    const currentIdentity = useIdentityStore.getState().currentIdentity
+    if (!currentIdentity || namingRunningRef.current) return
+    if (isDeepeningAll) {
+      setNamingMessage('Finish skill deepening before suggesting group names.')
+      return
+    }
     if (!aiEndpoint) {
-      setBulkMessage('AI suggestions are disabled. Configure VITE_ANTHROPIC_PROXY_URL.')
+      setNamingMessage(AI_PROXY_CONFIG_MESSAGE)
+      return
+    }
+    if (currentIdentity.skills.groups.length === 0) {
+      setNamingMessage('Add skill groups before suggesting names.')
+      return
+    }
+
+    namingAbortRef.current?.abort()
+    const controller = new AbortController()
+    namingAbortRef.current = controller
+    namingRunningRef.current = true
+    setIsNamingGroups(true)
+    setNameSuggestions([])
+    setNamingMessage('Suggesting standardized skill group names...')
+
+    try {
+      const suggestions = await generateSkillGroupNameSuggestions({
+        endpoint: aiEndpoint,
+        identity: currentIdentity,
+        signal: controller.signal,
+      })
+      if (controller.signal.aborted) return
+
+      if (suggestions.length === 0) {
+        setNamingMessage('The suggestion did not return usable skill group names.')
+        return
+      }
+
+      setNameSuggestions(suggestions)
+      setNamingMessage(
+        `Review ${suggestions.length} suggested group name${suggestions.length === 1 ? '' : 's'}.`,
+      )
+    } catch (error) {
+      if (
+        (error instanceof DOMException && error.name === 'AbortError') ||
+        (error instanceof Error && error.name === 'AbortError')
+      ) {
+        return
+      }
+      console.error(error)
+      setNamingMessage('Unable to suggest skill group names.')
+    } finally {
+      if (namingAbortRef.current === controller) {
+        namingAbortRef.current = null
+        namingRunningRef.current = false
+        setIsNamingGroups(false)
+      }
+    }
+  }, [aiEndpoint, isDeepeningAll])
+
+  const handleApplyNameSuggestions = useCallback(() => {
+    const currentIdentity = useIdentityStore.getState().currentIdentity
+    if (!currentIdentity || !hasNameSuggestions) return
+    if (bulkRunningRef.current) {
+      setNamingMessage('Finish skill deepening before applying group name suggestions.')
+      return
+    }
+    const nextGroups = applySkillGroupNameSuggestions(
+      currentIdentity.skills.groups,
+      nameSuggestions,
+    )
+    const changed = nextGroups.some((group, index) => group !== currentIdentity.skills.groups[index])
+    if (changed) {
+      updateGroups(nextGroups)
+    }
+    setNameSuggestions([])
+    setNamingMessage(
+      changed
+        ? 'Applied suggested skill group names. Edit any group name from the inspector.'
+        : 'Suggested skill group names already match the current taxonomy.',
+    )
+    window.setTimeout(() => namingButtonRef.current?.focus(), 0)
+  }, [hasNameSuggestions, nameSuggestions, updateGroups])
+
+  const handleDiscardNameSuggestions = useCallback(() => {
+    setNameSuggestions([])
+    setNamingMessage('Discarded suggested skill group names.')
+    window.setTimeout(() => namingButtonRef.current?.focus(), 0)
+  }, [])
+
+  useEffect(() => {
+    if (!hasNameSuggestions) return
+    setNameSuggestions([])
+    setNamingMessage('Skill groups changed; discarded the previous naming suggestion.')
+    // Only the live group labels should invalidate an open proposal.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupLabelSignature])
+
+  // Keep this memoized because the bulkRequestId effect dispatches through it.
+  const handleDeepenAllSkills = useCallback(async (): Promise<BulkDeepenResult> => {
+    if (!identity || bulkRunningRef.current) return false
+    if (namingBlocksDeepening || namingRunningRef.current) {
+      setBulkMessage(NAMING_BLOCKS_DEEPENING_MESSAGE)
+      return 'blocked'
+    }
+    if (!aiEndpoint) {
+      setBulkMessage(AI_PROXY_CONFIG_MESSAGE)
       return false
     }
 
@@ -77,7 +225,7 @@ export function SkillsBand({
     )
     if (pendingTargets.length === 0) {
       setBulkMessage('No pending skills to deepen.')
-      return false
+      return 'skipped'
     }
 
     bulkAbortRef.current?.abort()
@@ -216,13 +364,16 @@ export function SkillsBand({
         setIsDeepeningAll(false)
       }
     }
-  }, [aiEndpoint, identity, updateGroups])
+  }, [aiEndpoint, identity, namingBlocksDeepening, updateGroups])
 
   useEffect(
     () => () => {
       bulkAbortRef.current?.abort()
       bulkAbortRef.current = null
       bulkRunningRef.current = false
+      namingAbortRef.current?.abort()
+      namingAbortRef.current = null
+      namingRunningRef.current = false
     },
     [],
   )
@@ -233,7 +384,7 @@ export function SkillsBand({
     const requestId = bulkRequestId
     const timeout = window.setTimeout(() => {
       void handleDeepenAllSkills().then(
-        (result) => onBulkRequestSettled?.(requestId, result === false ? 'failed' : 'succeeded'),
+        (result) => onBulkRequestSettled?.(requestId, toBulkRequestStatus(result)),
         () => onBulkRequestSettled?.(requestId, 'failed'),
       )
     }, 0)
@@ -277,18 +428,85 @@ export function SkillsBand({
                 type="button"
                 className="inspector-btn primary skills-enrichment-action"
                 onClick={() => void handleDeepenAllSkills()}
-                disabled={isDeepeningAll || enrichmentProgress.pending === 0}
+                disabled={!canStartDeepening}
                 aria-busy={isDeepeningAll ? true : undefined}
+                aria-describedby={visibleBulkMessage ? 'skills-enrichment-status' : undefined}
               >
                 {isDeepeningAll ? 'Deepening...' : 'Deepen all skills'}
               </button>
               {visibleBulkMessage ? (
-                <p className="skills-enrichment-status" role="status">
+                <p id="skills-enrichment-status" className="skills-enrichment-status" role="status">
                   {visibleBulkMessage}
                 </p>
               ) : null}
             </section>
           ) : null}
+          <section className="skills-naming-panel" aria-labelledby="skills-naming-title">
+            <div>
+              <h3 id="skills-naming-title" className="label-tracked skills-enrichment-eyebrow">
+                Taxonomy names
+              </h3>
+              <p className="chapter-copy skills-enrichment-copy">
+                Suggest standardized labels for every skill group. Apply once, then edit any group
+                name from the inspector; per-group revert is deferred for now.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="inspector-btn skills-enrichment-action"
+              ref={namingButtonRef}
+              onClick={() => void handleSuggestGroupNames()}
+              disabled={!canStartNaming}
+              aria-busy={isNamingGroups ? true : undefined}
+              aria-describedby={visibleNamingMessage ? 'skills-naming-status' : undefined}
+            >
+              {isNamingGroups ? 'Suggesting...' : 'Suggest group names'}
+            </button>
+            {visibleNamingMessage ? (
+              <p id="skills-naming-status" className="skills-enrichment-status" role="status">
+                {visibleNamingMessage}
+              </p>
+            ) : null}
+            {nameSuggestions.length > 0 ? (
+              <>
+                <ul className="skills-naming-proposals" aria-label="Suggested skill group names">
+                  {nameSuggestions.map((suggestion) => (
+                  <li
+                    key={suggestion.groupId}
+                    className="skills-naming-proposal"
+                  >
+                    <span className="label-tracked">{suggestion.currentLabel}</span>
+                    <span className="skills-naming-arrow" aria-hidden="true">
+                      -&gt;
+                    </span>
+                    <span className="sr-only">renamed to</span>
+                    <strong>{suggestion.suggestedLabel}</strong>
+                      {suggestion.rationale ? (
+                        <span className="chapter-copy">{suggestion.rationale}</span>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+                <div className="skills-naming-actions">
+                  <button
+                    type="button"
+                    className="inspector-btn primary"
+                    onClick={handleApplyNameSuggestions}
+                    disabled={!canApplyNameSuggestions}
+                  >
+                    Apply suggested names
+                  </button>
+                  <button
+                    type="button"
+                    className="inspector-btn"
+                    onClick={handleDiscardNameSuggestions}
+                  >
+                    Discard
+                  </button>
+                </div>
+              </>
+            ) : null}
+          </section>
           {groups.map((group) => {
             const isProblematic = isGenericSkillGroupLabel(group.label)
             const displayLabel = displaySkillGroupLabel(group.label)

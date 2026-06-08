@@ -21,6 +21,9 @@ const identityParameterMocks = vi.hoisted(() => ({
 const skillEnrichmentMocks = vi.hoisted(() => ({
   generateSkillEnrichmentSuggestionMock: vi.fn(),
 }))
+const skillGroupNamingMocks = vi.hoisted(() => ({
+  generateSkillGroupNameSuggestionsMock: vi.fn(),
+}))
 const facetEnvMock = vi.hoisted(() => ({
   facetClientEnv: {
     deploymentMode: 'self-hosted',
@@ -72,6 +75,18 @@ vi.mock('../utils/skillEnrichment', async () => {
     generateSkillEnrichmentSuggestion: (
       ...args: Parameters<typeof actual.generateSkillEnrichmentSuggestion>
     ) => skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock(...args),
+  }
+})
+
+vi.mock('../utils/skillGroupNaming', async () => {
+  const actual = await vi.importActual<typeof import('../utils/skillGroupNaming')>(
+    '../utils/skillGroupNaming',
+  )
+  return {
+    ...actual,
+    generateSkillGroupNameSuggestions: (
+      ...args: Parameters<typeof actual.generateSkillGroupNameSuggestions>
+    ) => skillGroupNamingMocks.generateSkillGroupNameSuggestionsMock(...args),
   }
 })
 
@@ -262,6 +277,7 @@ beforeEach(() => {
     context: 'Uses the skill in platform delivery with enough evidence for review.',
     positioning: 'Mention when relevant; do not lead by default.',
   })
+  skillGroupNamingMocks.generateSkillGroupNameSuggestionsMock.mockReset()
 })
 
 describe('Identity Map — match-rule add/remove', () => {
@@ -1833,8 +1849,8 @@ describe('Identity Map — match-rule add/remove', () => {
     fireEvent.click(within(panel).getByRole('button', { name: 'Deepen all skills' }))
 
     expect(
-      screen.getByText('AI suggestions are disabled. Configure VITE_ANTHROPIC_PROXY_URL.'),
-    ).toBeTruthy()
+      screen.getAllByText('AI suggestions are disabled. Configure VITE_ANTHROPIC_PROXY_URL.'),
+    ).not.toHaveLength(0)
     expect(skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock).not.toHaveBeenCalled()
   })
 
@@ -2216,11 +2232,41 @@ describe('Identity Map — match-rule add/remove', () => {
         },
       ]
     })
-    render(<SkillsBand bulkRequestId={1} />)
+    const onBulkRequestSettled = vi.fn()
+    render(<SkillsBand bulkRequestId={1} onBulkRequestSettled={onBulkRequestSettled} />)
 
     await waitFor(() => {
       expect(screen.getByText('No pending skills to deepen.')).toBeTruthy()
     })
+    expect(onBulkRequestSettled).toHaveBeenCalledWith(1, 'skipped')
+    expect(skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock).not.toHaveBeenCalled()
+  })
+
+  it('reports blocked when a prop-triggered bulk skill request has open name suggestions', async () => {
+    seed()
+    const firstGroup = useIdentityStore.getState().currentIdentity!.skills.groups[0]!
+    skillGroupNamingMocks.generateSkillGroupNameSuggestionsMock.mockResolvedValueOnce([
+      {
+        groupId: firstGroup.id,
+        currentLabel: firstGroup.label,
+        suggestedLabel: 'Platform Infrastructure',
+      },
+    ])
+    const onBulkRequestSettled = vi.fn()
+    const { rerender } = render(
+      <SkillsBand bulkRequestId={0} onBulkRequestSettled={onBulkRequestSettled} />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Suggest group names' }))
+    await screen.findByLabelText('Suggested skill group names')
+    rerender(<SkillsBand bulkRequestId={1} onBulkRequestSettled={onBulkRequestSettled} />)
+
+    await waitFor(() => {
+      expect(onBulkRequestSettled).toHaveBeenCalledWith(1, 'blocked')
+    })
+    expect(
+      screen.getByText('Apply or discard group name suggestions before deepening skills.'),
+    ).toBeTruthy()
     expect(skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock).not.toHaveBeenCalled()
   })
 
@@ -5465,8 +5511,8 @@ describe('Identity Map — skill inline editing', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Draft skill' }))
 
     expect(
-      screen.getByText('AI suggestions are disabled. Configure VITE_ANTHROPIC_PROXY_URL.'),
-    ).toBeTruthy()
+      screen.getAllByText('AI suggestions are disabled. Configure VITE_ANTHROPIC_PROXY_URL.'),
+    ).not.toHaveLength(0)
     expect(skillEnrichmentMocks.generateSkillEnrichmentSuggestionMock).not.toHaveBeenCalled()
   })
 
@@ -5793,6 +5839,95 @@ describe('Identity Map — skill inline editing', () => {
       'Platform Engineering',
     )
     expect(screen.getByRole('button', { name: 'Platform Engineering' })).toBeTruthy()
+  })
+
+  it('suggests standardized skill group names and applies them without losing metadata', async () => {
+    seed((id) => {
+      id.skills.groups[0] = {
+        ...id.skills.groups[0]!,
+        label: 'Skills 1',
+        positioning: 'Platform work across Kubernetes and infrastructure.',
+        calibration: 'Lead with this for platform roles.',
+        is_differentiator: true,
+      }
+      id.skills.groups[1] = {
+        id: 'app-languages',
+        label: 'Also',
+        positioning: 'Programming languages and app implementation.',
+        items: [
+          {
+            name: 'TypeScript',
+            tags: ['typescript'],
+          },
+          {
+            name: 'Python',
+            tags: ['python'],
+          },
+        ],
+      }
+    })
+    const originalFirstGroup = useIdentityStore.getState().currentIdentity!.skills.groups[0]!
+    skillGroupNamingMocks.generateSkillGroupNameSuggestionsMock.mockResolvedValueOnce([
+      {
+        groupId: originalFirstGroup.id,
+        currentLabel: 'Skills 1',
+        suggestedLabel: 'Platform Infrastructure',
+        rationale: 'Kubernetes and infrastructure skills cluster together.',
+      },
+      {
+        groupId: useIdentityStore.getState().currentIdentity!.skills.groups[1]!.id,
+        currentLabel: 'Also',
+        suggestedLabel: 'Application Languages',
+      },
+    ])
+
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Suggest group names' }))
+    const proposals = await screen.findByLabelText('Suggested skill group names')
+    expect(within(proposals).getByText('Platform Infrastructure')).toBeTruthy()
+    expect(within(proposals).getByText('Application Languages')).toBeTruthy()
+    expect(
+      screen.getByText(/per-group revert is deferred for now/i),
+    ).toBeTruthy()
+    expect(
+      (screen.getByRole('button', { name: 'Deepen all skills' }) as HTMLButtonElement).disabled,
+    ).toBe(true)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Apply suggested names' }))
+
+    const [renamedFirstGroup, renamedSecondGroup] =
+      useIdentityStore.getState().currentIdentity!.skills.groups
+    expect(renamedFirstGroup!.label).toBe('Platform Infrastructure')
+    expect(renamedFirstGroup!.positioning).toBe(originalFirstGroup.positioning)
+    expect(renamedFirstGroup!.calibration).toBe(originalFirstGroup.calibration)
+    expect(renamedFirstGroup!.is_differentiator).toBe(true)
+    expect(renamedFirstGroup!.items).toHaveLength(originalFirstGroup.items.length)
+    expect(renamedFirstGroup!.items.map((item) => item.name)).toEqual(
+      originalFirstGroup.items.map((item) => item.name),
+    )
+    expect(renamedSecondGroup!.label).toBe('Application Languages')
+    expect(screen.getByRole('button', { name: 'Platform Infrastructure' })).toBeTruthy()
+    await waitFor(() => {
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: 'Suggest group names' }),
+      )
+    })
+  })
+
+  it('shows a configuration error before suggesting skill group names without the AI proxy', async () => {
+    seed()
+    facetEnvMock.facetClientEnv.anthropicProxyUrl = ''
+    render(<IdentityMapPage />)
+
+    expect(
+      (screen.getByRole('button', { name: 'Suggest group names' }) as HTMLButtonElement).disabled,
+    ).toBe(true)
+
+    expect(
+      await screen.findAllByText('AI suggestions are disabled. Configure VITE_ANTHROPIC_PROXY_URL.'),
+    ).not.toHaveLength(0)
+    expect(skillGroupNamingMocks.generateSkillGroupNameSuggestionsMock).not.toHaveBeenCalled()
   })
 
   it('saves skill group renames through the form submit path', () => {

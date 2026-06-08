@@ -125,6 +125,7 @@ const FEATURE_MODEL_DEFAULTS = {
   'linkedin.generate': CURRENT_OPUS_MODEL,
   // Sonnet 4.6 — structured transformation
   'identity.extract': CURRENT_SONNET_MODEL,
+  'identity.skill-group-naming': CURRENT_SONNET_MODEL,
   'debrief.generate': CURRENT_SONNET_MODEL,
   'build.bullet-reframe': CURRENT_SONNET_MODEL,
   'letters.generate': CURRENT_SONNET_MODEL,
@@ -137,6 +138,7 @@ const DEFAULT_AI_FEATURE_RATE_LIMITS = {
   'build.bullet-reframe': { max: 12, windowMs: 60_000 },
   'identity.extract': { max: 8, windowMs: 60_000 },
   'identity.deepen': { max: 12, windowMs: 60_000 },
+  'identity.skill-group-naming': { max: 12, windowMs: 60_000 },
   'identity.deepen_project': { max: 12, windowMs: 60_000 },
   'match.jd-analysis': { max: 18, windowMs: 60_000 },
   'pipeline.t3.interviewer': { max: 3, windowMs: 60_000 },

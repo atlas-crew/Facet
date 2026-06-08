@@ -40,6 +40,7 @@ import {
   sortIdentityInferenceSections,
   type IdentityInferenceSection,
 } from './identityInferenceDependencies'
+import type { InferenceRequestStatus } from './inferenceRequestStatus'
 import { ThesisBand } from './bands/ThesisBand'
 import { SelfModelBand } from './bands/SelfModelBand'
 import { ProfilesBand } from './bands/ProfilesBand'
@@ -130,12 +131,14 @@ type PendingInferenceCascade = {
 type InferenceDispatchResult = {
   requestId: number | null
 }
-type InferenceRequestStatus = 'succeeded' | 'failed'
-
 const DRAFT_REVIEW_INFERENCE_SECTIONS = new Set<IdentityInferenceSection>([
   'thesis',
   'positioning',
 ])
+
+const assertNeverInferenceStatus = (status: never): never => {
+  throw new Error(`Unhandled inference request status: ${status}`)
+}
 const INFERENCE_CASCADE_STALL_MS = 90_000
 
 const assertNever = (value: never): never => {
@@ -1100,10 +1103,21 @@ export function IdentityMapPage() {
       pendingInferenceCascade.requestId === null ||
       (settledRequest && settledRequest.requestId >= pendingInferenceCascade.requestId)
     ) {
-      if (settledRequest?.status === 'failed') {
-        markStaleInferenceSections(pendingInferenceCascade.sections)
-        setPendingInferenceCascade(null)
-        return
+      if (settledRequest) {
+        switch (settledRequest.status) {
+          case 'succeeded':
+            break
+          case 'failed':
+          case 'blocked':
+            markStaleInferenceSections(pendingInferenceCascade.sections)
+            setPendingInferenceCascade(null)
+            return
+          case 'skipped':
+            setPendingInferenceCascade(null)
+            return
+          default:
+            assertNeverInferenceStatus(settledRequest.status)
+        }
       }
       const timeout = window.setTimeout(() => {
         runQueuedInferenceSections(pendingInferenceCascade.sections)
