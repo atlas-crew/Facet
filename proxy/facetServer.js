@@ -116,6 +116,7 @@ const AI_PRO_PASS_REDEMPTION_MONTHS = 12
 const FEATURE_MODEL_DEFAULTS = {
   // Opus 4.7 — quality-critical
   'identity.deepen': CURRENT_OPUS_MODEL,
+  'identity.deepen_project': CURRENT_OPUS_MODEL,
   'pipeline.t3.interviewer': CURRENT_OPUS_MODEL, // unwired today; revisit when feature lands
   'research.deep-search': CURRENT_OPUS_MODEL,
   'research.profile-inference': CURRENT_OPUS_MODEL,
@@ -136,6 +137,7 @@ const DEFAULT_AI_FEATURE_RATE_LIMITS = {
   'build.bullet-reframe': { max: 12, windowMs: 60_000 },
   'identity.extract': { max: 8, windowMs: 60_000 },
   'identity.deepen': { max: 12, windowMs: 60_000 },
+  'identity.deepen_project': { max: 12, windowMs: 60_000 },
   'match.jd-analysis': { max: 18, windowMs: 60_000 },
   'pipeline.t3.interviewer': { max: 3, windowMs: 60_000 },
   'research.deep-search': { max: 6, windowMs: 60_000 },
