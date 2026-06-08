@@ -51,6 +51,10 @@ const DEPTH_OPTIONS: Array<{ value: ProfessionalSkillDepth; label: string }> = [
   { value: 'avoid', label: 'Avoid' },
 ]
 
+const getFallbackMoveTargetGroupId = (
+  groups: ProfessionalIdentityV3['skills']['groups'],
+): string => groups[0]?.id ?? ''
+
 const computeStaleFlag = ({
   text,
   textChanged,
@@ -80,10 +84,15 @@ export function SkillItemInspector({
 }) {
   const updateGroups = useIdentityStore((s) => s.updateCurrentSkillGroups)
   const removeSkill = useIdentityStore((s) => s.removeSkillFromCurrentIdentity)
+  const moveSkill = useIdentityStore((s) => s.moveSkillBetweenCurrentGroups)
   const setSelection = useIdentityStore((s) => s.setMapSelection)
   const group = identity.skills.groups.find((g) => g.id === groupId)
   const item: ProfessionalSkillItem | undefined = group?.items.find((i) =>
     skillNamesMatch(i.name, itemName),
+  )
+  const moveTargetGroups = useMemo(
+    () => identity.skills.groups.filter((candidate) => candidate.id !== groupId),
+    [groupId, identity.skills.groups],
   )
   const [editing, setEditing] = useState(false)
   const [removePending, setRemovePending] = useState(false)
@@ -94,6 +103,9 @@ export function SkillItemInspector({
   const [draftPositioningSelection, setDraftPositioningSelection] =
     useState<PositioningSelection>('')
   const [draftTags, setDraftTags] = useState('')
+  const [moveTargetGroupId, setMoveTargetGroupId] = useState(() =>
+    getFallbackMoveTargetGroupId(moveTargetGroups),
+  )
   const [suggestion, setSuggestion] = useState<SkillEnrichmentSuggestion | null>(null)
   const [suggestionNotice, setSuggestionNotice] = useState<string | null>(null)
   const [suggestionError, setSuggestionError] = useState<string | null>(null)
@@ -102,6 +114,8 @@ export function SkillItemInspector({
   const confirmRowId = useId()
   const positioningFieldId = useId()
   const customPositioningFieldId = useId()
+  const moveTargetFieldId = useId()
+  const moveMergeHintId = useId()
   const removeButtonRef = useRef<HTMLButtonElement>(null)
   const editButtonRef = useRef<HTMLButtonElement>(null)
   const suggestAbortRef = useRef<AbortController | null>(null)
@@ -112,6 +126,21 @@ export function SkillItemInspector({
     group && item ? hasSkillEnrichmentBulletEvidence(identity, group, item) : false
   const confidence = item?.depthConfidence
   const confidenceLabel = confidence ? `${confidence} confidence` : '—'
+  const selectedMoveTarget =
+    moveTargetGroups.find((candidate) => candidate.id === moveTargetGroupId) ??
+    moveTargetGroups[0]
+  const effectiveMoveTargetGroupId = selectedMoveTarget?.id ?? ''
+  const selectedMoveTargetDuplicate =
+    item && selectedMoveTarget
+      ? selectedMoveTarget.items.find((skill) => skillNamesMatch(skill.name, item.name))
+      : undefined
+  const moveMergeHintText =
+    selectedMoveTarget && selectedMoveTargetDuplicate
+      ? [
+          `${selectedMoveTarget.label} already has ${selectedMoveTargetDuplicate.name}.`,
+          'Moving will merge tags and fill missing metadata.',
+        ].join(' ')
+      : ''
 
   const startEditing = () => {
     if (!item) return
@@ -183,6 +212,16 @@ export function SkillItemInspector({
     if (!item) return
     removeSkill(groupId, item.name)
     setSelection({ type: 'skill-group', id: groupId })
+  }
+
+  const handleMove = () => {
+    if (!item || !selectedMoveTarget) return
+    moveSkill(groupId, selectedMoveTarget.id, item.name)
+    setSelection({
+      type: 'skill-item',
+      groupId: selectedMoveTarget.id,
+      itemId: selectedMoveTargetDuplicate?.name.trim() || item.name,
+    })
   }
 
   const cancelRemove = () => {
@@ -293,6 +332,17 @@ export function SkillItemInspector({
     setEditing(false)
     setRemovePending(false)
   }, [groupId, itemName])
+
+  useEffect(() => {
+    if (moveTargetGroups.length === 0) {
+      setMoveTargetGroupId('')
+      return
+    }
+    if (moveTargetGroups.some((candidate) => candidate.id === moveTargetGroupId)) {
+      return
+    }
+    setMoveTargetGroupId(getFallbackMoveTargetGroupId(moveTargetGroups))
+  }, [moveTargetGroupId, moveTargetGroups])
 
   const applyDraftPositioningSelection = (nextSelection: PositioningSelection) => {
     setDraftPositioningSelection(nextSelection)
@@ -446,6 +496,39 @@ export function SkillItemInspector({
           ['Tags', item.tags?.join(' · ') || '—'],
         ]}
       />
+      {moveTargetGroups.length > 0 ? (
+        <div className="inspector-field">
+          <label className="inspector-field-label label-tracked" htmlFor={moveTargetFieldId}>
+            Move to group
+          </label>
+          <div className="inspector-inline-action">
+            <select
+              id={moveTargetFieldId}
+              className="inspector-input"
+              value={effectiveMoveTargetGroupId}
+              onChange={(event) => setMoveTargetGroupId(event.target.value)}
+              aria-describedby={selectedMoveTargetDuplicate ? moveMergeHintId : undefined}
+            >
+              {moveTargetGroups.map((candidate) => (
+                <option key={candidate.id} value={candidate.id}>
+                  {candidate.label}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="inspector-btn"
+              onClick={handleMove}
+              disabled={!selectedMoveTarget}
+            >
+              {selectedMoveTargetDuplicate ? 'Move & merge' : 'Move'}
+            </button>
+          </div>
+          <p id={moveMergeHintId} className="inspector-field-hint info" aria-live="polite">
+            {moveMergeHintText}
+          </p>
+        </div>
+      ) : null}
       {!item.depth ? (
         <Prompt
           label="Cleanup"

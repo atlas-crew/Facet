@@ -1404,6 +1404,200 @@ describe('identityStore skill enrichment', () => {
     expect(useIdentityStore.getState().currentIdentity?.skills.groups[0]?.items).toHaveLength(2)
   })
 
+  it('moves a skill between current identity groups and preserves enrichment metadata', () => {
+    const identity = createIdentity()
+    identity.skills.groups.push({
+      id: 'cloud',
+      label: 'Cloud',
+      items: [{ name: 'AWS', tags: ['cloud'] }],
+    })
+    const skill = identity.skills.groups[0]!.items[0]!
+    skill.depth = 'strong'
+    skill.depthSource = 'corrected'
+    skill.depthConfidence = 'high'
+    skill.context = 'Operated Kubernetes for customer-hosted platforms.'
+    skill.context_stale = true
+    skill.positioning = 'Lead with platform operations.'
+    skill.positioning_stale = true
+    skill.enriched_at = '2026-01-01T00:00:00.000Z'
+    skill.enriched_by = 'user'
+    skill.skipped_at = '2026-01-02T00:00:00.000Z'
+    useIdentityStore.setState({
+      currentIdentity: identity,
+      draftDocument: '',
+    })
+
+    useIdentityStore
+      .getState()
+      .moveSkillBetweenCurrentGroups('platform', 'cloud', 'kubernetes')
+
+    const groups = useIdentityStore.getState().currentIdentity!.skills.groups
+    const platform = groups.find((group) => group.id === 'platform')!
+    const cloud = groups.find((group) => group.id === 'cloud')!
+    expect(platform.items.some((item) => item.name === 'Kubernetes')).toBe(false)
+    expect(cloud.items.at(-1)).toMatchObject({
+      name: 'Kubernetes',
+      depth: 'strong',
+      depthSource: 'corrected',
+      depthConfidence: 'high',
+      context: 'Operated Kubernetes for customer-hosted platforms.',
+      context_stale: true,
+      positioning: 'Lead with platform operations.',
+      positioning_stale: true,
+      tags: ['platform', 'kubernetes'],
+      enriched_at: '2026-01-01T00:00:00.000Z',
+      enriched_by: 'user',
+      skipped_at: '2026-01-02T00:00:00.000Z',
+    })
+  })
+
+  it('merges when moving a skill into a group with a same-named skill', () => {
+    const identity = createIdentity()
+    identity.skills.groups.push({
+      id: 'cloud',
+      label: 'Cloud',
+      items: [
+        {
+          name: 'kubernetes',
+          depth: 'basic',
+          depthConfidence: 'low',
+          context: 'Existing target context.',
+          context_stale: true,
+          tags: ['cloud', ' Platform ', ''],
+        },
+      ],
+    })
+    identity.skills.groups[0]!.items[0] = {
+      name: 'Kubernetes',
+      depth: 'expert',
+      depthSource: 'corrected',
+      depthConfidence: 'high',
+      context: 'Moved source context.',
+      context_stale: false,
+      positioning: 'Source positioning.',
+      tags: ['platform', 'cloud', 'kubernetes'],
+      enriched_by: 'user',
+      skipped_at: '2026-01-02T00:00:00.000Z',
+    }
+    useIdentityStore.setState({
+      currentIdentity: identity,
+      draftDocument: '',
+    })
+
+    useIdentityStore.getState().moveSkillBetweenCurrentGroups('platform', 'cloud', 'Kubernetes')
+
+    const groups = useIdentityStore.getState().currentIdentity!.skills.groups
+    const platform = groups.find((group) => group.id === 'platform')!
+    const cloud = groups.find((group) => group.id === 'cloud')!
+    const matching = cloud.items.filter((item) => item.name.toLowerCase() === 'kubernetes')
+    expect(platform.items.some((item) => item.name === 'Kubernetes')).toBe(false)
+    expect(matching).toHaveLength(1)
+    expect(matching[0]).toMatchObject({
+      name: 'kubernetes',
+      depth: 'basic',
+      depthSource: 'inferred',
+      depthConfidence: 'low',
+      context: 'Existing target context.',
+      context_stale: true,
+      positioning: 'Source positioning.',
+      tags: ['cloud', 'Platform', 'kubernetes'],
+      enriched_by: 'user',
+      skipped_at: '2026-01-02T00:00:00.000Z',
+    })
+  })
+
+  it('does not borrow moved confidence when a merge keeps the target depth', () => {
+    const identity = createIdentity()
+    identity.skills.groups.push({
+      id: 'cloud',
+      label: 'Cloud',
+      items: [{ name: 'kubernetes', depth: 'basic', context: '   ', tags: ['cloud'] }],
+    })
+    identity.skills.groups[0]!.items[0] = {
+      name: 'Kubernetes',
+      depth: 'expert',
+      depthSource: 'corrected',
+      depthConfidence: 'high',
+      context: 'Moved context.',
+      context_stale: true,
+      tags: ['platform'],
+    }
+    useIdentityStore.setState({
+      currentIdentity: identity,
+      draftDocument: '',
+    })
+
+    useIdentityStore.getState().moveSkillBetweenCurrentGroups('platform', 'cloud', 'Kubernetes')
+
+    const cloud = useIdentityStore
+      .getState()
+      .currentIdentity!.skills.groups.find((group) => group.id === 'cloud')!
+    const merged = cloud.items.find((item) => item.name.toLowerCase() === 'kubernetes')
+    expect(merged).toMatchObject({
+      name: 'kubernetes',
+      depth: 'basic',
+      context: 'Moved context.',
+      context_stale: true,
+      tags: ['cloud', 'platform'],
+    })
+    expect(merged?.depthConfidence).toBeUndefined()
+  })
+
+  it('leaves skill groups unchanged when a move request cannot resolve safely', () => {
+    const cases = [
+      {
+        label: 'same group',
+        move: () =>
+          useIdentityStore
+            .getState()
+            .moveSkillBetweenCurrentGroups('platform', 'platform', 'Kubernetes'),
+      },
+      {
+        label: 'missing target group',
+        move: () =>
+          useIdentityStore
+            .getState()
+            .moveSkillBetweenCurrentGroups('platform', 'missing-group', 'Kubernetes'),
+      },
+      {
+        label: 'missing source group',
+        move: () =>
+          useIdentityStore
+            .getState()
+            .moveSkillBetweenCurrentGroups('missing-group', 'platform', 'Kubernetes'),
+      },
+      {
+        label: 'missing skill',
+        move: () =>
+          useIdentityStore.getState().moveSkillBetweenCurrentGroups('platform', 'cloud', 'Rust'),
+      },
+    ]
+
+    for (const testCase of cases) {
+      const identity = createIdentity()
+      identity.skills.groups.push({
+        id: 'cloud',
+        label: 'Cloud',
+        items: [{ name: 'AWS', tags: ['cloud'] }],
+      })
+      useIdentityStore.setState({
+        currentIdentity: identity,
+        draftDocument: '',
+      })
+      const before = structuredClone(useIdentityStore.getState().currentIdentity)
+
+      testCase.move()
+
+      expect(useIdentityStore.getState().currentIdentity, testCase.label).toEqual(before)
+    }
+
+    useIdentityStore.setState({ currentIdentity: null, draftDocument: '' })
+    expect(() =>
+      useIdentityStore.getState().moveSkillBetweenCurrentGroups('platform', 'cloud', 'Kubernetes'),
+    ).not.toThrow()
+    expect(useIdentityStore.getState().currentIdentity).toBeNull()
+  })
+
   it('rehydrates persisted enrichment state from storage', async () => {
     useIdentityStore.setState({
       currentIdentity: createIdentity(),

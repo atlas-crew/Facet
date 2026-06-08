@@ -5660,6 +5660,155 @@ describe('Identity Map — skill inline editing', () => {
     })
   })
 
+  it('moves skills between groups from the map inspector', () => {
+    seed((id) => {
+      const skill = id.skills.groups[0]!.items[0]!
+      skill.depth = 'expert'
+      skill.depthSource = 'corrected'
+      skill.depthConfidence = 'high'
+      skill.context = 'Runs Kubernetes for customer-hosted platform deployments.'
+      skill.positioning = 'Lead with Kubernetes platform operations.'
+      skill.enriched_by = 'user'
+      id.skills.groups.push({
+        id: 'cloud',
+        label: 'Cloud',
+        items: [{ name: 'AWS', tags: ['cloud'] }],
+      })
+    })
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Kubernetes' }))
+    const targetSelect = screen.getByLabelText('Move to group') as HTMLSelectElement
+    expect(within(targetSelect).queryByRole('option', { name: 'Platform' })).toBeNull()
+    fireEvent.change(targetSelect, { target: { value: 'cloud' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Move' }))
+
+    const groups = useIdentityStore.getState().currentIdentity!.skills.groups
+    const platform = groups.find((group) => group.id === 'platform')
+    const cloud = groups.find((group) => group.id === 'cloud')!
+    const moved = cloud.items.find((skill) => skill.name === 'Kubernetes')!
+    expect(platform?.items.some((skill) => skill.name === 'Kubernetes') ?? false).toBe(false)
+    expect(moved).toMatchObject({
+      depth: 'expert',
+      depthSource: 'corrected',
+      depthConfidence: 'high',
+      context: 'Runs Kubernetes for customer-hosted platform deployments.',
+      positioning: 'Lead with Kubernetes platform operations.',
+      tags: ['platform', 'kubernetes'],
+      enriched_by: 'user',
+    })
+    expect(useIdentityStore.getState().mapSelection).toEqual({
+      type: 'skill-item',
+      groupId: 'cloud',
+      itemId: 'Kubernetes',
+    })
+  })
+
+  it('selects the existing target skill when a move merges duplicate skill names', () => {
+    seed((id) => {
+      id.skills.groups[0]!.items[0] = {
+        name: 'Kubernetes',
+        depth: 'expert',
+        depthConfidence: 'high',
+        tags: ['platform'],
+        positioning: 'Source positioning.',
+      }
+      id.skills.groups.push({
+        id: 'cloud',
+        label: 'Cloud',
+        items: [
+          { name: '  kubernetes  ', depth: 'basic', context: 'Target context.', tags: ['cloud'] },
+        ],
+      })
+    })
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Kubernetes' }))
+    const targetSelect = screen.getByLabelText('Move to group') as HTMLSelectElement
+    fireEvent.change(targetSelect, { target: { value: 'cloud' } })
+    expect(screen.getByRole('button', { name: 'Move & merge' })).toBeTruthy()
+    const mergeHint = screen.getByText(/cloud already has\s+kubernetes\s+\. moving will merge tags/i)
+    expect(mergeHint).toBeTruthy()
+    expect(mergeHint.getAttribute('aria-live')).toBe('polite')
+    expect(targetSelect.getAttribute('aria-describedby')).toBe(mergeHint.id)
+    fireEvent.click(screen.getByRole('button', { name: 'Move & merge' }))
+
+    const groups = useIdentityStore.getState().currentIdentity!.skills.groups
+    const platform = groups.find((group) => group.id === 'platform')!
+    const cloud = groups.find((group) => group.id === 'cloud')!
+    const merged = cloud.items.filter((skill) => skill.name.toLowerCase() === 'kubernetes')
+    expect(platform?.items.some((skill) => skill.name === 'Kubernetes') ?? false).toBe(false)
+    expect(merged).toHaveLength(1)
+    expect(merged[0]).toMatchObject({
+      name: 'kubernetes',
+      depth: 'basic',
+      context: 'Target context.',
+      positioning: 'Source positioning.',
+      tags: ['cloud', 'platform'],
+    })
+    expect(useIdentityStore.getState().mapSelection).toEqual({
+      type: 'skill-item',
+      groupId: 'cloud',
+      itemId: 'kubernetes',
+    })
+  })
+
+  it('hides the skill move control when there is no alternate target group', () => {
+    seed()
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Kubernetes' }))
+
+    expect(screen.queryByLabelText('Move to group')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Move' })).toBeNull()
+  })
+
+  it('falls back to a remaining move target when the selected target group disappears', () => {
+    seed((id) => {
+      id.skills.groups.push(
+        {
+          id: 'cloud',
+          label: 'Cloud',
+          items: [{ name: 'AWS', tags: ['cloud'] }],
+        },
+        {
+          id: 'observability',
+          label: 'Observability',
+          items: [{ name: 'Grafana', tags: ['observability'] }],
+        },
+      )
+    })
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Kubernetes' }))
+    const targetSelect = screen.getByLabelText('Move to group') as HTMLSelectElement
+    fireEvent.change(targetSelect, { target: { value: 'observability' } })
+    expect(targetSelect.value).toBe('observability')
+
+    act(() => {
+      const currentIdentity = useIdentityStore.getState().currentIdentity!
+      useIdentityStore
+        .getState()
+        .updateCurrentSkillGroups(
+          currentIdentity.skills.groups.filter((group) => group.id !== 'observability'),
+        )
+    })
+
+    const fallbackSelect = screen.getByLabelText('Move to group') as HTMLSelectElement
+    expect(fallbackSelect.value).toBe('cloud')
+    fireEvent.click(screen.getByRole('button', { name: 'Move' }))
+
+    const cloud = useIdentityStore
+      .getState()
+      .currentIdentity!.skills.groups.find((group) => group.id === 'cloud')!
+    expect(cloud.items.some((skill) => skill.name === 'Kubernetes')).toBe(true)
+    expect(useIdentityStore.getState().mapSelection).toEqual({
+      type: 'skill-item',
+      groupId: 'cloud',
+      itemId: 'Kubernetes',
+    })
+  })
+
   it('removes skills from the map inspector and returns to the group', () => {
     seed()
     render(<IdentityMapPage />)

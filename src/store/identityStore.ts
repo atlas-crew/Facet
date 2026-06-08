@@ -177,6 +177,11 @@ interface IdentityState {
   clearSkillSkip: (groupId: string, skillName: string) => void
   addSkillToCurrentIdentity: (groupId: string, skillName: string) => void
   removeSkillFromCurrentIdentity: (groupId: string, skillName: string) => void
+  moveSkillBetweenCurrentGroups: (
+    sourceGroupId: string,
+    targetGroupId: string,
+    skillName: string,
+  ) => void
   acceptProposedVector: (id: string) => void
   rejectProposedVector: (id: string) => void
   editProposedVector: (id: string, patch: ProposedSearchVectorPatch) => void
@@ -189,6 +194,48 @@ interface IdentityState {
 
 const formatIdentityDocument = (identity: ProfessionalIdentityV3): string =>
   JSON.stringify(identity, null, 2)
+
+const dedupeSkillTags = (tags: readonly string[]): string[] => {
+  const seen = new Set<string>()
+  const next: string[] = []
+  for (const tag of tags) {
+    const trimmed = tag.trim()
+    if (!trimmed) continue
+    const key = trimmed.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    next.push(trimmed)
+  }
+  return next
+}
+
+// Keep this field-by-field: target skill facts win when present, moved skill facts only fill gaps.
+const mergeMovedSkillIntoTarget = (
+  targetSkill: ProfessionalSkillItem,
+  movedSkill: ProfessionalSkillItem,
+): ProfessionalSkillItem => {
+  const targetHasContext = Boolean(targetSkill.context?.trim())
+  const targetHasPositioning = Boolean(targetSkill.positioning?.trim())
+  const targetHasDepth = Boolean(targetSkill.depth)
+
+  return {
+    ...targetSkill,
+    name: targetSkill.name.trim() || movedSkill.name.trim() || movedSkill.name,
+    depth: targetSkill.depth ?? movedSkill.depth,
+    depthSource: targetHasDepth ? targetSkill.depthSource : movedSkill.depthSource,
+    depthConfidence: targetHasDepth ? targetSkill.depthConfidence : movedSkill.depthConfidence,
+    context: targetHasContext ? targetSkill.context : movedSkill.context,
+    context_stale: targetHasContext ? targetSkill.context_stale : movedSkill.context_stale,
+    positioning: targetHasPositioning ? targetSkill.positioning : movedSkill.positioning,
+    positioning_stale: targetHasPositioning
+      ? targetSkill.positioning_stale
+      : movedSkill.positioning_stale,
+    tags: dedupeSkillTags([...(targetSkill.tags ?? []), ...(movedSkill.tags ?? [])]),
+    enriched_at: targetSkill.enriched_at ?? movedSkill.enriched_at,
+    enriched_by: targetSkill.enriched_by ?? movedSkill.enriched_by,
+    skipped_at: targetSkill.skipped_at ?? movedSkill.skipped_at,
+  }
+}
 
 /**
  * Advance the identity's content-revision counter for any mutation.
@@ -1850,6 +1897,67 @@ export const useIdentityStore = create<IdentityState>()(
                     }
                   : group,
               ),
+            },
+          }
+
+          return syncIdentityDocument(state, nextIdentity)
+        }),
+      moveSkillBetweenCurrentGroups: (sourceGroupId, targetGroupId, skillName) =>
+        set((state) => {
+          if (!state.currentIdentity || sourceGroupId === targetGroupId) {
+            return {}
+          }
+
+          const sourceGroup = state.currentIdentity.skills.groups.find(
+            (group) => group.id === sourceGroupId,
+          )
+          const targetGroup = state.currentIdentity.skills.groups.find(
+            (group) => group.id === targetGroupId,
+          )
+          const movedSkill = sourceGroup?.items.find((skill) =>
+            skillNamesMatch(skill.name, skillName),
+          )
+
+          if (!sourceGroup || !targetGroup || !movedSkill) {
+            return {}
+          }
+
+          const nextIdentity = {
+            ...state.currentIdentity,
+            skills: {
+              ...state.currentIdentity.skills,
+              groups: state.currentIdentity.skills.groups.map((group) => {
+                if (group.id === sourceGroupId) {
+                  return {
+                    ...group,
+                    items: group.items.filter((skill) => !skillNamesMatch(skill.name, skillName)),
+                  }
+                }
+
+                if (group.id === targetGroupId) {
+                  const duplicateIndex = group.items.findIndex((skill) =>
+                    skillNamesMatch(skill.name, movedSkill.name),
+                  )
+
+                  if (duplicateIndex === -1) {
+                    return {
+                      ...group,
+                      items: [...group.items, movedSkill],
+                    }
+                  }
+
+                  return {
+                    ...group,
+                    items: group.items.map((skill, index) =>
+                      index === duplicateIndex
+                        ? mergeMovedSkillIntoTarget(skill, movedSkill)
+                        : skill,
+                    ),
+                  }
+                }
+
+                return group
+              }),
             },
           }
 
