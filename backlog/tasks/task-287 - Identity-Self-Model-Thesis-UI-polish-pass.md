@@ -1,11 +1,11 @@
 ---
 id: TASK-287
 title: Identity Self Model & Thesis UI polish pass
-status: In Progress
+status: Done
 assignee:
   - '@codex'
 created_date: '2026-06-07 20:27'
-updated_date: '2026-06-08 01:16'
+updated_date: '2026-06-08 01:42'
 labels:
   - identity
   - ui-polish
@@ -31,21 +31,33 @@ Relevant files: src/routes/identity/bands/SelfModelBand.tsx, src/routes/identity
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Self Model area around the Generate self-knowledge button has no excess empty space; padding follows the 4px grid
-- [ ] #2 Strategic positioning area no longer shows the same empty-space gap
-- [ ] #3 Interview Self Knowledge section uses semantic color tokens consistent with the style guide and has correct spacing after bullets
-- [ ] #4 Thesis no longer renders explanatory label text that duplicates the help-chip content
-- [ ] #5 Padding around the Regenerate thesis button is corrected
-- [ ] #6 Bullet detail left rail has bottom padding so the bottom buttons are no longer clipped
-- [ ] #7 No hardcoded colors or off-grid spacing introduced; values use CSS custom properties
+- [x] #1 Self Model area around the Generate self-knowledge button has no excess empty space; padding follows the 4px grid
+- [x] #2 Strategic positioning area no longer shows the same empty-space gap
+- [x] #3 Interview Self Knowledge section uses semantic color tokens consistent with the style guide and has correct spacing after bullets
+- [x] #4 Thesis no longer renders explanatory label text that duplicates the help-chip content
+- [x] #5 Padding around the Regenerate thesis button is corrected
+- [x] #6 Bullet detail left rail has bottom padding so the bottom buttons are no longer clipped
+- [x] #7 No hardcoded colors or off-grid spacing introduced; values use CSS custom properties
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Implemented Identity Self Model / Thesis polish: collapsed idle generation-message gaps for self-knowledge and strategic positioning, moved Interview Self-Knowledge tone to semantic token rails with readable neutral text, removed duplicate thesis strength-note prose/aria-describedby, tightened thesis action spacing, added inspector bottom padding, and removed the now-dead describeThesisFillStrength helper/tests. Verification: IdentityMapEditing.test.tsx 178/178, identityFillStrength.test.ts 36/36, typecheck, eslint on touched files, git diff --check, agent-loop source review, and diff test audit. Full npm run test was attempted and still fails in unrelated billing/match/aiAccess/research areas; touched Identity failures found by that run were fixed and the touched file now passes.
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Polished the Identity Self Model and Thesis UI spacing/copy for TASK-287. The Self Model idle status rows now collapse, Interview Self-Knowledge uses semantic tone rails without low-contrast label text, thesis cards no longer duplicate fill-strength help copy, thesis actions/inspector padding are corrected, and stale thesis explanation helper coverage was removed with the dead export.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Regression tests were created for new behaviors
-- [ ] #2 Changes to integration points are covered by tests
-- [ ] #3 Automatic formatting was applied to touched files
-- [ ] #4 Regression tests pass (scoped to touched files)
-- [ ] #5 Linters report no warnings or errors in touched files
-- [ ] #6 Relevant documentation updates landed or tasks created
+- [x] #1 Regression tests were created for new behaviors
+- [x] #2 Changes to integration points are covered by tests
+- [x] #3 Automatic formatting was applied to touched files
+- [x] #4 Regression tests pass (scoped to touched files)
+- [x] #5 Linters report no warnings or errors in touched files
+- [x] #6 Relevant documentation updates landed or tasks created
 <!-- DOD:END -->
