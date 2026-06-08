@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@codex'
 created_date: '2026-06-07 20:28'
-updated_date: '2026-06-08 01:44'
+updated_date: '2026-06-08 02:55'
 labels:
   - identity
   - ai
@@ -43,6 +43,18 @@ Relevant files: src/routes/identity/IdentityMapPage.tsx, src/routes/identity/ide
 - [ ] #6 Unit test covers the dependency-graph resolution (given section X, correct downstream set)
 - [ ] #7 Interaction is documented in the relevant identity domain-model doc section
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Implemented downstream regeneration UX: reusable inference dependency graph, action-list downstream prompt, selective/deferred regeneration, stale markers, request-settled cascade sequencing through existing band request-id handlers, draft-review guardrails for thesis/positioning, and focused regression coverage. Verification: npm run test -- src/test/IdentityMapEditing.test.tsx; npm run test -- src/test/identityInferenceDependencies.test.ts; npm run typecheck; npx eslint touched TS/TSX files; git diff --check. Independent source review completed with no P0/P1 remaining; diff test audit rerun with jumbo fallback and P1 gaps covered by added tests.
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Added Identity Map downstream regeneration controls and stale-state recovery for M-35. The dependency graph now lives in a reusable module, action-list regenerations surface downstream impact, deferred sections remain visible as stale, and selected/stale regeneration is sequenced via existing request-id band handlers rather than direct generator calls. Draft-producing sections require review before downstream regeneration. Added graph/unit and route regression coverage plus domain-model documentation.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
