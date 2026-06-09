@@ -309,6 +309,66 @@
   align-items: center;
 }
 
+.identity-map-run-all-panel {
+  max-width: 920px;
+  margin-top: var(--space-4);
+  padding: var(--space-4) calc(var(--space-4) + var(--space-1));
+  border: 1px solid color-mix(in srgb, var(--accent-primary) 32%, var(--border-subtle));
+  border-left: 3px solid var(--accent-primary);
+  border-radius: 8px;
+  background: var(--bg-surface);
+  display: grid;
+  gap: var(--space-4);
+}
+
+.identity-map-run-all-panel h2 {
+  margin: 0 0 var(--space-2);
+  color: var(--text-primary);
+  font-size: 17px;
+  line-height: 1.25;
+  letter-spacing: 0;
+}
+
+.identity-map-run-all-panel .chapter-copy {
+  max-width: 700px;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.identity-map-run-all-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.identity-map-run-all-step {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.7fr) auto minmax(0, 1.6fr);
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: var(--bg-primary);
+}
+
+.identity-map-run-all-step.running {
+  border-color: color-mix(in srgb, var(--accent-primary) 46%, var(--border-subtle));
+}
+
+.identity-map-run-all-step.error {
+  border-color: color-mix(in srgb, var(--danger) 46%, var(--border-subtle));
+}
+
+.identity-map-run-all-label {
+  color: var(--text-primary);
+  font-size: 11px;
+}
+
 .identity-map-action-panel h2 {
   margin: 0 0 var(--space-2);
   color: var(--text-primary);
@@ -377,7 +437,28 @@
   color: color-mix(in srgb, var(--success) 72%, var(--text-primary));
 }
 
+.identity-action-status.running {
+  border-color: color-mix(in srgb, var(--accent-primary) 52%, var(--border-default));
+  color: var(--accent-primary-hover);
+}
+
+.identity-action-status.skipped,
 .identity-action-status.muted {
+  color: var(--text-tertiary);
+}
+
+.identity-action-status.review {
+  border-color: color-mix(in srgb, var(--warning) 46%, var(--border-default));
+  color: color-mix(in srgb, var(--warning) 76%, var(--text-primary));
+}
+
+.identity-action-status.error {
+  border-color: color-mix(in srgb, var(--danger) 52%, var(--border-default));
+  color: color-mix(in srgb, var(--danger) 78%, var(--text-primary));
+}
+
+.identity-action-status.unavailable {
+  border-color: var(--border-subtle);
   color: var(--text-tertiary);
 }
 

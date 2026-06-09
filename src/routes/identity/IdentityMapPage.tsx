@@ -35,6 +35,7 @@ import { IdentityInspector } from './IdentityInspector'
 import type { BandLayer } from './IdentityBand'
 import { getIdentityBandSelector } from './identityBandLayers'
 import {
+  IDENTITY_INFERENCE_ORDER,
   getDownstreamIdentityInferenceSections,
   getIdentityInferenceSectionLabel,
   sortIdentityInferenceSections,
@@ -131,6 +132,29 @@ type PendingInferenceCascade = {
 type InferenceDispatchResult = {
   requestId: number | null
 }
+type RunAllInferenceStepStatus =
+  | 'pending'
+  | 'running'
+  | 'done'
+  | 'skipped'
+  | 'review'
+  | 'error'
+  | 'unavailable'
+type RunAllInferenceStep = {
+  section: IdentityInferenceSection
+  label: string
+  status: RunAllInferenceStepStatus
+  message: string
+}
+type RunAllInferenceProgress = {
+  running: boolean
+  queue: IdentityInferenceSection[]
+  waitingFor: IdentityInferenceSection | null
+  requestId: number | null
+  deadlineAt: number | null
+  steps: RunAllInferenceStep[]
+  summary: string
+}
 const DRAFT_REVIEW_INFERENCE_SECTIONS = new Set<IdentityInferenceSection>([
   'thesis',
   'positioning',
@@ -140,6 +164,7 @@ const assertNeverInferenceStatus = (status: never): never => {
   throw new Error(`Unhandled inference request status: ${status}`)
 }
 const INFERENCE_CASCADE_STALL_MS = 90_000
+const RUN_ALL_INFERENCE_STALL_MS = 90_000
 
 const assertNever = (value: never): never => {
   throw new Error(`Unhandled identity inference section: ${String(value)}`)
@@ -214,6 +239,39 @@ const disposeIdentityDownloadHandle = (handle: IdentityDownloadHandle | null) =>
   window.clearTimeout(handle.revokeTimeout)
   URL.revokeObjectURL(handle.url)
 }
+
+const getRunAllStepStatusLabel = (status: RunAllInferenceStepStatus): string => {
+  switch (status) {
+    case 'pending':
+      return 'Remaining'
+    case 'running':
+      return 'Current'
+    case 'done':
+      return 'Done'
+    case 'skipped':
+      return 'Skipped'
+    case 'review':
+      return 'Review'
+    case 'error':
+      return 'Error'
+    case 'unavailable':
+      return 'Unavailable'
+    default:
+      status satisfies never
+      return ''
+  }
+}
+
+const updateRunAllInferenceStep = (
+  steps: readonly RunAllInferenceStep[],
+  section: IdentityInferenceSection,
+  status: RunAllInferenceStepStatus,
+  message: string,
+): RunAllInferenceStep[] =>
+  steps.map((step) => (step.section === section ? { ...step, status, message } : step))
+
+const hasRunAllInferenceRetryTarget = (steps: readonly RunAllInferenceStep[]): boolean =>
+  steps.some((step) => step.status === 'pending' || step.status === 'error' || step.status === 'review')
 
 function DismissibleNotice({ message, role = 'status', onDismiss }: DismissibleNoticeProps) {
   return (
@@ -438,6 +496,8 @@ export function IdentityMapPage() {
   >([])
   const [pendingInferenceCascade, setPendingInferenceCascade] =
     useState<PendingInferenceCascade | null>(null)
+  const [runAllInferenceProgress, setRunAllInferenceProgress] =
+    useState<RunAllInferenceProgress | null>(null)
   const [thesisRequestId, setThesisRequestId] = useState(0)
   const [profileRequestId, setProfileRequestId] = useState(0)
   const [chapterRequestId, setChapterRequestId] = useState(0)
@@ -609,6 +669,65 @@ export function IdentityMapPage() {
     [identity],
   )
   const bulletDepthCount = bulletDepthTargets.length
+
+  const getRunAllSectionReadiness = (
+    section: IdentityInferenceSection,
+  ): {
+    status: RunAllInferenceStepStatus
+    message: string
+    runnable: boolean
+  } => {
+    switch (section) {
+      case 'bullets':
+        return bulletDepthCount > 0
+          ? {
+              status: 'unavailable',
+              message: 'Open pending bullets to deepen them one at a time.',
+              runnable: false,
+            }
+          : { status: 'skipped', message: 'Bullet evidence is already structured.', runnable: false }
+      case 'skills':
+        if (!hasSkillDepthToReview) {
+          return { status: 'unavailable', message: 'No skills are available yet.', runnable: false }
+        }
+        return hasPendingSkillDepth
+          ? { status: 'pending', message: 'Waiting to deepen pending skill evidence.', runnable: true }
+          : { status: 'skipped', message: 'Skill depth is already complete.', runnable: false }
+      case 'thesis':
+        return hasThesis
+          ? { status: 'skipped', message: 'Thesis already exists.', runnable: false }
+          : { status: 'pending', message: 'Waiting to draft thesis for review.', runnable: true }
+      case 'profiles':
+        return hasProfiles
+          ? { status: 'skipped', message: 'Profile lenses already exist.', runnable: false }
+          : { status: 'pending', message: 'Waiting to generate profile lenses.', runnable: true }
+      case 'chapters':
+        if (hasChapters) {
+          return { status: 'skipped', message: 'Career chapters already exist.', runnable: false }
+        }
+        return canGenerateChapters
+          ? { status: 'pending', message: 'Waiting to draft career chapters.', runnable: true }
+          : { status: 'unavailable', message: 'Add roles before drafting chapters.', runnable: false }
+      case 'selfKnowledge':
+        return hasSelfKnowledge
+          ? { status: 'skipped', message: 'Self-knowledge already exists.', runnable: false }
+          : {
+              status: 'pending',
+              message: 'Waiting to generate philosophy and interview self-knowledge.',
+              runnable: true,
+            }
+      case 'positioning':
+        return hasPositioning
+          ? { status: 'skipped', message: 'Positioning already exists.', runnable: false }
+          : { status: 'pending', message: 'Waiting to draft positioning for review.', runnable: true }
+      case 'search':
+        return hasSearchStrategy
+          ? { status: 'skipped', message: 'Search parameters already exist.', runnable: false }
+          : { status: 'pending', message: 'Waiting to generate search parameters.', runnable: true }
+      default:
+        return assertNever(section)
+    }
+  }
 
   const goToImport = () => {
     void navigate({ to: '/identity/import' })
@@ -826,6 +945,10 @@ export function IdentityMapPage() {
         return assertNever(section)
     }
   }
+  const runInferenceSectionRequestRef = useRef(runInferenceSectionRequest)
+  useEffect(() => {
+    runInferenceSectionRequestRef.current = runInferenceSectionRequest
+  })
 
   const openActionItems = (event: MouseEvent<HTMLButtonElement>) => {
     actionTriggerRef.current = event.currentTarget
@@ -1046,6 +1169,107 @@ export function IdentityMapPage() {
         requestId >= (current[section]?.requestId ?? 0) ? { requestId, status } : current[section],
     }))
   }
+  const buildRunAllInferenceSteps = (): RunAllInferenceStep[] =>
+    IDENTITY_INFERENCE_ORDER.map((section) => {
+      const readiness = getRunAllSectionReadiness(section)
+      return {
+        section,
+        label: getIdentityInferenceSectionLabel(section),
+        status: readiness.status,
+        message: readiness.message,
+      }
+    })
+  const startRunAllInference = () => {
+    if (!identity || runAllInferenceProgress?.running) return
+    const steps = buildRunAllInferenceSteps()
+    const queue = steps
+      .filter((step) => step.status === 'pending')
+      .map((step) => step.section)
+    const summary =
+      queue.length > 0
+        ? `Ready to run ${queue.length} missing inference step${queue.length === 1 ? '' : 's'}.`
+        : 'No runnable inference steps remain.'
+    setRunAllInferenceProgress({
+      running: queue.length > 0,
+      queue,
+      waitingFor: null,
+      requestId: null,
+      deadlineAt: null,
+      steps,
+      summary,
+    })
+  }
+  const dispatchNextRunAllInferenceStep = (progress: RunAllInferenceProgress) => {
+    const [nextSection, ...remaining] = progress.queue
+    if (!nextSection) {
+      setRunAllInferenceProgress({
+        ...progress,
+        running: false,
+        waitingFor: null,
+        requestId: null,
+        deadlineAt: null,
+        summary: 'Run all inference finished.',
+      })
+      return
+    }
+
+    const result = runInferenceSectionRequestRef.current(nextSection)
+    const runningSteps = updateRunAllInferenceStep(
+      progress.steps,
+      nextSection,
+      'running',
+      'Running now.',
+    )
+    if (result.requestId === null) {
+      if (DRAFT_REVIEW_INFERENCE_SECTIONS.has(nextSection)) {
+        setRunAllInferenceProgress({
+          ...progress,
+          queue: remaining,
+          running: false,
+          waitingFor: null,
+          requestId: null,
+          deadlineAt: null,
+          steps: updateRunAllInferenceStep(
+            runningSteps,
+            nextSection,
+            'review',
+            'Review and apply the generated draft, then retry unfinished steps.',
+          ),
+          summary: `${getIdentityInferenceSectionLabel(nextSection)} needs review before run all can continue.`,
+        })
+        return
+      }
+      setRunAllInferenceProgress({
+        ...progress,
+        queue: remaining,
+        waitingFor: null,
+        requestId: null,
+        deadlineAt: null,
+        steps: updateRunAllInferenceStep(
+          runningSteps,
+          nextSection,
+          'done',
+          'Opened the matching review surface.',
+        ),
+        summary: `Completed ${getIdentityInferenceSectionLabel(nextSection)}.`,
+      })
+      return
+    }
+
+    setRunAllInferenceProgress({
+      ...progress,
+      queue: remaining,
+      waitingFor: nextSection,
+      requestId: result.requestId,
+      deadlineAt: Date.now() + RUN_ALL_INFERENCE_STALL_MS,
+      steps: runningSteps,
+      summary: `Running ${getIdentityInferenceSectionLabel(nextSection)}.`,
+    })
+  }
+  const dispatchNextRunAllInferenceStepRef = useRef(dispatchNextRunAllInferenceStep)
+  useEffect(() => {
+    dispatchNextRunAllInferenceStepRef.current = dispatchNextRunAllInferenceStep
+  })
   const runQueuedInferenceSections = (sections: readonly IdentityInferenceSection[]) => {
     const [nextSection, ...remaining] = sortIdentityInferenceSections(sections)
     if (!nextSection) {
@@ -1096,6 +1320,115 @@ export function IdentityMapPage() {
     const sections = sortIdentityInferenceSections(staleInferenceSections)
     runQueuedInferenceSections(sections)
   }
+  useEffect(() => {
+    if (!runAllInferenceProgress?.running) return
+    if (runAllInferenceProgress.waitingFor) return
+    const timeout = window.setTimeout(() => {
+      dispatchNextRunAllInferenceStepRef.current(runAllInferenceProgress)
+    }, 0)
+    return () => window.clearTimeout(timeout)
+  }, [runAllInferenceProgress])
+  useEffect(() => {
+    if (!runAllInferenceProgress?.running) return
+    const waitingFor = runAllInferenceProgress.waitingFor
+    if (!waitingFor) return
+    const settledRequest = settledInferenceRequests[waitingFor]
+    if (
+      settledRequest &&
+      settledRequest.requestId >= (runAllInferenceProgress.requestId ?? 0)
+    ) {
+      const label = getIdentityInferenceSectionLabel(waitingFor)
+      switch (settledRequest.status) {
+        case 'succeeded':
+          if (DRAFT_REVIEW_INFERENCE_SECTIONS.has(waitingFor)) {
+            setRunAllInferenceProgress({
+              ...runAllInferenceProgress,
+              running: false,
+              waitingFor: null,
+              requestId: null,
+              deadlineAt: null,
+              steps: updateRunAllInferenceStep(
+                runAllInferenceProgress.steps,
+                waitingFor,
+                'review',
+                'Review and apply the generated draft, then retry unfinished steps.',
+              ),
+              summary: `${label} needs review before run all can continue.`,
+            })
+            return
+          }
+          setRunAllInferenceProgress({
+            ...runAllInferenceProgress,
+            waitingFor: null,
+            requestId: null,
+            deadlineAt: null,
+            steps: updateRunAllInferenceStep(
+              runAllInferenceProgress.steps,
+              waitingFor,
+              'done',
+              'Completed.',
+            ),
+            summary: `Completed ${label}.`,
+          })
+          return
+        case 'skipped':
+          setRunAllInferenceProgress({
+            ...runAllInferenceProgress,
+            waitingFor: null,
+            requestId: null,
+            deadlineAt: null,
+            steps: updateRunAllInferenceStep(
+              runAllInferenceProgress.steps,
+              waitingFor,
+              'skipped',
+              'Skipped by the section.',
+            ),
+            summary: `${label} was skipped.`,
+          })
+          return
+        case 'failed':
+        case 'blocked':
+          setRunAllInferenceProgress({
+            ...runAllInferenceProgress,
+            running: false,
+            waitingFor: null,
+            requestId: null,
+            deadlineAt: null,
+            steps: updateRunAllInferenceStep(
+              runAllInferenceProgress.steps,
+              waitingFor,
+              'error',
+              settledRequest.status === 'blocked'
+                ? 'Blocked. Resolve the section message, then retry unfinished steps.'
+                : 'Failed. Successful earlier steps were preserved.',
+            ),
+            summary: `${label} did not finish. Retry unfinished steps when ready.`,
+          })
+          return
+        default:
+          assertNeverInferenceStatus(settledRequest.status)
+      }
+    }
+
+    const timeoutMs = Math.max(0, (runAllInferenceProgress.deadlineAt ?? Date.now()) - Date.now())
+    const stallTimeout = window.setTimeout(() => {
+      setRunAllInferenceProgress({
+        ...runAllInferenceProgress,
+        running: false,
+        waitingFor: null,
+        requestId: null,
+        deadlineAt: null,
+        steps: updateRunAllInferenceStep(
+          runAllInferenceProgress.steps,
+          waitingFor,
+          'error',
+          'Timed out waiting for this section to finish.',
+        ),
+        summary: `${getIdentityInferenceSectionLabel(waitingFor)} did not report completion.`,
+      })
+    }, timeoutMs)
+    return () => window.clearTimeout(stallTimeout)
+  }, [runAllInferenceProgress, settledInferenceRequests])
   useEffect(() => {
     if (!pendingInferenceCascade) return
     const settledRequest = settledInferenceRequests[pendingInferenceCascade.waitingFor]
@@ -1317,6 +1650,64 @@ export function IdentityMapPage() {
                     <button type="button" className="inspector-btn" onClick={openActionItems}>
                       <ListChecks size={14} aria-hidden="true" />
                       View all actions
+                    </button>
+                    <button
+                      type="button"
+                      className="inspector-btn"
+                      onClick={startRunAllInference}
+                      disabled={!identity || Boolean(runAllInferenceProgress?.running)}
+                    >
+                      <Sparkles size={14} aria-hidden="true" />
+                      {runAllInferenceProgress?.running ? 'Running inference...' : 'Run all inference'}
+                    </button>
+                  </div>
+                </section>
+              ) : null}
+              {runAllInferenceProgress ? (
+                <section
+                  className="identity-map-run-all-panel"
+                  aria-label="Run all inference"
+                >
+                  <div className="identity-map-action-copy">
+                    <p className="label-tracked identity-map-guide-eyebrow">Run all inference</p>
+                    <h2>
+                      {runAllInferenceProgress.running ? 'Inference is running' : 'Inference run status'}
+                    </h2>
+                    <p className="chapter-copy" aria-live="polite">
+                      {runAllInferenceProgress.summary}
+                    </p>
+                  </div>
+                  <ol className="identity-map-run-all-list">
+                    {runAllInferenceProgress.steps.map((step) => (
+                      <li key={step.section} className={`identity-map-run-all-step ${step.status}`}>
+                        <span className="identity-map-run-all-label label-tracked">{step.label}</span>
+                        <span className={`identity-action-status label-tracked ${step.status}`}>
+                          {getRunAllStepStatusLabel(step.status)}
+                        </span>
+                        <span className="chapter-copy">{step.message}</span>
+                      </li>
+                    ))}
+                  </ol>
+                  <div className="identity-map-action-buttons">
+                    <button
+                      type="button"
+                      className="inspector-btn primary"
+                      onClick={startRunAllInference}
+                      disabled={
+                        runAllInferenceProgress.running ||
+                        !hasRunAllInferenceRetryTarget(runAllInferenceProgress.steps)
+                      }
+                    >
+                      <Sparkles size={14} aria-hidden="true" />
+                      {runAllInferenceProgress.running ? 'Running...' : 'Retry unfinished'}
+                    </button>
+                    <button
+                      type="button"
+                      className="inspector-btn"
+                      onClick={() => setRunAllInferenceProgress(null)}
+                      disabled={runAllInferenceProgress.running}
+                    >
+                      Clear progress
                     </button>
                   </div>
                 </section>

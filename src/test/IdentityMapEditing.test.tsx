@@ -1219,6 +1219,264 @@ describe('Identity Map — match-rule add/remove', () => {
     consoleErrorSpy.mockRestore()
   })
 
+  it('shows run-all inference progress and skips completed or unavailable steps', () => {
+    seedNoAttentionIdentity()
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Run all inference' }))
+
+    const panel = screen.getByRole('region', { name: 'Run all inference' })
+    expect(within(panel).getByText('No runnable inference steps remain.')).toBeTruthy()
+    expect(within(panel).getByText('Bullet evidence is already structured.')).toBeTruthy()
+    expect(within(panel).getByText('Skill depth is already complete.')).toBeTruthy()
+    expect(within(panel).getByText('Search parameters already exist.')).toBeTruthy()
+    expect(within(panel).getByRole('button', { name: 'Retry unfinished' }).getAttribute('disabled')).not.toBeNull()
+    expect(identityParameterMocks.generateIdentityThesisFromIdentityMock).not.toHaveBeenCalled()
+    expect(identityParameterMocks.generateIdentityProfilesFromIdentityMock).not.toHaveBeenCalled()
+  })
+
+  it('pauses run-all inference at generated drafts that require review', async () => {
+    seedNoAttentionIdentity()
+    useIdentityStore.setState((state) => ({
+      currentIdentity: state.currentIdentity
+        ? {
+            ...state.currentIdentity,
+            identity: { ...state.currentIdentity.identity, thesis: '' },
+          }
+        : state.currentIdentity,
+    }))
+    identityParameterMocks.generateIdentityThesisFromIdentityMock.mockResolvedValueOnce({
+      thesis: 'Generated identity thesis.',
+      title: 'Staff Platform Engineer',
+    })
+
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Run all inference' }))
+
+    await waitFor(() => {
+      expect(identityParameterMocks.generateIdentityThesisFromIdentityMock).toHaveBeenCalledTimes(1)
+    })
+    const panel = screen.getByRole('region', { name: 'Run all inference' })
+    await waitFor(() => {
+      expect(within(panel).getByText('Thesis needs review before run all can continue.')).toBeTruthy()
+    })
+    expect(within(panel).getByText('Review and apply the generated draft, then retry unfinished steps.')).toBeTruthy()
+    expect(screen.getByRole('region', { name: 'Generated thesis draft' })).toBeTruthy()
+  })
+
+  it('preserves completed run-all steps and retries unfinished work after a failure', async () => {
+    seedNoAttentionIdentity()
+    useIdentityStore.setState((state) => ({
+      currentIdentity: state.currentIdentity
+        ? {
+            ...state.currentIdentity,
+            profiles: [],
+          }
+        : state.currentIdentity,
+    }))
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    identityParameterMocks.generateIdentityProfilesFromIdentityMock
+      .mockRejectedValueOnce(new Error('profile generation failed'))
+      .mockResolvedValueOnce([
+        {
+          id: 'platform-generated',
+          tags: ['platform'],
+          text: 'Generated profile lens after retry.',
+        },
+      ])
+
+    try {
+      render(<IdentityMapPage />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Run all inference' }))
+
+      const panel = await screen.findByRole('region', { name: 'Run all inference' })
+      await waitFor(() => {
+        expect(within(panel).getByText('Profiles did not finish. Retry unfinished steps when ready.')).toBeTruthy()
+      })
+      expect(within(panel).getByText('Thesis already exists.')).toBeTruthy()
+      expect(within(panel).getByText('Failed. Successful earlier steps were preserved.')).toBeTruthy()
+
+      fireEvent.click(within(panel).getByRole('button', { name: 'Retry unfinished' }))
+
+      await waitFor(() => {
+        expect(useIdentityStore.getState().currentIdentity?.profiles).toEqual([
+          {
+            id: 'platform-generated',
+            tags: ['platform'],
+            text: 'Generated profile lens after retry.',
+          },
+        ])
+      })
+      await waitFor(() => {
+        expect(within(panel).getByText('Run all inference finished.')).toBeTruthy()
+      })
+      expect(identityParameterMocks.generateIdentityProfilesFromIdentityMock).toHaveBeenCalledTimes(2)
+    } finally {
+      consoleErrorSpy.mockRestore()
+    }
+  })
+
+  it('marks a run-all inference request as failed if it does not settle', async () => {
+    vi.useFakeTimers()
+    try {
+      seedNoAttentionIdentity()
+      useIdentityStore.setState((state) => ({
+        currentIdentity: state.currentIdentity
+          ? {
+              ...state.currentIdentity,
+              profiles: [],
+            }
+          : state.currentIdentity,
+      }))
+      const deferred =
+        createDeferred<
+          Awaited<ReturnType<typeof identityParameterMocks.generateIdentityProfilesFromIdentityMock>>
+        >()
+      identityParameterMocks.generateIdentityProfilesFromIdentityMock.mockReturnValueOnce(
+        deferred.promise,
+      )
+
+      render(<IdentityMapPage />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Run all inference' }))
+      await act(async () => {
+        vi.advanceTimersByTime(0)
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+
+      expect(identityParameterMocks.generateIdentityProfilesFromIdentityMock).toHaveBeenCalledTimes(1)
+      const panel = screen.getByRole('region', { name: 'Run all inference' })
+      expect(within(panel).getByText('Running Profiles.')).toBeTruthy()
+
+      act(() => {
+        vi.advanceTimersByTime(90_000)
+      })
+      await act(async () => {
+        await Promise.resolve()
+      })
+
+      expect(within(panel).getByText('Profiles did not report completion.')).toBeTruthy()
+      expect(within(panel).getByText('Timed out waiting for this section to finish.')).toBeTruthy()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('halts run-all inference when a queued section reports blocked', async () => {
+    seedNoAttentionIdentity()
+    useIdentityStore.setState((state) => ({
+      currentIdentity: state.currentIdentity
+        ? {
+            ...state.currentIdentity,
+            profiles: [],
+            skills: {
+              ...state.currentIdentity.skills,
+              groups: state.currentIdentity.skills.groups.map((group, index) =>
+                index === 0
+                  ? {
+                      ...group,
+                      items: [
+                        {
+                          name: 'Kubernetes',
+                          tags: ['platform', 'kubernetes'],
+                        },
+                      ],
+                    }
+                  : group,
+              ),
+            },
+          }
+        : state.currentIdentity,
+    }))
+    const firstGroup = useIdentityStore.getState().currentIdentity!.skills.groups[0]!
+    skillGroupNamingMocks.generateSkillGroupNameSuggestionsMock.mockResolvedValueOnce([
+      {
+        groupId: firstGroup.id,
+        currentLabel: firstGroup.label,
+        suggestedLabel: 'Platform Infrastructure',
+      },
+    ])
+
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Suggest group names' }))
+    await screen.findByLabelText('Suggested skill group names')
+    fireEvent.click(screen.getByRole('button', { name: 'Run all inference' }))
+
+    const panel = await screen.findByRole('region', { name: 'Run all inference' })
+    await waitFor(() => {
+      expect(within(panel).getByText('Skill depth did not finish. Retry unfinished steps when ready.')).toBeTruthy()
+    })
+    expect(
+      within(panel).getByText('Blocked. Resolve the section message, then retry unfinished steps.'),
+    ).toBeTruthy()
+    expect(identityParameterMocks.generateIdentityProfilesFromIdentityMock).not.toHaveBeenCalled()
+  })
+
+  it('continues run-all inference when a queued section reports skipped', async () => {
+    seedNoAttentionIdentity()
+    useIdentityStore.setState((state) => ({
+      currentIdentity: state.currentIdentity
+        ? {
+            ...state.currentIdentity,
+            profiles: [],
+            skills: {
+              ...state.currentIdentity.skills,
+              groups: state.currentIdentity.skills.groups.map((group, index) =>
+                index === 0
+                  ? {
+                      ...group,
+                      items: [
+                        {
+                          name: 'Kubernetes',
+                          tags: ['platform', 'kubernetes'],
+                        },
+                      ],
+                    }
+                  : group,
+              ),
+            },
+          }
+        : state.currentIdentity,
+    }))
+    identityParameterMocks.generateIdentityProfilesFromIdentityMock.mockResolvedValueOnce([
+      {
+        id: 'platform-generated',
+        tags: ['platform'],
+        text: 'Generated profile after skipped skills.',
+      },
+    ])
+
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Run all inference' }))
+    const currentIdentity = useIdentityStore.getState().currentIdentity!
+    currentIdentity.skills.groups[0]!.items = [
+      {
+        name: 'Kubernetes',
+        tags: ['platform', 'kubernetes'],
+        depth: 'strong',
+        context: 'Satisfied while the run-all queue was starting.',
+        positioning: 'Platform roles.',
+      },
+    ]
+    useIdentityStore.setState({ currentIdentity })
+
+    const panel = await screen.findByRole('region', { name: 'Run all inference' })
+    await waitFor(() => {
+      expect(within(panel).getByText('Skipped by the section.')).toBeTruthy()
+    })
+    await waitFor(() => {
+      expect(identityParameterMocks.generateIdentityProfilesFromIdentityMock).toHaveBeenCalledTimes(1)
+    })
+    await waitFor(() => {
+      expect(within(panel).getByText('Run all inference finished.')).toBeTruthy()
+    })
+  })
+
   it('clears a stale marker when the matching band generation starts directly', async () => {
     seed()
     identityParameterMocks.generateIdentityProfilesFromIdentityMock.mockResolvedValueOnce([
