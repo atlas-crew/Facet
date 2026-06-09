@@ -64,6 +64,13 @@ const normalizeOptionalString = (value: unknown): string | undefined =>
   isString(value) && value.trim() ? value.trim() : undefined
 
 const removeVoiceTells = (value: string): string => value.replace(/\s*—\s*/g, ', ').trim()
+const normalizeProseStringArray = (value: unknown): string[] =>
+  normalizeStringArray(value).map(removeVoiceTells).filter(Boolean)
+
+const escapeCandidateAnswer = (value: string): string =>
+  // Delimiter neutralization is intentionally lossy; the prompt only needs a safe,
+  // non-round-trippable representation of user-authored answer text.
+  value.replace(/<\s*\/?\s*candidate_answer\s*>/gi, '[candidate_answer_tag]')
 
 const buildGenerationPrompt = (identity: ProfessionalIdentityV3) =>
   JSON.stringify(
@@ -705,12 +712,13 @@ export const normalizeAnswerPatch = (
 ): AnswerPatch => {
   const record =
     payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {}
-  const kind = isString(record.kind) ? record.kind.trim() : ''
+  const rawKind = isString(record.kind) ? record.kind.trim() : ''
+  const kind = rawKind.toLowerCase()
 
   if (kind === 'role-bullet') {
     const roleId = isString(record.roleId) ? record.roleId.trim() : ''
     if (!roleId) throw new Error('AnswerPatch role-bullet missing roleId.')
-    if (!(identity.roles?.some((r) => r.id === roleId) ?? false)) {
+    if (!identity.roles?.some((r) => r.id === roleId)) {
       throw new Error(`AnswerPatch role-bullet references unknown roleId: ${roleId}.`)
     }
 
@@ -734,6 +742,10 @@ export const normalizeAnswerPatch = (
         }
       }
     }
+    // Scrub prose fields only; ids, skill names, and proper-noun fields are preserved verbatim.
+    const impact = normalizeProseStringArray(bulletRecord.impact)
+    const technologies = normalizeStringArray(bulletRecord.technologies)
+    const tags = normalizeStringArray(bulletRecord.tags)
 
     return {
       kind: 'role-bullet',
@@ -742,16 +754,10 @@ export const normalizeAnswerPatch = (
         problem: removeVoiceTells(problem),
         action: removeVoiceTells(action),
         outcome: removeVoiceTells(outcome),
-        ...(normalizeStringArray(bulletRecord.impact).length
-          ? { impact: normalizeStringArray(bulletRecord.impact) }
-          : {}),
+        ...(impact.length ? { impact } : {}),
         ...(Object.keys(metrics).length ? { metrics } : {}),
-        ...(normalizeStringArray(bulletRecord.technologies).length
-          ? { technologies: normalizeStringArray(bulletRecord.technologies) }
-          : {}),
-        ...(normalizeStringArray(bulletRecord.tags).length
-          ? { tags: normalizeStringArray(bulletRecord.tags) }
-          : {}),
+        ...(technologies.length ? { technologies } : {}),
+        ...(tags.length ? { tags } : {}),
       },
     }
   }
@@ -761,7 +767,7 @@ export const normalizeAnswerPatch = (
     const skillName = isString(record.skillName) ? record.skillName.trim() : ''
     if (!groupId) throw new Error('AnswerPatch skill missing groupId.')
     if (!skillName) throw new Error('AnswerPatch skill missing skillName.')
-    if (!(identity.skills?.groups?.some((g) => g.id === groupId) ?? false)) {
+    if (!identity.skills?.groups?.some((g) => g.id === groupId)) {
       throw new Error(`AnswerPatch skill references unknown groupId: ${groupId}.`)
     }
     return { kind: 'skill', groupId, skillName }
@@ -787,14 +793,14 @@ export const normalizeAnswerPatch = (
   }
 
   if (kind === 'unfair-advantage') {
-    const items = normalizeStringArray(record.items)
+    const items = normalizeProseStringArray(record.items)
     if (!items.length) {
       throw new Error('AnswerPatch unfair-advantage requires at least one item.')
     }
     return { kind: 'unfair-advantage', items }
   }
 
-  throw new Error(`AnswerPatch has unknown kind: ${JSON.stringify(kind)}.`)
+  throw new Error(`AnswerPatch has unknown kind: ${JSON.stringify(rawKind)}.`)
 }
 
 export async function proposeAnswerPatch(
@@ -826,7 +832,9 @@ Open question:
 ${JSON.stringify({ topic: question.topic, description: question.description, action: question.action }, null, 2)}
 
 Candidate's answer:
-${answerText}`
+<candidate_answer>
+${escapeCandidateAnswer(answerText)}
+</candidate_answer>`
 
   const rawResponse = await callLlmProxy(endpoint, systemPrompt, userPrompt, {
     feature: 'research.profile-inference',
