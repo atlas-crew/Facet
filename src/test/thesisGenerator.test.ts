@@ -86,6 +86,8 @@ describe('thesisGenerator', () => {
     expect(prompt).toContain('"self_model"')
     expect(prompt).toContain('"preferences"')
     expect(prompt).toContain('"skills"')
+    expect(prompt).toContain('"expertise"')
+    expect(prompt).toContain('Customer-hosted platform delivery')
     expect(prompt).toContain('"roles"')
     expect(prompt).toContain('Too much Kubernetes admin framing')
   })

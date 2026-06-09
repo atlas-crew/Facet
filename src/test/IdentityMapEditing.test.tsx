@@ -3602,6 +3602,159 @@ describe('Identity Map — match-rule add/remove', () => {
     ).toBeTruthy()
   })
 
+  it('edits, reviews, adds, and removes areas of expertise', () => {
+    seed((id) => {
+      id.expertise = [
+        {
+          id: 'customer-hosted-delivery',
+          label: 'Customer-hosted delivery',
+          summary: 'Draft inference from delivery evidence.',
+          tags: ['platform'],
+          evidence: [
+            {
+              kind: 'bullet',
+              role_id: 'contoso',
+              bullet_id: 'platform-migration',
+              label: 'Contoso delivery evidence',
+            },
+            {
+              kind: 'source',
+              label: 'Legacy source label',
+            },
+          ],
+          provenance: 'inferred',
+          needs_review: true,
+        },
+      ]
+    })
+
+    render(<SelfModelBand />)
+
+    const section = document.querySelector('.self-expertise')
+    if (!(section instanceof HTMLElement)) {
+      throw new Error('Expected expertise section to render.')
+    }
+
+    fireEvent.change(
+      within(section).getByLabelText('Expertise label for expertise area 1'),
+      {
+        target: { value: 'Customer-hosted platform delivery' },
+      },
+    )
+    fireEvent.change(
+      within(section).getByLabelText('Expertise summary for expertise area 1'),
+      {
+        target: { value: 'Designs deployment paths for regulated customers.' },
+      },
+    )
+    const tagsInput = within(section).getByLabelText('Expertise tags for expertise area 1')
+    fireEvent.change(tagsInput, {
+      target: { value: 'Platform, enterprise, platform,' },
+    })
+    expect(tagsInput).toHaveProperty('value', 'Platform, enterprise, platform,')
+    fireEvent.blur(tagsInput)
+
+    const evidenceInput = within(section).getByLabelText('Expertise evidence for expertise area 1')
+    fireEvent.change(evidenceInput, {
+      target: {
+        value: 'Legacy source label\nOn-prem install evidence\nCustomer-hosted rollout proof\n',
+      },
+    })
+    expect(evidenceInput).toHaveProperty(
+      'value',
+      'Legacy source label\nOn-prem install evidence\nCustomer-hosted rollout proof\n',
+    )
+    fireEvent.blur(evidenceInput)
+
+    fireEvent.click(
+      within(section).getByRole('button', {
+        name: 'Mark expertise area reviewed: Customer-hosted platform delivery',
+      }),
+    )
+
+    expect(useIdentityStore.getState().currentIdentity?.expertise[0]).toMatchObject({
+      id: 'customer-hosted-delivery',
+      label: 'Customer-hosted platform delivery',
+      summary: 'Designs deployment paths for regulated customers.',
+      tags: ['platform', 'enterprise'],
+      evidence: [
+        {
+          kind: 'bullet',
+          role_id: 'contoso',
+          bullet_id: 'platform-migration',
+          label: 'Contoso delivery evidence',
+        },
+        {
+          kind: 'source',
+          label: 'Legacy source label',
+        },
+        {
+          kind: 'source',
+          source_text: 'On-prem install evidence',
+        },
+        {
+          kind: 'source',
+          source_text: 'Customer-hosted rollout proof',
+        },
+      ],
+      provenance: 'corrected',
+      needs_review: false,
+    })
+
+    fireEvent.change(within(section).getByLabelText('New area of expertise'), {
+      target: { value: 'Reliability economics' },
+    })
+    fireEvent.click(within(section).getByRole('button', { name: '+ Add' }))
+    fireEvent.click(
+      within(section).getByRole('button', {
+        name: 'Remove expertise area: Customer-hosted platform delivery',
+      }),
+    )
+
+    expect(useIdentityStore.getState().currentIdentity?.expertise).toEqual([
+      expect.objectContaining({
+        label: 'Reliability economics',
+        provenance: 'claimed',
+        needs_review: false,
+      }),
+    ])
+  })
+
+  it('keeps claimed expertise provenance when marking it reviewed', () => {
+    seed((id) => {
+      id.expertise = [
+        {
+          id: 'observability-cost-control',
+          label: 'Observability cost control',
+          summary: 'Balances visibility with platform spend.',
+          tags: ['observability'],
+          evidence: [],
+          provenance: 'claimed',
+          needs_review: true,
+        },
+      ]
+    })
+
+    render(<SelfModelBand />)
+
+    const section = document.querySelector('.self-expertise')
+    if (!(section instanceof HTMLElement)) {
+      throw new Error('Expected expertise section to render.')
+    }
+
+    const markReviewed = within(section).getByRole('button', {
+      name: 'Mark expertise area reviewed: Observability cost control',
+    })
+    fireEvent.click(markReviewed)
+
+    expect(useIdentityStore.getState().currentIdentity?.expertise[0]).toMatchObject({
+      id: 'observability-cost-control',
+      provenance: 'claimed',
+      needs_review: false,
+    })
+    expect(markReviewed).toHaveProperty('disabled', true)
+  })
+
   it('surfaces a message when chapter drafting has no roles to use', async () => {
     seed((id) => {
       id.roles = []
@@ -5201,7 +5354,11 @@ describe('Identity Map — search-vector full-edit + add/remove', () => {
     render(<IdentityMapPage />)
 
     fireEvent.click(screen.getByRole('button', { name: /backend platform/i }))
-    fireEvent.click(screen.getByRole('button', { name: /mark reviewed/i }))
+    fireEvent.click(
+      within(screen.getByLabelText('Identity inspector')).getByRole('button', {
+        name: /mark reviewed/i,
+      }),
+    )
 
     expect(useIdentityStore.getState().currentIdentity!.search_vectors![0].needs_review).toBe(false)
   })

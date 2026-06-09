@@ -567,6 +567,13 @@ const buildIdentityContext = (identity: ProfessionalIdentityV3) => ({
     text: profile.text,
     tags: profile.tags,
   })),
+  expertise: (identity.expertise ?? []).map((entry) => ({
+    id: entry.id,
+    label: entry.label,
+    summary: entry.summary,
+    tags: entry.tags,
+    evidence: entry.evidence,
+  })),
   skills: identity.skills.groups.map((group) => ({
     id: group.id,
     label: group.label,

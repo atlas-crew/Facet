@@ -5,6 +5,7 @@ import { professionalIdentityToResumeData } from '../identity/resumeAdapter'
 import {
   importProfessionalIdentity,
   looksLikeProfessionalIdentity,
+  normalizeRuntimeProfessionalIdentity,
   type ProfessionalIdentityV3,
 } from '../identity/schema'
 
@@ -108,6 +109,27 @@ const baseIdentityFixture: ProfessionalIdentityV3 = {
       text: 'I drop into unfamiliar environments and ship.',
     },
   ],
+  expertise: [
+    {
+      id: 'developer-productivity',
+      label: 'Developer productivity',
+      summary: 'Improves delivery systems and handoff quality for engineering teams.',
+      tags: ['platform', 'devex'],
+      evidence: [
+        {
+          kind: 'role',
+          role_id: 'contoso',
+          label: 'Contoso platform work',
+        },
+        {
+          kind: 'source',
+          source_text: 'Observed developer productivity ownership in source material.',
+        },
+      ],
+      provenance: 'claimed',
+      needs_review: true,
+    },
+  ],
   roles: [
     {
       id: 'contoso',
@@ -168,6 +190,7 @@ describe('professional identity schema', () => {
     expect(parsed.data.self_model.philosophy[0]?.tags).toEqual(['leadership'])
     expect(parsed.data.skills.groups[0]?.items[0]?.tags).toEqual(['platform', 'devex'])
     expect(parsed.data.profiles[0]?.tags).toEqual(['general', 'platform'])
+    expect(parsed.data.expertise[0]?.tags).toEqual(['platform', 'devex'])
     expect(parsed.data.roles[0]?.bullets[0]?.tags).toEqual(['security', 'product'])
     expect(parsed.warnings.some((warning) => warning.includes('duplicate tag "platform"'))).toBe(
       true,
@@ -182,10 +205,153 @@ describe('professional identity schema', () => {
     expect(parsed.data.skills.groups[0]?.items[1]?.depth).toBe('strong')
     expect(parsed.data.skills.groups[1]?.items[0]?.depth).toBeUndefined()
     expect(parsed.data.preferences.matching).toEqual(baseIdentityFixture.preferences.matching)
+    expect(parsed.data.expertise[0]).toMatchObject({
+      id: 'developer-productivity',
+      label: 'Developer productivity',
+      evidence: [
+        { kind: 'role', role_id: 'contoso' },
+        {
+          kind: 'source',
+          source_text: 'Observed developer productivity ownership in source material.',
+        },
+      ],
+      provenance: 'claimed',
+      needs_review: true,
+    })
     expect(parsed.data.awareness).toBeUndefined()
     expect(parsed.warnings.some((warning) => warning.includes('schema_revision'))).toBe(false)
     expect(parsed.warnings.some((warning) => warning.includes('role_fit'))).toBe(false)
     expect(parsed.warnings.some((warning) => warning.includes('proficiency'))).toBe(false)
+    expect(parsed.warnings.some((warning) => warning.includes('expertise[0].evidence'))).toBe(false)
+  })
+
+  it('defaults missing expertise to an empty list for legacy identities', () => {
+    const legacy = clone(baseIdentityFixture) as unknown as Record<string, unknown>
+    delete legacy.expertise
+
+    expect(importProfessionalIdentity(legacy).data.expertise).toEqual([])
+  })
+
+  it('normalizes runtime identities with missing or invalid expertise arrays', () => {
+    const legacy = clone(baseIdentityFixture) as unknown as Record<string, unknown>
+    delete legacy.expertise
+    expect(
+      normalizeRuntimeProfessionalIdentity(legacy as unknown as ProfessionalIdentityV3).expertise,
+    ).toEqual([])
+
+    const invalid = clone(baseIdentityFixture) as unknown as Record<string, unknown>
+    invalid.expertise = null
+    expect(
+      normalizeRuntimeProfessionalIdentity(invalid as unknown as ProfessionalIdentityV3).expertise,
+    ).toEqual([])
+
+    expect(normalizeRuntimeProfessionalIdentity(clone(baseIdentityFixture)).expertise).toEqual(
+      baseIdentityFixture.expertise,
+    )
+  })
+
+  it('rejects duplicate expertise ids', () => {
+    const duplicate = clone(baseIdentityFixture)
+    duplicate.expertise.push({ ...duplicate.expertise[0]! })
+
+    expect(() => importProfessionalIdentity(duplicate)).toThrow(/expertise has duplicate id/)
+  })
+
+  it('rejects invalid expertise evidence kinds', () => {
+    const invalid = clone(baseIdentityFixture) as unknown as Record<string, unknown>
+    const expertise = invalid.expertise as Array<{ evidence: Array<{ kind: string }> }>
+    expertise[0]!.evidence[0]!.kind = 'invalid'
+
+    expect(() => importProfessionalIdentity(invalid)).toThrow(
+      /expertise\[0\]\.evidence\[0\]\.kind/,
+    )
+  })
+
+  it('rejects invalid expertise review metadata', () => {
+    const invalidProvenance = clone(baseIdentityFixture) as unknown as Record<string, unknown>
+    const expertiseWithInvalidProvenance = invalidProvenance.expertise as Array<{
+      provenance: string
+    }>
+    expertiseWithInvalidProvenance[0]!.provenance = 'hallucinated'
+
+    expect(() => importProfessionalIdentity(invalidProvenance)).toThrow(
+      /expertise\[0\]\.provenance/,
+    )
+
+    const invalidReviewFlag = clone(baseIdentityFixture) as unknown as Record<string, unknown>
+    const expertiseWithInvalidReviewFlag = invalidReviewFlag.expertise as Array<{
+      needs_review: unknown
+    }>
+    expertiseWithInvalidReviewFlag[0]!.needs_review = 'yes'
+
+    expect(() => importProfessionalIdentity(invalidReviewFlag)).toThrow(
+      /expertise\[0\]\.needs_review/,
+    )
+  })
+
+  it('warns when expertise evidence references missing identity assets', () => {
+    const invalidReferences = clone(baseIdentityFixture)
+    invalidReferences.expertise[0]!.evidence = [
+      { kind: 'role', role_id: 'missing-role' },
+      { kind: 'bullet', bullet_id: 'missing-bullet' },
+      { kind: 'project', project_id: 'missing-project' },
+    ]
+
+    const parsed = importProfessionalIdentity(invalidReferences)
+
+    expect(parsed.warnings).toEqual(
+      expect.arrayContaining([
+        'expertise[0].evidence[0].role_id references unknown role "missing-role".',
+        'expertise[0].evidence[1].bullet_id references unknown bullet "missing-bullet".',
+        'expertise[0].evidence[2].project_id references unknown project "missing-project".',
+      ]),
+    )
+  })
+
+  it('rejects malformed expertise evidence shapes', () => {
+    const cases: Array<{
+      label: string
+      evidence: unknown
+      error: RegExp
+    }> = [
+      {
+        label: 'role evidence without role id',
+        evidence: { kind: 'role' },
+        error: /expertise\[0\]\.evidence\[0\]\.role_id/,
+      },
+      {
+        label: 'project evidence without project id',
+        evidence: { kind: 'project' },
+        error: /expertise\[0\]\.evidence\[0\]\.project_id/,
+      },
+      {
+        label: 'bullet evidence without bullet id',
+        evidence: { kind: 'bullet' },
+        error: /expertise\[0\]\.evidence\[0\]\.bullet_id/,
+      },
+      {
+        label: 'source evidence without text',
+        evidence: { kind: 'source' },
+        error: /expertise\[0\]\.evidence\[0\]\.source_text/,
+      },
+      {
+        label: 'project evidence with role id',
+        evidence: { kind: 'project', project_id: 'proj-facet', role_id: 'contoso' },
+        error: /project evidence cannot reference role or bullet ids/,
+      },
+      {
+        label: 'role evidence with bullet id',
+        evidence: { kind: 'role', role_id: 'contoso', bullet_id: 'a10-delivery' },
+        error: /role evidence cannot reference bullet or project ids/,
+      },
+    ]
+
+    for (const testCase of cases) {
+      const invalid = clone(baseIdentityFixture)
+      invalid.expertise[0]!.evidence = [testCase.evidence as never]
+
+      expect(() => importProfessionalIdentity(invalid), testCase.label).toThrow(testCase.error)
+    }
   })
 
   it('requires schema_revision to be present and native', () => {

@@ -1039,6 +1039,8 @@ describe('identityParametersGeneration', () => {
       feature: 'research.profile-inference',
       model: 'opus',
     })
+    expect(vectorRequest.messages[0]?.content).toContain('"expertise"')
+    expect(vectorRequest.messages[0]?.content).toContain('Customer-hosted platform delivery')
     expect(awarenessRequest).toMatchObject({
       feature: 'research.profile-inference',
       model: 'opus',

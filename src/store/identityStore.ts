@@ -5,6 +5,7 @@ import {
   normalizeRuntimeProfessionalIdentity,
   type ProfessionalIdentityArcEntry,
   type ProfessionalIdentityCore,
+  type ProfessionalExpertise,
   type ProfessionalIdentityV3,
   type ProfessionalInterviewProcessPreferences,
   type ProfessionalMatchingPreferences,
@@ -138,6 +139,7 @@ interface IdentityState {
   ) => void
   updateCurrentIdentityCore: (updates: Partial<ProfessionalIdentityCore>) => void
   updateCurrentProfiles: (value: ProfessionalProfile[]) => void
+  updateCurrentExpertise: (value: ProfessionalExpertise[]) => void
   updateCurrentPhilosophy: (value: ProfessionalPhilosophyEntry[]) => void
   updateCurrentInterviewStyle: (
     value: ProfessionalIdentityV3['self_model']['interview_style'],
@@ -1637,6 +1639,13 @@ export const useIdentityStore = create<IdentityState>()(
           updateCurrentIdentity(state, (identity) => ({
             ...identity,
             profiles: value,
+          })),
+        ),
+      updateCurrentExpertise: (value) =>
+        set((state) =>
+          updateCurrentIdentity(state, (identity) => ({
+            ...identity,
+            expertise: value,
           })),
         ),
       updateCurrentPhilosophy: (value) =>

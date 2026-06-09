@@ -1,8 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Sparkles } from 'lucide-react'
 import { AiWorkingStatus } from '../../../components/AiWorkingStatus'
-import type { ProfessionalIdentityArcEntry } from '../../../identity/schema'
+import type {
+  ProfessionalExpertise,
+  ProfessionalExpertiseEvidence,
+  ProfessionalIdentityArcEntry,
+} from '../../../identity/schema'
 import { useIdentityStore } from '../../../store/identityStore'
+import { createId } from '../../../utils/idUtils'
 import { selfModelFillStrength } from '../../../utils/identityFillStrength'
 import {
   generateSelfKnowledgeFromIdentity,
@@ -58,6 +63,41 @@ function buildArcStops(arc: ProfessionalIdentityArcEntry[]): ArcStop[] {
   return arc.map((entry, index) => ({ ...entry, id: `${entry.company}:${index}` }))
 }
 
+const normalizeExpertiseTags = (value: string): string[] =>
+  Array.from(
+    new Set(
+      value
+        .split(',')
+        .map((tag) => tag.trim().toLowerCase())
+        .filter(Boolean),
+    ),
+  )
+
+const MAX_EVIDENCE_CHIP_TEXT = 56
+
+const truncateEvidenceChipText = (value: string): string =>
+  value.length > MAX_EVIDENCE_CHIP_TEXT
+    ? `${value.slice(0, MAX_EVIDENCE_CHIP_TEXT - 1).trimEnd()}...`
+    : value
+
+const formatExpertiseEvidenceChip = (evidence: ProfessionalExpertiseEvidence): string => {
+  const parts = [
+    evidence.kind,
+    evidence.role_id ? `role ${evidence.role_id}` : '',
+    evidence.bullet_id ? `bullet ${evidence.bullet_id}` : '',
+    evidence.project_id ? `project ${evidence.project_id}` : '',
+    evidence.label ? `label ${evidence.label}` : '',
+    evidence.kind === 'source' && evidence.source_text
+      ? truncateEvidenceChipText(evidence.source_text)
+      : '',
+  ].filter(Boolean)
+
+  return parts.join(' · ')
+}
+
+const getSourceEvidenceText = (evidence: ProfessionalExpertiseEvidence): string =>
+  evidence.source_text ?? evidence.label ?? ''
+
 export function SelfModelBand({
   chapterRequestId = 0,
   selfKnowledgeRequestId = 0,
@@ -80,6 +120,7 @@ export function SelfModelBand({
   const setSelection = useIdentityStore((s) => s.setMapSelection)
   const updateCompetitiveMoat = useIdentityStore((s) => s.updateCurrentCompetitiveMoat)
   const updateUnfairAdvantages = useIdentityStore((s) => s.updateCurrentUnfairAdvantages)
+  const updateExpertise = useIdentityStore((s) => s.updateCurrentExpertise)
   const updateArc = useIdentityStore((s) => s.updateCurrentSelfModelArc)
   const updatePhilosophy = useIdentityStore((s) => s.updateCurrentPhilosophy)
   const updateInterviewStyle = useIdentityStore((s) => s.updateCurrentInterviewStyle)
@@ -105,11 +146,15 @@ export function SelfModelBand({
   const interview = self?.interview_style
   const moat = self?.competitive_moat ?? ''
   const advantages = useMemo(() => self?.unfair_advantages ?? [], [self?.unfair_advantages])
+  const expertise = useMemo(() => identity?.expertise ?? [], [identity?.expertise])
   const isMoatSelected = selection?.type === 'competitive-moat'
 
   // Local draft state for advantages-add input. Re-syncs when the
   // canonical identity values change (e.g., after import or reset).
   const [newAdvantage, setNewAdvantage] = useState('')
+  const [newExpertiseLabel, setNewExpertiseLabel] = useState('')
+  const [expertiseTagDrafts, setExpertiseTagDrafts] = useState<Record<string, string>>({})
+  const [expertiseEvidenceDrafts, setExpertiseEvidenceDrafts] = useState<Record<string, string>>({})
   const [positioningDraft, setPositioningDraft] =
     useState<ProfessionalStrategicInference | null>(null)
   const [positioningDraftKey, setPositioningDraftKey] = useState<string | null>(null)
@@ -359,6 +404,69 @@ export function SelfModelBand({
   }
   const handleRemoveAdvantage = (index: number) => {
     updateUnfairAdvantages(advantages.filter((_, i) => i !== index))
+  }
+  const handleAddExpertise = () => {
+    const label = newExpertiseLabel.trim()
+    if (!label) return
+    const next: ProfessionalExpertise = {
+      id: createId('expertise'),
+      label,
+      summary: '',
+      tags: [],
+      evidence: [],
+      provenance: 'claimed',
+      needs_review: false,
+    }
+    updateExpertise([...expertise, next])
+    setNewExpertiseLabel('')
+  }
+  const handleUpdateExpertise = (id: string, patch: Partial<ProfessionalExpertise>) => {
+    updateExpertise(
+      expertise.map((entry) =>
+        entry.id === id
+          ? {
+              ...entry,
+              ...patch,
+            }
+          : entry,
+      ),
+    )
+  }
+  const handleUpdateExpertiseTags = (id: string, value: string) => {
+    const tags = normalizeExpertiseTags(value)
+    handleUpdateExpertise(id, { tags })
+    setExpertiseTagDrafts((drafts) => ({ ...drafts, [id]: tags.join(', ') }))
+  }
+  const handleUpdateExpertiseEvidence = (id: string, value: string) => {
+    const current = expertise.find((entry) => entry.id === id)
+    const structuredEvidence =
+      current?.evidence.filter((evidence) => evidence.kind !== 'source') ?? []
+    const existingSourceEvidence =
+      current?.evidence.filter((evidence) => evidence.kind === 'source') ?? []
+    const sourceEvidenceByText = new Map(
+      existingSourceEvidence.map((evidence) => [getSourceEvidenceText(evidence), evidence]),
+    )
+    const sourceEvidence = value
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((source_text) => {
+        const existing = sourceEvidenceByText.get(source_text)
+        if (existing) {
+          return existing
+        }
+
+        return { kind: 'source' as const, source_text }
+      })
+    const evidence = [...structuredEvidence, ...sourceEvidence]
+    handleUpdateExpertise(id, { evidence })
+    setExpertiseEvidenceDrafts((drafts) => ({
+      ...drafts,
+      [id]: sourceEvidence.map(getSourceEvidenceText).join('\n'),
+    }))
+  }
+  const handleRemoveExpertise = (id: string) => {
+    updateExpertise(expertise.filter((entry) => entry.id !== id))
   }
 
   const handleRefreshPositioning = useCallback(async () => {
@@ -626,6 +734,149 @@ export function SelfModelBand({
             items={interview?.prep_strategy?.trim() ? [interview.prep_strategy.trim()] : []}
             tone="strategy"
           />
+        </div>
+
+        <div className="self-expertise">
+          <div className="self-positioning-label label-tracked">
+            Areas of Expertise <span className="self-count">{expertise.length}</span>
+          </div>
+          {expertise.length === 0 ? (
+            <p className="chapter-copy self-empty">
+              No expertise areas captured yet. Use these for domains of judgment, not tool proficiency.
+            </p>
+          ) : (
+            <ul className="self-expertise-list">
+              {expertise.map((entry, index) => {
+                const labelForControls = `expertise area ${index + 1}`
+                const sourceEvidence = entry.evidence
+                  .filter((evidence) => evidence.kind === 'source')
+                  .map(getSourceEvidenceText)
+                  .filter(Boolean)
+                  .join('\n')
+                return (
+                  <li key={entry.id} className="self-expertise-item">
+                    <div className="self-expertise-item-header">
+                      <input
+                        className="self-advantage-input self-expertise-title"
+                        value={entry.label}
+                        onChange={(event) =>
+                          handleUpdateExpertise(entry.id, { label: event.target.value })
+                        }
+                        aria-label={`Expertise label for ${labelForControls}`}
+                      />
+                      <span
+                        className={`identity-action-status label-tracked ${
+                          entry.needs_review ? 'review' : 'accepted'
+                        }`}
+                      >
+                        {entry.needs_review ? 'Review' : 'Accepted'}
+                      </span>
+                    </div>
+                    <textarea
+                      className="self-expertise-textarea"
+                      value={entry.summary}
+                      onChange={(event) =>
+                        handleUpdateExpertise(entry.id, { summary: event.target.value })
+                      }
+                      aria-label={`Expertise summary for ${labelForControls}`}
+                      placeholder="Describe the domain judgment this captures."
+                    />
+                    <input
+                      className="self-advantage-input"
+                      value={expertiseTagDrafts[entry.id] ?? entry.tags.join(', ')}
+                      onChange={(event) =>
+                        setExpertiseTagDrafts((drafts) => ({
+                          ...drafts,
+                          [entry.id]: event.target.value,
+                        }))
+                      }
+                      onBlur={(event) => handleUpdateExpertiseTags(entry.id, event.target.value)}
+                      aria-label={`Expertise tags for ${labelForControls}`}
+                      placeholder="tags, comma-separated"
+                    />
+                    <textarea
+                      className="self-expertise-textarea compact"
+                      value={expertiseEvidenceDrafts[entry.id] ?? sourceEvidence}
+                      onChange={(event) =>
+                        setExpertiseEvidenceDrafts((drafts) => ({
+                          ...drafts,
+                          [entry.id]: event.target.value,
+                        }))
+                      }
+                      onBlur={(event) =>
+                        handleUpdateExpertiseEvidence(entry.id, event.target.value)
+                      }
+                      aria-label={`Expertise evidence for ${labelForControls}`}
+                      placeholder="Evidence or source context, one per line"
+                    />
+                    <div className="self-expertise-evidence">
+                      {entry.evidence.length === 0 ? (
+                        <span className="chapter-copy self-empty">No evidence linked yet.</span>
+                      ) : (
+                        entry.evidence.map((evidence, evidenceIndex) => (
+                          <span
+                            key={`${entry.id}-evidence-${evidenceIndex}`}
+                            className="identity-action-status label-tracked"
+                          >
+                            {formatExpertiseEvidenceChip(evidence)}
+                          </span>
+                        ))
+                      )}
+                    </div>
+                    <div className="self-expertise-actions">
+                      <button
+                        type="button"
+                        className="inspector-btn"
+                        aria-label={`Mark expertise area reviewed: ${entry.label || labelForControls}`}
+                        onClick={() =>
+                          handleUpdateExpertise(entry.id, {
+                            needs_review: false,
+                            provenance:
+                              entry.provenance === 'inferred' ? 'corrected' : entry.provenance,
+                          })
+                        }
+                        disabled={!entry.needs_review}
+                      >
+                        Mark reviewed
+                      </button>
+                      <button
+                        type="button"
+                        className="inspector-btn self-advantage-remove"
+                        aria-label={`Remove expertise area: ${entry.label || labelForControls}`}
+                        onClick={() => handleRemoveExpertise(entry.id)}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+          <div className="self-advantage-add">
+            <input
+              className="self-advantage-input"
+              value={newExpertiseLabel}
+              onChange={(event) => setNewExpertiseLabel(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  handleAddExpertise()
+                }
+              }}
+              placeholder='e.g. "Observability cost control"'
+              aria-label="New area of expertise"
+              disabled={!identity}
+            />
+            <button
+              type="button"
+              className="inspector-btn"
+              onClick={handleAddExpertise}
+              disabled={!identity || !newExpertiseLabel.trim()}
+            >
+              + Add
+            </button>
+          </div>
         </div>
 
         <div className="self-positioning">

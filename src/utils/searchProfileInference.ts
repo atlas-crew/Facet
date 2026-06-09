@@ -178,6 +178,7 @@ ${JSON.stringify(
       preferences: identity.preferences,
       skills: identity.skills,
       profiles: identity.profiles,
+      expertise: identity.expertise,
       roles: identity.roles,
       projects: identity.projects,
       education: identity.education,

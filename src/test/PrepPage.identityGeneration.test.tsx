@@ -67,6 +67,7 @@ const prepIdentityFixture: ProfessionalIdentityV3 = {
     ],
   },
   profiles: [],
+  expertise: [],
   roles: [
     {
       id: 'role-acme',

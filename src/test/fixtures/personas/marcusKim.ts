@@ -236,6 +236,7 @@ export const marcusKimIdentity: ProfessionalIdentityV3 = {
       text: 'Reliability engineer comfortable owning multi-region failover, SLO budgeting, and incident command. Cut deploy time from 22 minutes to 4 and ran the on-call rotation that absorbed three regional outages without customer-visible downtime.',
     },
   ],
+  expertise: [],
   roles: [
     {
       id: 'role-threadwell',

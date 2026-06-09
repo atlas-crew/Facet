@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defaultResumeData } from '../store/defaultData'
 import {
+  buildIdentityInferencePrompt,
   buildInferencePrompt,
   inferSearchProfile,
   JsonExtractionError,
   normalizeInferredProfile,
 } from '../utils/searchProfileInference'
 import { RESEARCH_PROFILE_INFERENCE_TIMEOUT_MS } from '../utils/researchProfileInferenceConfig'
+import { cloneIdentityFixture } from './fixtures/identityFixture'
 
 describe('searchProfileInference', () => {
   beforeEach(() => {
@@ -24,6 +26,13 @@ describe('searchProfileInference', () => {
     expect(prompt).not.toContain('legacy_bullet_vector_marker')
     expect(prompt).toContain('"roles"')
     expect(prompt).toContain('Jane Smith')
+  })
+
+  it('includes expertise in identity inference prompts', () => {
+    const prompt = buildIdentityInferencePrompt(cloneIdentityFixture())
+
+    expect(prompt).toContain('"expertise"')
+    expect(prompt).toContain('Customer-hosted platform delivery')
   })
 
   it('normalizes inference results and filters invalid entries', () => {
@@ -73,7 +82,8 @@ describe('searchProfileInference', () => {
           '',
         ],
         openQuestions: ['Remote preference?', '', 'Willing to travel?'],
-      })
+      },
+    )
 
     expect(normalized.skills).toHaveLength(5)
     expect(normalized.skills[0]?.id).toMatch(/^skl-/)
@@ -103,7 +113,8 @@ describe('searchProfileInference', () => {
         vectors: 'legacy-not-an-array',
         workSummary: ['Led platform migrations'],
         openQuestions: null,
-      })
+      },
+    )
 
     expect(normalized.skills[0]?.category).toBe('other')
     expect(normalized.workSummary).toEqual([

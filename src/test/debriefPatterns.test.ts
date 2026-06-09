@@ -57,6 +57,7 @@ const buildSession = (
       },
       skills: { groups: [] },
       profiles: [],
+      expertise: [],
       roles: [],
       projects: [],
       education: [],

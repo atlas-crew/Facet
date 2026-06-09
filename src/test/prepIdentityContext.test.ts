@@ -49,6 +49,23 @@ const identityFixture: ProfessionalIdentityV3 = {
     ],
   },
   profiles: [],
+  expertise: [
+    {
+      id: 'observability-cost-control',
+      label: 'Observability cost control',
+      summary: 'Balances visibility needs with platform spend and operator attention.',
+      tags: ['observability', 'platform'],
+      evidence: [
+        {
+          kind: 'bullet',
+          role_id: 'role-acme',
+          bullet_id: 'bullet-keep',
+          label: 'Service mesh rollout evidence',
+        },
+      ],
+      provenance: 'claimed',
+    },
+  ],
   roles: [
     {
       id: 'role-acme',
@@ -116,6 +133,7 @@ describe('buildPrepIdentityContext', () => {
         company: string
         suggestedLabel: string
       }>
+      expertise: ProfessionalIdentityV3['expertise']
       fallback_candidate_metrics?: Array<{
         metricKey: string
         metricValue: string
@@ -134,6 +152,7 @@ describe('buildPrepIdentityContext', () => {
     ])
     expect(context.self_model.prep_strategy).toBe('Use short STAR answers.')
     expect(context.identity.display_name).toBe('Alex')
+    expect(context.expertise).toEqual(identityFixture.expertise)
     expect(context.roles).toHaveLength(1)
     expect(context.roles[0].bullets).toEqual([
       expect.objectContaining({ id: 'bullet-keep' }),

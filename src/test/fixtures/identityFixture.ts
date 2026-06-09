@@ -64,6 +64,23 @@ export const identityFixture: ProfessionalIdentityV3 = {
       text: 'I make infrastructure tradeoffs legible for product teams.',
     },
   ],
+  expertise: [
+    {
+      id: 'customer-hosted-platforms',
+      label: 'Customer-hosted platform delivery',
+      summary: 'Designs deployment paths for regulated or customer-operated environments.',
+      tags: ['platform', 'enterprise'],
+      evidence: [
+        {
+          kind: 'bullet',
+          role_id: 'contoso',
+          bullet_id: 'platform-migration',
+          label: 'Contoso Kubernetes migration',
+        },
+      ],
+      provenance: 'claimed',
+    },
+  ],
   roles: [
     {
       id: 'contoso',

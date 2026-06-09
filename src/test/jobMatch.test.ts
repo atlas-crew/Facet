@@ -108,6 +108,22 @@ const identityFixture: ProfessionalIdentityV3 = {
       text: 'I work with PMs and engineers to make infrastructure tradeoffs legible.',
     },
   ],
+  expertise: [
+    {
+      id: 'observability-cost-control',
+      label: 'Observability cost control',
+      summary: 'Balances visibility needs with platform spend and operator attention.',
+      tags: ['observability', 'platform'],
+      evidence: [
+        {
+          kind: 'project',
+          project_id: 'obs',
+          label: 'Observability Console',
+        },
+      ],
+      provenance: 'claimed',
+    },
+  ],
   roles: [
     {
       id: 'contoso',
@@ -1183,11 +1199,14 @@ describe('jobMatch', () => {
 
     const requestBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? '{}')) as {
       system?: string
+      messages?: Array<{ content?: string }>
     }
     expect(requestBody.system).toContain('audiences.asserted')
     expect(requestBody.system).toContain('Recruiter-only')
     expect(requestBody.system).toContain('Hiring-manager')
     expect(requestBody.system).toContain('Internal-only')
+    expect(requestBody.messages?.[0]?.content).toContain('"expertise"')
+    expect(requestBody.messages?.[0]?.content).toContain('Observability cost control')
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(result.analysis.overallFit).toBe('filter-out')
     expect(result.analysis.recommendation).toBe('skip')

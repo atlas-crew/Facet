@@ -432,7 +432,8 @@
   color: color-mix(in srgb, var(--warning) 72%, var(--text-primary));
 }
 
-.identity-action-status.done {
+.identity-action-status.done,
+.identity-action-status.accepted {
   border-color: color-mix(in srgb, var(--success) 42%, var(--border-default));
   color: color-mix(in srgb, var(--success) 72%, var(--text-primary));
 }
@@ -657,6 +658,7 @@
 .self-arc,
 .self-philosophy,
 .self-interview,
+.self-expertise,
 .self-positioning {
   background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
@@ -1040,6 +1042,68 @@
   min-width: 0;
   min-height: 40px;
   padding: 0 var(--space-3);
+}
+
+.self-expertise-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  list-style: none;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+}
+
+.self-expertise-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-left: 2px solid var(--band-color);
+  border-radius: 6px;
+  background: var(--bg-inset);
+}
+
+.self-expertise-item-header,
+.self-expertise-actions,
+.self-expertise-evidence {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.self-expertise-item-header {
+  align-items: flex-start;
+}
+
+.self-expertise-title {
+  font-weight: 600;
+}
+
+.self-expertise-textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 84px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.self-expertise-textarea.compact {
+  min-height: 60px;
+}
+
+.self-expertise-textarea:focus {
+  outline: none;
+  border-color: var(--focus-ring-color);
+  box-shadow: 0 0 0 3px var(--focus-ring-halo);
 }
 
 .self-strategy-draft {

@@ -215,6 +215,7 @@ export const mayaPatelIdentity: ProfessionalIdentityV3 = {
       text: 'Security platform engineer comfortable scaling tooling from zero to org-wide rollout. Led WAF, SAST, and secret rotation programs across 200+ services without slowing product teams.',
     },
   ],
+  expertise: [],
   roles: [
     {
       id: 'role-coralreef',

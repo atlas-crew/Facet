@@ -224,6 +224,7 @@ export const dianeOkaforIdentity: ProfessionalIdentityV3 = {
       text: 'Quantitative backend engineer with three years as a quant analyst and four years building fintech infrastructure. I translate models into production services and design systems where the math decision and the engineering decision are the same decision.',
     },
   ],
+  expertise: [],
   roles: [
     {
       id: 'role-petalwise',

@@ -57,6 +57,7 @@ const identityFixture: ProfessionalIdentityV3 = {
       text: 'I make infrastructure tradeoffs legible for product teams.',
     },
   ],
+  expertise: [],
   roles: [
     {
       id: 'contoso',

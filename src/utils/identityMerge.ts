@@ -1,6 +1,7 @@
 import {
   importProfessionalIdentity,
   type ProfessionalEducationEntry,
+  type ProfessionalExpertise,
   type ProfessionalIdentityV3,
   type ProfessionalProfile,
   type ProfessionalProject,
@@ -174,6 +175,48 @@ const describeRemovedIds = (label: string, removedIds: string[]): string[] =>
 const describeScalarReplacement = <T>(label: string, current: T, incoming: T): string[] =>
   hasMeaningfulChange(current, incoming) ? [`Replaced ${label} from draft.`] : []
 
+const expertiseKey = (entry: ProfessionalExpertise): string => entry.label.trim().toLowerCase()
+
+const mergeExpertise = (
+  current: ProfessionalExpertise[],
+  incoming: ProfessionalExpertise[],
+): MergeByIdResult<ProfessionalExpertise> => {
+  const merged = [...current]
+  const indexById = new Map(merged.map((item, index) => [item.id, index]))
+  const indexByKey = new Map(
+    merged
+      .map((item, index) => [expertiseKey(item), index] as const)
+      .filter(([key]) => Boolean(key)),
+  )
+  const addedIds: string[] = []
+  const updatedIds: string[] = []
+
+  for (const item of incoming) {
+    const key = expertiseKey(item)
+    const existingIndex = indexById.get(item.id) ?? (key ? indexByKey.get(key) : undefined)
+    if (existingIndex === undefined) {
+      indexById.set(item.id, merged.length)
+      if (key) indexByKey.set(key, merged.length)
+      merged.push(item)
+      addedIds.push(item.id)
+      continue
+    }
+
+    const existing = merged[existingIndex]
+    const nextItem = existing.id === item.id ? item : { ...item, id: existing.id }
+    if (hasMeaningfulChange(existing, nextItem)) {
+      merged[existingIndex] = nextItem
+      updatedIds.push(existing.id)
+    }
+  }
+
+  return {
+    items: merged,
+    addedIds,
+    updatedIds,
+  }
+}
+
 const skillItemKey = (item: ProfessionalSkillItem): string => item.name.trim().toLowerCase()
 
 const mergeSkillItems = (
@@ -252,6 +295,7 @@ export const mergeProfessionalIdentity = (
   // are replaced wholesale from the incoming draft.
   const skillGroups = mergeSkillGroups(current.skills.groups, incoming.skills.groups)
   const profiles = mergeById<ProfessionalProfile>(current.profiles, incoming.profiles)
+  const expertise = mergeExpertise(current.expertise, incoming.expertise)
   const roles = mergeById<ProfessionalRole>(current.roles, incoming.roles)
   const projects = mergeById<ProfessionalProject>(current.projects, incoming.projects)
   const education = mergeEducation(current.education, incoming.education)
@@ -311,6 +355,7 @@ export const mergeProfessionalIdentity = (
       groups: skillGroups.items,
     },
     profiles: profiles.items,
+    expertise: expertise.items,
     roles: roles.items,
     projects: projects.items,
     education: education.items,
@@ -333,6 +378,7 @@ export const mergeProfessionalIdentity = (
     ),
     ...describeIdChanges('skill groups', skillGroups.addedIds, skillGroups.updatedIds),
     ...describeIdChanges('profiles', profiles.addedIds, profiles.updatedIds),
+    ...describeIdChanges('expertise', expertise.addedIds, expertise.updatedIds),
     ...describeIdChanges('roles', roles.addedIds, roles.updatedIds),
     ...describeIdChanges('projects', projects.addedIds, projects.updatedIds),
     ...describeIdChanges(

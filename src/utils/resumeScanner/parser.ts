@@ -954,6 +954,7 @@ const createEmptyIdentity = (): ProfessionalIdentityV3 => ({
     groups: [],
   },
   profiles: [],
+  expertise: [],
   roles: [],
   projects: [],
   education: [],

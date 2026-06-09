@@ -51,6 +51,7 @@ const createIdentity = (): ProfessionalIdentityV3 => ({
       text: 'Platform engineer who ships maintainable systems.',
     },
   ],
+  expertise: [],
   roles: [
     {
       id: 'acme',
@@ -133,6 +134,17 @@ describe('identityMerge', () => {
         text: 'Builds systems quickly with small teams.',
       },
     ]
+    incoming.expertise = [
+      {
+        id: 'platform-operations',
+        label: 'Platform operations',
+        summary: 'Runs production platform migrations.',
+        tags: ['platform'],
+        evidence: [{ kind: 'role', role_id: 'acme', label: 'Acme platform work' }],
+        provenance: 'inferred',
+        needs_review: true,
+      },
+    ]
     incoming.roles = [
       incoming.roles[0],
       {
@@ -169,6 +181,7 @@ describe('identityMerge', () => {
     expect(result.data.identity.title).toBe('Staff Engineer')
     expect(result.data.skills.groups).toHaveLength(2)
     expect(result.data.profiles).toHaveLength(2)
+    expect(result.data.expertise).toHaveLength(1)
     expect(result.data.roles).toHaveLength(2)
     expect(result.data.projects).toHaveLength(2)
     expect(result.details).toEqual(
@@ -179,6 +192,7 @@ describe('identityMerge', () => {
         'Updated skill groups: languages.',
         'Added profiles: founding.',
         'Updated profiles: default.',
+        'Added expertise: platform-operations.',
         'Added roles: beta.',
         'Added projects: cortex.',
       ]),
@@ -203,6 +217,89 @@ describe('identityMerge', () => {
     const replaced = replaceProfessionalIdentity(incoming)
     expect(replaced.summary).toContain('Replaced identity model')
     expect(replaced.data.roles).toHaveLength(1)
+  })
+
+  it('updates expertise by normalized label when inference returns a fresh id', () => {
+    const current = createIdentity()
+    current.expertise = [
+      {
+        id: 'customer-hosted-platforms',
+        label: 'Customer-hosted platforms',
+        summary: 'Old summary.',
+        tags: ['platform'],
+        evidence: [{ kind: 'role', role_id: 'acme' }],
+        provenance: 'inferred',
+        needs_review: true,
+      },
+    ]
+    const incoming = createIdentity()
+    incoming.expertise = [
+      {
+        id: 'expertise-fresh-id',
+        label: 'Customer-Hosted Platforms',
+        summary: 'Updated summary from a new inference pass.',
+        tags: ['platform', 'enterprise'],
+        evidence: [{ kind: 'bullet', role_id: 'acme', bullet_id: 'acme-1' }],
+        provenance: 'inferred',
+        needs_review: true,
+      },
+    ]
+
+    const merged = mergeProfessionalIdentity(current, incoming)
+
+    expect(merged.data.expertise).toEqual([
+      expect.objectContaining({
+        id: 'customer-hosted-platforms',
+        label: 'Customer-Hosted Platforms',
+        summary: 'Updated summary from a new inference pass.',
+        tags: ['platform', 'enterprise'],
+      }),
+    ])
+    expect(merged.details).toEqual(
+      expect.arrayContaining(['Updated expertise: customer-hosted-platforms.']),
+    )
+  })
+
+  it('updates expertise by id when inference returns changed content', () => {
+    const current = createIdentity()
+    current.expertise = [
+      {
+        id: 'platform-operations',
+        label: 'Platform operations',
+        summary: 'Old summary.',
+        tags: ['platform'],
+        evidence: [{ kind: 'role', role_id: 'acme' }],
+        provenance: 'inferred',
+        needs_review: true,
+      },
+    ]
+    const incoming = createIdentity()
+    incoming.expertise = [
+      {
+        id: 'platform-operations',
+        label: 'Platform operations',
+        summary: 'Updated summary.',
+        tags: ['platform', 'enterprise'],
+        evidence: [{ kind: 'bullet', role_id: 'acme', bullet_id: 'acme-1' }],
+        provenance: 'corrected',
+        needs_review: false,
+      },
+    ]
+
+    const merged = mergeProfessionalIdentity(current, incoming)
+
+    expect(merged.data.expertise).toEqual([
+      expect.objectContaining({
+        id: 'platform-operations',
+        summary: 'Updated summary.',
+        tags: ['platform', 'enterprise'],
+        provenance: 'corrected',
+        needs_review: false,
+      }),
+    ])
+    expect(merged.details).toEqual(
+      expect.arrayContaining(['Updated expertise: platform-operations.']),
+    )
   })
 
   it('preserves existing vectors and awareness when the incoming merge draft omits them', () => {

@@ -23,6 +23,7 @@ export interface PrepIdentityContext {
     interview_style: ProfessionalIdentityV3['self_model']['interview_style']
     prep_strategy?: string
   }
+  expertise: ProfessionalIdentityV3['expertise']
   candidate_metrics?: PrepIdentityMetricCandidate[]
   fallback_candidate_metrics?: PrepIdentityMetricCandidate[]
   roles: Array<{
@@ -324,6 +325,7 @@ export function buildPrepIdentityContext(
       interview_style: identity.self_model.interview_style,
       prep_strategy: identity.self_model.interview_style.prep_strategy,
     },
+    expertise: identity.expertise,
     candidate_metrics:
       candidateMetrics.length > 0 ? candidateMetrics : undefined,
     fallback_candidate_metrics:

@@ -672,6 +672,7 @@ describe('persistence foundation', () => {
             },
             skills: { groups: [] },
             profiles: [],
+            expertise: [],
             roles: [],
             projects: [],
             education: [],

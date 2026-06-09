@@ -200,6 +200,29 @@ export interface ProfessionalProfile {
   text: string
 }
 
+export type ProfessionalExpertiseProvenance = 'claimed' | 'inferred' | 'corrected'
+
+export type ProfessionalExpertiseEvidenceKind = 'role' | 'project' | 'bullet' | 'source'
+
+export interface ProfessionalExpertiseEvidence {
+  kind: ProfessionalExpertiseEvidenceKind
+  role_id?: string
+  bullet_id?: string
+  project_id?: string
+  label?: string
+  source_text?: string
+}
+
+export interface ProfessionalExpertise {
+  id: string
+  label: string
+  summary: string
+  tags: string[]
+  evidence: ProfessionalExpertiseEvidence[]
+  provenance?: ProfessionalExpertiseProvenance
+  needs_review?: boolean
+}
+
 export interface ProfessionalRoleBullet {
   id: string
   problem: string
@@ -303,6 +326,7 @@ export interface ProfessionalIdentityV3 {
   preferences: ProfessionalPreferences
   skills: ProfessionalSkills
   profiles: ProfessionalProfile[]
+  expertise: ProfessionalExpertise[]
   roles: ProfessionalRole[]
   projects: ProfessionalProject[]
   education: ProfessionalEducationEntry[]
@@ -330,6 +354,17 @@ const ENRICHED_BY_VALUES = new Set<ProfessionalSkillEnrichedBy>([
   'llm-accepted',
 ])
 const DEPTH_SOURCE_VALUES = new Set<ProfessionalSkillDepthSource>(['inferred', 'corrected'])
+const EXPERTISE_PROVENANCE_VALUES = new Set<ProfessionalExpertiseProvenance>([
+  'claimed',
+  'inferred',
+  'corrected',
+])
+const EXPERTISE_EVIDENCE_KIND_VALUES = new Set<ProfessionalExpertiseEvidenceKind>([
+  'role',
+  'project',
+  'bullet',
+  'source',
+])
 export const DEPTH_CONFIDENCE_VALUES = new Set<ProfessionalSkillDepthConfidence>([
   'high',
   'medium',
@@ -459,18 +494,23 @@ export const normalizeRuntimeProfessionalIdentity = (
         preferences: normalizeAutofilledInterviewProcess(withRevision.preferences),
       }
     : withRevision
+  const withExpertise: ProfessionalIdentityV3 = Array.isArray(
+    (withCleanInterview as ProfessionalIdentityV3 & { expertise?: unknown }).expertise,
+  )
+    ? withCleanInterview
+    : { ...withCleanInterview, expertise: [] }
   const groups = (
-    withCleanInterview.skills as { groups?: ProfessionalIdentityV3['skills']['groups'] } | undefined
+    withExpertise.skills as { groups?: ProfessionalIdentityV3['skills']['groups'] } | undefined
   )?.groups
 
   if (!Array.isArray(groups)) {
-    return withCleanInterview
+    return withExpertise
   }
 
   return {
-    ...withCleanInterview,
+    ...withExpertise,
     skills: {
-      ...withCleanInterview.skills,
+      ...withExpertise.skills,
       groups: dedupeSkillGroupsByItemName(
         groups.map((group) => ({
           ...group,
@@ -957,6 +997,120 @@ const parseSkillItem = (
   }
 }
 
+const parseExpertiseEvidence = (
+  value: unknown,
+  context: string,
+): ProfessionalExpertiseEvidence => {
+  const evidence = assertRecord(value, context)
+  const parsed: ProfessionalExpertiseEvidence = {
+    kind: assertEnumString(evidence.kind, EXPERTISE_EVIDENCE_KIND_VALUES, `${context}.kind`),
+    ...(evidence.role_id !== undefined
+      ? { role_id: assertOptionalString(evidence.role_id, `${context}.role_id`) }
+      : {}),
+    ...(evidence.bullet_id !== undefined
+      ? { bullet_id: assertOptionalString(evidence.bullet_id, `${context}.bullet_id`) }
+      : {}),
+    ...(evidence.project_id !== undefined
+      ? { project_id: assertOptionalString(evidence.project_id, `${context}.project_id`) }
+      : {}),
+    ...(evidence.label !== undefined
+      ? { label: assertOptionalString(evidence.label, `${context}.label`) }
+      : {}),
+    ...(evidence.source_text !== undefined
+      ? { source_text: assertOptionalString(evidence.source_text, `${context}.source_text`) }
+      : {}),
+  }
+
+  if (parsed.kind === 'role') {
+    if (!parsed.role_id) {
+      throw new Error(`${context}.role_id is required for role evidence.`)
+    }
+    if (parsed.bullet_id || parsed.project_id) {
+      throw new Error(`${context} role evidence cannot reference bullet or project ids.`)
+    }
+  }
+  if (parsed.kind === 'project') {
+    if (!parsed.project_id) {
+      throw new Error(`${context}.project_id is required for project evidence.`)
+    }
+    if (parsed.role_id || parsed.bullet_id) {
+      throw new Error(`${context} project evidence cannot reference role or bullet ids.`)
+    }
+  }
+  if (parsed.kind === 'bullet') {
+    if (!parsed.bullet_id) {
+      throw new Error(`${context}.bullet_id is required for bullet evidence.`)
+    }
+    if (parsed.project_id) {
+      throw new Error(`${context}.project_id is not allowed for bullet evidence.`)
+    }
+  }
+  if (parsed.kind === 'source') {
+    if (!parsed.source_text && !parsed.label) {
+      throw new Error(`${context}.source_text or ${context}.label is required for source evidence.`)
+    }
+    if (parsed.role_id || parsed.bullet_id || parsed.project_id) {
+      throw new Error(`${context} source evidence cannot reference identity entity ids.`)
+    }
+  }
+
+  return parsed
+}
+
+const parseExpertiseEntry = (
+  value: unknown,
+  context: string,
+  warnings: string[],
+): ProfessionalExpertise => {
+  const entry = assertRecord(value, context)
+  return {
+    id: assertString(entry.id, `${context}.id`),
+    label: assertString(entry.label, `${context}.label`),
+    summary: assertString(entry.summary, `${context}.summary`),
+    tags: normalizeTagArray(entry.tags, `${context}.tags`, warnings),
+    evidence: assertArray(entry.evidence, `${context}.evidence`).map((evidence, index) =>
+      parseExpertiseEvidence(evidence, `${context}.evidence[${index}]`),
+    ),
+    ...(entry.provenance !== undefined
+      ? {
+          provenance: assertOptionalEnumString(
+            entry.provenance,
+            EXPERTISE_PROVENANCE_VALUES,
+            `${context}.provenance`,
+          ),
+        }
+      : {}),
+    ...(entry.needs_review !== undefined
+      ? { needs_review: assertBoolean(entry.needs_review, `${context}.needs_review`) }
+      : {}),
+  }
+}
+
+const warnUnknownExpertiseEvidenceReferences = (
+  expertise: ProfessionalExpertise[],
+  ids: {
+    roleIds: Set<string>
+    bulletIds: Set<string>
+    projectIds: Set<string>
+  },
+  warnings: string[],
+) => {
+  expertise.forEach((entry, entryIndex) => {
+    entry.evidence.forEach((evidence, evidenceIndex) => {
+      const context = `expertise[${entryIndex}].evidence[${evidenceIndex}]`
+      if (evidence.role_id && !ids.roleIds.has(evidence.role_id)) {
+        warnings.push(`${context}.role_id references unknown role "${evidence.role_id}".`)
+      }
+      if (evidence.bullet_id && !ids.bulletIds.has(evidence.bullet_id)) {
+        warnings.push(`${context}.bullet_id references unknown bullet "${evidence.bullet_id}".`)
+      }
+      if (evidence.project_id && !ids.projectIds.has(evidence.project_id)) {
+        warnings.push(`${context}.project_id references unknown project "${evidence.project_id}".`)
+      }
+    })
+  })
+}
+
 const parseSearchVector = (value: unknown, context: string): ProfessionalSearchVector => {
   const vector = assertRecord(value, context)
   const keywords = assertRecord(vector.keywords, `${context}.keywords`)
@@ -1094,6 +1248,7 @@ export const importProfessionalIdentity = (
   const skillGroupIds = new Set<string>()
   const linkIds = new Set<string>()
   const profileIds = new Set<string>()
+  const expertiseIds = new Set<string>()
   const philosophyIds = new Set<string>()
   const roleIds = new Set<string>()
   const bulletIds = new Set<string>()
@@ -1326,6 +1481,14 @@ export const importProfessionalIdentity = (
         text: assertString(profile.text, `profiles[${index}].text`),
       }
     }),
+    expertise:
+      root.expertise === undefined
+        ? []
+        : assertArray(root.expertise, 'expertise').map((entry, index) => {
+            const expertise = parseExpertiseEntry(entry, `expertise[${index}]`, warnings)
+            assertUniqueId(expertiseIds, expertise.id, 'expertise')
+            return expertise
+          }),
     roles: assertArray(root.roles, 'roles').map((entry, index) => {
       const role = assertRecord(entry, `roles[${index}]`)
       const id = assertString(role.id, `roles[${index}].id`)
@@ -1526,6 +1689,12 @@ export const importProfessionalIdentity = (
       ? { awareness: parseAwareness(root.awareness, 'awareness') }
       : {}),
   }
+
+  warnUnknownExpertiseEvidenceReferences(
+    parsed.expertise,
+    { roleIds, bulletIds, projectIds },
+    warnings,
+  )
 
   return { data: parsed, warnings }
 }
