@@ -236,3 +236,14 @@ Open-source is the credibility; *your data, never ours* is the promise. Take it 
 - **Repo:** [github.com/NickCrew/Facet](https://github.com/NickCrew/Facet)
 - **Issues:** [github.com/NickCrew/Facet/issues](https://github.com/NickCrew/Facet/issues)
 - **Contact:** nick@atlascrew.dev
+
+## Project tracking
+
+Development is tracked on the [Facet project board](https://github.com/orgs/atlas-crew/projects/9). Issues carry a **Type** (Feature / Bug / Task / Chore / Spike) and an **Area** (subsystem), and move through Backlog → Todo → In Progress → Blocked → Done. Execution order comes from issue dependencies (`blocked-by`), reconstructed into waves by [`gh-seq`](https://github.com/NickCrew/gh-seq):
+
+```bash
+gh extension install NickCrew/gh-seq
+gh seq --repo atlas-crew/Facet --order-by Priority
+```
+
+Board conventions live in `docs/development/project-board.md`. To contribute, pick an unblocked issue, comment to claim it, and open a PR.
