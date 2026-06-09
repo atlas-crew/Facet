@@ -1,0 +1,34 @@
+name: Default issue type
+
+# When an issue is opened without an Issue Type (e.g. filed from the web UI),
+# default it to Task. Never overrides a type the author set at creation.
+# Type taxonomy + board model: docs/development/project-board.md
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+
+jobs:
+  set-default-type:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set type=Task when unset
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUM: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          current=$(gh api graphql -f query='
+            query($o:String!,$r:String!,$n:Int!){
+              repository(owner:$o,name:$r){ issue(number:$n){ issueType{ name } } } }' \
+            -F o="${REPO%/*}" -F r="${REPO#*/}" -F n="$NUM" \
+            --jq '.data.repository.issue.issueType.name // ""')
+          if [ -z "$current" ]; then
+            gh api -X PATCH "/repos/$REPO/issues/$NUM" -f type=Task
+            echo "Defaulted #$NUM -> Task"
+          else
+            echo "#$NUM already typed ($current); leaving as-is"
+          fi
