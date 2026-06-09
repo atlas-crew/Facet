@@ -11,6 +11,10 @@ import {
   ensureIdentityInferenceEndpoint,
   IdentityInferenceConfigError,
 } from '../identityInferenceRuntime'
+import {
+  type AwarenessAnswerCommitResult,
+  commitAwarenessAnswerUndoablePatch,
+} from './awarenessAnswerUndo'
 import { Actions, BulletPair, MetaRows, NotFound, SlotShell } from './slotPrimitives'
 import { hasRequiredText } from './slotValidation'
 
@@ -487,14 +491,45 @@ export function AwarenessQuestionInspector({
     }
   }
 
+  const handleCommitFailure = (result: Exclude<AwarenessAnswerCommitResult, 'committed'>) => {
+    setAnswerError(
+      result === 'missing-identity'
+        ? "Couldn't apply the suggestion because your identity data isn't loaded."
+        : result === 'failed-partial'
+          ? 'Couldn\'t finish applying the suggestion. Part of it may have been saved.'
+          : "Couldn't apply the suggestion. Nothing was saved.",
+    )
+    setProposal(null)
+    setEditDraft(null)
+    setAnswerPhase('idle')
+  }
+
+  const commitAnswerPatchWithUndo = (
+    patch: AnswerPatch,
+    label: string,
+    answeredQuestionId: string,
+  ): boolean => {
+    const result = commitAwarenessAnswerUndoablePatch({
+      label,
+      // Capture the live store snapshot at click time; the render prop may lag a store update.
+      beforeIdentity: useIdentityStore.getState().currentIdentity,
+      patch,
+      questionId: answeredQuestionId,
+      answer,
+      applyPatch,
+      resolveQuestion,
+      recordAiGenerationUndo,
+    })
+    if (result !== 'committed') {
+      handleCommitFailure(result)
+      return false
+    }
+    return true
+  }
+
   const handleAccept = () => {
     if (!proposal || !question) return
-    const beforeIdentity = useIdentityStore.getState().currentIdentity
-    applyPatch(proposal)
-    resolveQuestion(question.id, answer)
-    if (beforeIdentity) {
-      recordAiGenerationUndo('applied answer suggestion', beforeIdentity)
-    }
+    if (!commitAnswerPatchWithUndo(proposal, 'applied answer suggestion', question.id)) return
     setProposal(null)
     setAnswerPhase('idle')
   }
@@ -507,12 +542,9 @@ export function AwarenessQuestionInspector({
 
   const handleAcceptEdit = () => {
     if (!editDraft || !proposal || !question) return
-    const beforeIdentity = useIdentityStore.getState().currentIdentity
     const updatedPatch = applyEditToPatch(editDraft, proposal)
-    applyPatch(updatedPatch)
-    resolveQuestion(question.id, answer)
-    if (beforeIdentity) {
-      recordAiGenerationUndo('applied edited answer suggestion', beforeIdentity)
+    if (!commitAnswerPatchWithUndo(updatedPatch, 'applied edited answer suggestion', question.id)) {
+      return
     }
     setProposal(null)
     setEditDraft(null)

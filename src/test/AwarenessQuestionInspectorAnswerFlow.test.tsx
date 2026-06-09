@@ -3,6 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { AwarenessQuestionInspector } from '../routes/identity/inspectorSlots/AwarenessQuestionInspector'
+import { commitAwarenessAnswerUndoablePatch } from '../routes/identity/inspectorSlots/awarenessAnswerUndo'
 import { useIdentityStore } from '../store/identityStore'
 import { resolveStorage } from '../store/storage'
 import { cloneIdentityFixture } from './fixtures/identityFixture'
@@ -89,6 +90,120 @@ const roleBulletPatch: AnswerPatch = {
     outcome: 'Reduced MTTR by 40%',
   },
 }
+
+describe('commitAwarenessAnswerUndoablePatch', () => {
+  it('skips patch, resolve, and undo recording when no identity snapshot is available', () => {
+    const applyPatch = vi.fn()
+    const resolveQuestion = vi.fn()
+    const recordAiGenerationUndo = vi.fn()
+
+    const committed = commitAwarenessAnswerUndoablePatch({
+      label: 'applied answer suggestion',
+      beforeIdentity: null,
+      patch: roleBulletPatch,
+      questionId: 'q1',
+      answer: 'We shipped tracing',
+      applyPatch,
+      resolveQuestion,
+      recordAiGenerationUndo,
+    })
+
+    expect(committed).toBe('missing-identity')
+    expect(applyPatch).not.toHaveBeenCalled()
+    expect(resolveQuestion).not.toHaveBeenCalled()
+    expect(recordAiGenerationUndo).not.toHaveBeenCalled()
+  })
+
+  it('applies the patch, resolves the question, then records undo when a snapshot is available', () => {
+    const beforeIdentity = cloneIdentityFixture()
+    const callOrder: string[] = []
+    const applyPatch = vi.fn(() => callOrder.push('apply'))
+    const resolveQuestion = vi.fn(() => callOrder.push('resolve'))
+    const recordAiGenerationUndo = vi.fn((_label: string, _beforeIdentity: typeof beforeIdentity) =>
+      callOrder.push('record'),
+    )
+
+    const committed = commitAwarenessAnswerUndoablePatch({
+      label: 'applied answer suggestion',
+      beforeIdentity,
+      patch: roleBulletPatch,
+      questionId: 'q1',
+      answer: 'We shipped tracing',
+      applyPatch,
+      resolveQuestion,
+      recordAiGenerationUndo,
+    })
+
+    expect(committed).toBe('committed')
+    expect(callOrder).toEqual(['apply', 'resolve', 'record'])
+    expect(applyPatch).toHaveBeenCalledWith(roleBulletPatch)
+    expect(resolveQuestion).toHaveBeenCalledWith('q1', 'We shipped tracing')
+    expect(recordAiGenerationUndo).toHaveBeenCalledTimes(1)
+    expect(recordAiGenerationUndo).toHaveBeenCalledWith('applied answer suggestion', beforeIdentity)
+    expect(recordAiGenerationUndo.mock.calls[0]?.[1]).not.toBe(beforeIdentity)
+  })
+
+  it('returns failed and records a recoverable snapshot when mutation fails after a patch attempt', () => {
+    const beforeIdentity = cloneIdentityFixture()
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const resolveError = new Error('resolve failed')
+    const callOrder: string[] = []
+    const applyPatch = vi.fn(() => callOrder.push('apply'))
+    const resolveQuestion = vi.fn(() => {
+      callOrder.push('resolve')
+      throw resolveError
+    })
+    const recordAiGenerationUndo = vi.fn((_label: string, _beforeIdentity: typeof beforeIdentity) =>
+      callOrder.push('record'),
+    )
+
+    const committed = commitAwarenessAnswerUndoablePatch({
+      label: 'applied answer suggestion',
+      beforeIdentity,
+      patch: roleBulletPatch,
+      questionId: 'q1',
+      answer: 'We shipped tracing',
+      applyPatch,
+      resolveQuestion,
+      recordAiGenerationUndo,
+    })
+
+    expect(committed).toBe('failed-partial')
+    expect(callOrder).toEqual(['apply', 'resolve', 'record'])
+    expect(errorSpy).toHaveBeenCalledWith(resolveError)
+    expect(recordAiGenerationUndo).toHaveBeenCalledWith('applied answer suggestion', beforeIdentity)
+    expect(recordAiGenerationUndo.mock.calls[0]?.[1]).not.toBe(beforeIdentity)
+    errorSpy.mockRestore()
+  })
+
+  it('returns failed without recording undo when applying the patch throws first', () => {
+    const beforeIdentity = cloneIdentityFixture()
+    const applyError = new Error('apply failed')
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const applyPatch = vi.fn(() => {
+      throw applyError
+    })
+    const resolveQuestion = vi.fn()
+    const recordAiGenerationUndo = vi.fn()
+
+    const committed = commitAwarenessAnswerUndoablePatch({
+      label: 'applied answer suggestion',
+      beforeIdentity,
+      patch: roleBulletPatch,
+      questionId: 'q1',
+      answer: 'We shipped tracing',
+      applyPatch,
+      resolveQuestion,
+      recordAiGenerationUndo,
+    })
+
+    expect(committed).toBe('failed-no-changes')
+    expect(errorSpy).toHaveBeenCalledWith(applyError)
+    expect(resolveQuestion).not.toHaveBeenCalled()
+    expect(recordAiGenerationUndo).not.toHaveBeenCalled()
+    errorSpy.mockRestore()
+  })
+})
 
 // ─────────────────────────────────────────────────────────────
 // Setup / teardown
@@ -277,6 +392,164 @@ describe('AwarenessQuestionInspector — happy path (answer → propose → acce
 
     // UI: resolved badge visible
     expect(screen.getByText(/^resolved$/i)).toBeTruthy()
+  })
+
+  it('plain accept surfaces an error and does not mutate when the identity snapshot is missing', async () => {
+    mocks.proposeAnswerPatch.mockResolvedValue(roleBulletPatch)
+
+    const identity = seed((id) => {
+      id.awareness = {
+        open_questions: [
+          { id: 'q1', topic: 'Impact', description: 'D', action: 'A' },
+        ],
+      }
+    })
+    const originalBulletCount =
+      identity.roles.find((role) => role.id === 'contoso')?.bullets.length ?? 0
+
+    render(<AwarenessQuestionInspector identity={identity} questionId="q1" />)
+
+    fireEvent.change(screen.getByLabelText(/your answer/i), {
+      target: { value: 'We shipped tracing' },
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /propose update/i }))
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /^accept$/i })).toBeTruthy()
+    })
+
+    useIdentityStore.setState({ currentIdentity: null, aiGenerationUndo: null })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^accept$/i }))
+    })
+
+    expect(screen.getByRole('alert').textContent).toMatch(/identity data isn't loaded/i)
+    expect(useIdentityStore.getState().currentIdentity).toBeNull()
+    expect(useIdentityStore.getState().aiGenerationUndo).toBeNull()
+    expect(identity.roles.find((role) => role.id === 'contoso')?.bullets.length).toBe(
+      originalBulletCount,
+    )
+    expect(identity.awareness?.open_questions[0]?.resolved).toBeUndefined()
+  })
+
+  it('plain accept surfaces a commit error and preserves undo when resolving throws', async () => {
+    mocks.proposeAnswerPatch.mockResolvedValue(roleBulletPatch)
+    const resolveError = new Error('resolve failed')
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const originalResolveAwarenessQuestion =
+      useIdentityStore.getState().resolveAwarenessQuestion
+
+    const identity = seed((id) => {
+      id.awareness = {
+        open_questions: [
+          { id: 'q1', topic: 'Impact', description: 'D', action: 'A' },
+        ],
+      }
+    })
+    const originalBulletCount =
+      identity.roles.find((role) => role.id === 'contoso')?.bullets.length ?? 0
+
+    render(<AwarenessQuestionInspector identity={identity} questionId="q1" />)
+
+    fireEvent.change(screen.getByLabelText(/your answer/i), {
+      target: { value: 'We shipped tracing' },
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /propose update/i }))
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /^accept$/i })).toBeTruthy()
+    })
+
+    await act(async () => {
+      useIdentityStore.setState({
+        resolveAwarenessQuestion: () => {
+          throw resolveError
+        },
+      })
+    })
+
+    try {
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /^accept$/i }))
+      })
+
+      expect(screen.getByRole('alert').textContent).toMatch(/couldn't finish applying/i)
+      expect(errorSpy).toHaveBeenCalledWith(resolveError)
+      expect(useIdentityStore.getState().aiGenerationUndo).toMatchObject({
+        label: 'applied answer suggestion',
+      })
+      expect(getIdentity().roles.find((role) => role.id === 'contoso')?.bullets.length).toBe(
+        originalBulletCount + 1,
+      )
+      expect(getIdentity().awareness?.open_questions[0]?.resolved).toBeUndefined()
+    } finally {
+      useIdentityStore.setState({ resolveAwarenessQuestion: originalResolveAwarenessQuestion })
+      errorSpy.mockRestore()
+    }
+  })
+
+  it('plain accept surfaces a no-change commit error when applying throws first', async () => {
+    mocks.proposeAnswerPatch.mockResolvedValue(roleBulletPatch)
+    const applyError = new Error('apply failed')
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const originalApplyAnswerPatch = useIdentityStore.getState().applyAnswerPatch
+
+    const identity = seed((id) => {
+      id.awareness = {
+        open_questions: [
+          { id: 'q1', topic: 'Impact', description: 'D', action: 'A' },
+        ],
+      }
+    })
+    const originalBulletCount =
+      identity.roles.find((role) => role.id === 'contoso')?.bullets.length ?? 0
+
+    render(<AwarenessQuestionInspector identity={identity} questionId="q1" />)
+
+    fireEvent.change(screen.getByLabelText(/your answer/i), {
+      target: { value: 'We shipped tracing' },
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /propose update/i }))
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /^accept$/i })).toBeTruthy()
+    })
+
+    await act(async () => {
+      useIdentityStore.setState({
+        applyAnswerPatch: () => {
+          throw applyError
+        },
+      })
+    })
+
+    try {
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /^accept$/i }))
+      })
+
+      expect(screen.getByRole('alert').textContent).toMatch(/nothing was saved/i)
+      expect(errorSpy).toHaveBeenCalledWith(applyError)
+      expect(useIdentityStore.getState().aiGenerationUndo).toBeNull()
+      expect(identity.roles.find((role) => role.id === 'contoso')?.bullets.length).toBe(
+        originalBulletCount,
+      )
+      expect(identity.awareness?.open_questions[0]?.resolved).toBeUndefined()
+      expect(screen.getByRole('button', { name: /propose update/i })).toBeTruthy()
+    } finally {
+      useIdentityStore.setState({ applyAnswerPatch: originalApplyAnswerPatch })
+      errorSpy.mockRestore()
+    }
   })
 })
 
@@ -543,6 +816,125 @@ describe('AwarenessQuestionInspector — edit proposal flow', () => {
     expect(useIdentityStore.getState().aiGenerationUndo?.afterRevision).toBeGreaterThan(
       beforeAcceptRevision,
     )
+  })
+
+  it('edited accept surfaces an error and does not mutate when the identity snapshot is missing', async () => {
+    mocks.proposeAnswerPatch.mockResolvedValue(roleBulletPatch)
+
+    const identity = seed((id) => {
+      id.awareness = {
+        open_questions: [
+          { id: 'q1', topic: 'Impact', description: 'D', action: 'A' },
+        ],
+      }
+    })
+    const originalBulletCount =
+      identity.roles.find((role) => role.id === 'contoso')?.bullets.length ?? 0
+
+    render(<AwarenessQuestionInspector identity={identity} questionId="q1" />)
+
+    fireEvent.change(screen.getByLabelText(/your answer/i), {
+      target: { value: 'We shipped tracing' },
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /propose update/i }))
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /^edit$/i })).toBeTruthy()
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^edit$/i }))
+    })
+
+    fireEvent.change(screen.getByDisplayValue('No observability stack'), {
+      target: { value: 'Observability was absent' },
+    })
+    useIdentityStore.setState({ currentIdentity: null, aiGenerationUndo: null })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^accept$/i }))
+    })
+
+    expect(screen.getByRole('alert').textContent).toMatch(/identity data isn't loaded/i)
+    expect(useIdentityStore.getState().currentIdentity).toBeNull()
+    expect(useIdentityStore.getState().aiGenerationUndo).toBeNull()
+    expect(identity.roles.find((role) => role.id === 'contoso')?.bullets.length).toBe(
+      originalBulletCount,
+    )
+    expect(identity.awareness?.open_questions[0]?.resolved).toBeUndefined()
+  })
+
+  it('edited accept surfaces a commit error and preserves undo when resolving throws', async () => {
+    mocks.proposeAnswerPatch.mockResolvedValue(roleBulletPatch)
+    const resolveError = new Error('resolve failed')
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const originalResolveAwarenessQuestion =
+      useIdentityStore.getState().resolveAwarenessQuestion
+
+    seed((id) => {
+      id.awareness = {
+        open_questions: [
+          { id: 'q1', topic: 'Impact', description: 'D', action: 'A' },
+        ],
+      }
+    })
+    const originalBulletCount =
+      getIdentity().roles.find((role) => role.id === 'contoso')?.bullets.length ?? 0
+
+    render(<Inspector questionId="q1" />)
+
+    fireEvent.change(screen.getByLabelText(/your answer/i), {
+      target: { value: 'We shipped tracing' },
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /propose update/i }))
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /^edit$/i })).toBeTruthy()
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^edit$/i }))
+    })
+
+    fireEvent.change(screen.getByDisplayValue('No observability stack'), {
+      target: { value: 'Observability was absent' },
+    })
+
+    await act(async () => {
+      useIdentityStore.setState({
+        resolveAwarenessQuestion: () => {
+          throw resolveError
+        },
+      })
+    })
+
+    try {
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /^accept$/i }))
+      })
+
+      expect(screen.getByRole('alert').textContent).toMatch(/couldn't finish applying/i)
+      expect(errorSpy).toHaveBeenCalledWith(resolveError)
+      expect(useIdentityStore.getState().aiGenerationUndo).toMatchObject({
+        label: 'applied edited answer suggestion',
+      })
+      expect(getIdentity().roles.find((role) => role.id === 'contoso')?.bullets.length).toBe(
+        originalBulletCount + 1,
+      )
+      expect(getIdentity().roles.find((role) => role.id === 'contoso')?.bullets.at(-1)?.problem).toBe(
+        'Observability was absent',
+      )
+      expect(getIdentity().awareness?.open_questions[0]?.resolved).toBeUndefined()
+    } finally {
+      useIdentityStore.setState({ resolveAwarenessQuestion: originalResolveAwarenessQuestion })
+      errorSpy.mockRestore()
+    }
   })
 })
 
