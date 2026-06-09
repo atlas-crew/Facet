@@ -185,9 +185,7 @@ interface RoleClusterResult {
   roleVariantTitles: Record<string, string[]>
 }
 
-const clusterRoles = (
-  sorted: Array<IntakeSource & { kind: 'resume' }>,
-): RoleClusterResult => {
+const clusterRoles = (sorted: Array<IntakeSource & { kind: 'resume' }>): RoleClusterResult => {
   const clusters: RoleCluster[] = []
 
   for (const source of sorted) {
@@ -262,13 +260,52 @@ interface SkillEntry {
 interface GroupSeed {
   id: string
   label: string
+  source_label?: string
+  career_class?: string
+  category?: string
+  provenance?: ProfessionalSkillGroup['provenance']
+  needs_review?: boolean
   positioning?: string
   calibration?: string
   is_differentiator?: boolean
   firstSeenOrder: number
 }
 
-const normalizeSkillName = (value: string): string => value.toLowerCase().trim().replace(/\s+/g, ' ')
+const normalizeSkillName = (value: string): string =>
+  value.toLowerCase().trim().replace(/\s+/g, ' ')
+
+const unionStrings = (left: string[] | undefined, right: string[] | undefined): string[] => {
+  const seen = new Set<string>()
+  const merged: string[] = []
+
+  for (const value of [...(left ?? []), ...(right ?? [])]) {
+    const key = value.trim().toLowerCase()
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    merged.push(value)
+  }
+
+  return merged
+}
+
+const mergeSkillItemAcrossSources = (
+  existing: ProfessionalSkillItem,
+  incoming: ProfessionalSkillItem,
+): ProfessionalSkillItem => {
+  const tags = unionStrings(existing.tags, incoming.tags)
+  const aliases = unionStrings(existing.aliases, incoming.aliases)
+  const { tags: _existingTags, aliases: _existingAliases, ...existingScalars } = existing
+  const { tags: _incomingTags, aliases: _incomingAliases, ...incomingScalars } = incoming
+
+  // Intake synthesis receives scanned/imported claims, not user-corrected map edits;
+  // corrected-precedence protection lives in identityMerge.
+  return {
+    ...existingScalars,
+    ...incomingScalars,
+    tags,
+    ...(aliases.length > 0 ? { aliases } : {}),
+  }
+}
 
 const unionSkillGroups = (
   sorted: Array<IntakeSource & { kind: 'resume' }>,
@@ -286,6 +323,11 @@ const unionSkillGroups = (
         groupSeeds.set(groupKey, {
           id: group.id,
           label: group.label,
+          source_label: group.source_label,
+          career_class: group.career_class,
+          category: group.category,
+          provenance: group.provenance,
+          needs_review: group.needs_review,
           positioning: group.positioning,
           calibration: group.calibration,
           is_differentiator: group.is_differentiator,
@@ -296,6 +338,11 @@ const unionSkillGroups = (
         const seed = groupSeeds.get(groupKey)!
         seed.id = group.id
         seed.label = group.label
+        seed.source_label = group.source_label ?? seed.source_label
+        seed.career_class = group.career_class ?? seed.career_class
+        seed.category = group.category ?? seed.category
+        seed.provenance = group.provenance ?? seed.provenance
+        seed.needs_review = group.needs_review ?? seed.needs_review
         seed.positioning = group.positioning ?? seed.positioning
         seed.calibration = group.calibration ?? seed.calibration
         seed.is_differentiator = group.is_differentiator ?? seed.is_differentiator
@@ -312,8 +359,7 @@ const unionSkillGroups = (
           }
           skillEntries.set(skillKey, entry)
         } else {
-          // Most-recent item fields win.
-          entry.canonicalItem = item
+          entry.canonicalItem = mergeSkillItemAcrossSources(entry.canonicalItem, item)
         }
         const vote = entry.groupVotes.get(groupKey) ?? {
           label: group.label,
@@ -367,6 +413,11 @@ const unionSkillGroups = (
         id: seed.id,
         label: seed.label,
         items,
+        ...(seed.source_label !== undefined ? { source_label: seed.source_label } : {}),
+        ...(seed.career_class !== undefined ? { career_class: seed.career_class } : {}),
+        ...(seed.category !== undefined ? { category: seed.category } : {}),
+        ...(seed.provenance !== undefined ? { provenance: seed.provenance } : {}),
+        ...(seed.needs_review !== undefined ? { needs_review: seed.needs_review } : {}),
         ...(seed.positioning !== undefined ? { positioning: seed.positioning } : {}),
         ...(seed.calibration !== undefined ? { calibration: seed.calibration } : {}),
         ...(seed.is_differentiator !== undefined
@@ -377,9 +428,7 @@ const unionSkillGroups = (
     .filter((group) => group.items.length > 0)
 }
 
-const unionProjects = (
-  sorted: Array<IntakeSource & { kind: 'resume' }>,
-): ProfessionalProject[] => {
+const unionProjects = (sorted: Array<IntakeSource & { kind: 'resume' }>): ProfessionalProject[] => {
   const map = new Map<string, ProfessionalProject>()
   const order: string[] = []
   for (const source of sorted) {

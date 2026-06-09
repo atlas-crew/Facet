@@ -15,6 +15,7 @@ interface MergeByIdResult<T extends { id: string }> {
   items: T[]
   addedIds: string[]
   updatedIds: string[]
+  remappedIds?: string[]
 }
 
 interface DiffByIdResult {
@@ -177,6 +178,24 @@ const describeScalarReplacement = <T>(label: string, current: T, incoming: T): s
 
 const expertiseKey = (entry: ProfessionalExpertise): string => entry.label.trim().toLowerCase()
 
+// Label-key merging is limited to inferred regeneration so claimed/corrected entries
+// can remain distinct until the user explicitly reconciles them.
+const shouldMergeExpertiseByKey = (
+  existing: ProfessionalExpertise | undefined,
+  incoming: ProfessionalExpertise,
+): boolean => existing?.provenance === 'inferred' && incoming.provenance === 'inferred'
+
+const preserveCorrectedExpertise = (
+  existing: ProfessionalExpertise,
+  incoming: ProfessionalExpertise,
+): ProfessionalExpertise => {
+  if (existing.provenance !== 'corrected' || incoming.provenance === 'corrected') {
+    return incoming
+  }
+
+  return existing
+}
+
 const mergeExpertise = (
   current: ProfessionalExpertise[],
   incoming: ProfessionalExpertise[],
@@ -190,10 +209,16 @@ const mergeExpertise = (
   )
   const addedIds: string[] = []
   const updatedIds: string[] = []
+  const remappedIds: string[] = []
 
   for (const item of incoming) {
     const key = expertiseKey(item)
-    const existingIndex = indexById.get(item.id) ?? (key ? indexByKey.get(key) : undefined)
+    const existingByIdIndex = indexById.get(item.id)
+    const existingByKeyIndex = key ? indexByKey.get(key) : undefined
+    const existingByKey = existingByKeyIndex !== undefined ? merged[existingByKeyIndex] : undefined
+    const existingIndex =
+      existingByIdIndex ??
+      (shouldMergeExpertiseByKey(existingByKey, item) ? existingByKeyIndex : undefined)
     if (existingIndex === undefined) {
       indexById.set(item.id, merged.length)
       if (key) indexByKey.set(key, merged.length)
@@ -203,10 +228,14 @@ const mergeExpertise = (
     }
 
     const existing = merged[existingIndex]
-    const nextItem = existing.id === item.id ? item : { ...item, id: existing.id }
+    const incomingItem = existing.id === item.id ? item : { ...item, id: existing.id }
+    const nextItem = preserveCorrectedExpertise(existing, incomingItem)
     if (hasMeaningfulChange(existing, nextItem)) {
       merged[existingIndex] = nextItem
       updatedIds.push(existing.id)
+      if (existing.id !== item.id) {
+        remappedIds.push(`${item.id}->${existing.id}`)
+      }
     }
   }
 
@@ -214,10 +243,30 @@ const mergeExpertise = (
     items: merged,
     addedIds,
     updatedIds,
+    remappedIds,
   }
 }
 
 const skillItemKey = (item: ProfessionalSkillItem): string => item.name.trim().toLowerCase()
+
+const preserveCorrectedSkillTaxonomy = (
+  existing: ProfessionalSkillItem,
+  incomingProvenance: ProfessionalSkillItem['provenance'],
+  incoming: ProfessionalSkillItem,
+): ProfessionalSkillItem => {
+  if (existing.provenance !== 'corrected' || incomingProvenance === 'corrected') {
+    return incoming
+  }
+
+  return {
+    ...incoming,
+    aliases: existing.aliases,
+    career_class: existing.career_class,
+    category: existing.category,
+    provenance: existing.provenance,
+    needs_review: existing.needs_review,
+  }
+}
 
 const mergeSkillItems = (
   current: ProfessionalSkillItem[],
@@ -228,8 +277,29 @@ const mergeSkillItems = (
   // Within a provided group, incoming items define membership; omitted fields stay intact and explicit null clears.
   return incoming.map((item) => {
     const existing = currentByKey.get(skillItemKey(item))
-    return existing ? { ...existing, ...item } : item
+    return existing
+      ? preserveCorrectedSkillTaxonomy(existing, item.provenance, { ...existing, ...item })
+      : item
   })
+}
+
+const preserveCorrectedSkillGroupTaxonomy = (
+  existing: ProfessionalSkillGroup,
+  incomingProvenance: ProfessionalSkillGroup['provenance'],
+  incoming: ProfessionalSkillGroup,
+): ProfessionalSkillGroup => {
+  if (existing.provenance !== 'corrected' || incomingProvenance === 'corrected') {
+    return incoming
+  }
+
+  return {
+    ...incoming,
+    source_label: existing.source_label,
+    career_class: existing.career_class,
+    category: existing.category,
+    provenance: existing.provenance,
+    needs_review: existing.needs_review,
+  }
 }
 
 const mergeSkillGroups = (
@@ -251,11 +321,11 @@ const mergeSkillGroups = (
     }
 
     const existing = merged[existingIndex]
-    const nextGroup: ProfessionalSkillGroup = {
+    const nextGroup = preserveCorrectedSkillGroupTaxonomy(existing, group.provenance, {
       ...existing,
       ...group,
       items: mergeSkillItems(existing.items, group.items),
-    }
+    })
 
     if (hasMeaningfulChange(existing, nextGroup)) {
       merged[existingIndex] = nextGroup
@@ -295,7 +365,7 @@ export const mergeProfessionalIdentity = (
   // are replaced wholesale from the incoming draft.
   const skillGroups = mergeSkillGroups(current.skills.groups, incoming.skills.groups)
   const profiles = mergeById<ProfessionalProfile>(current.profiles, incoming.profiles)
-  const expertise = mergeExpertise(current.expertise, incoming.expertise)
+  const expertise = mergeExpertise(current.expertise ?? [], incoming.expertise ?? [])
   const roles = mergeById<ProfessionalRole>(current.roles, incoming.roles)
   const projects = mergeById<ProfessionalProject>(current.projects, incoming.projects)
   const education = mergeEducation(current.education, incoming.education)
@@ -379,6 +449,9 @@ export const mergeProfessionalIdentity = (
     ...describeIdChanges('skill groups', skillGroups.addedIds, skillGroups.updatedIds),
     ...describeIdChanges('profiles', profiles.addedIds, profiles.updatedIds),
     ...describeIdChanges('expertise', expertise.addedIds, expertise.updatedIds),
+    ...((expertise.remappedIds?.length ?? 0) > 0
+      ? [`Remapped expertise ids: ${expertise.remappedIds!.join(', ')}.`]
+      : []),
     ...describeIdChanges('roles', roles.addedIds, roles.updatedIds),
     ...describeIdChanges('projects', projects.addedIds, projects.updatedIds),
     ...describeIdChanges(

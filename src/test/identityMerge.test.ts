@@ -256,7 +256,106 @@ describe('identityMerge', () => {
       }),
     ])
     expect(merged.details).toEqual(
-      expect.arrayContaining(['Updated expertise: customer-hosted-platforms.']),
+      expect.arrayContaining([
+        'Updated expertise: customer-hosted-platforms.',
+        'Remapped expertise ids: expertise-fresh-id->customer-hosted-platforms.',
+      ]),
+    )
+  })
+
+  it('collapses duplicate inferred expertise labels inside one incoming draft', () => {
+    const current = createIdentity()
+    const incoming = createIdentity()
+    incoming.expertise = [
+      {
+        id: 'platform-ops-a',
+        label: 'Platform Ops',
+        summary: 'First inferred summary.',
+        tags: ['platform'],
+        evidence: [{ kind: 'role', role_id: 'acme' }],
+        provenance: 'inferred',
+        needs_review: true,
+      },
+      {
+        id: 'platform-ops-b',
+        label: ' platform ops ',
+        summary: 'Second inferred summary.',
+        tags: ['operations'],
+        evidence: [{ kind: 'bullet', role_id: 'acme', bullet_id: 'acme-1' }],
+        provenance: 'inferred',
+        needs_review: true,
+      },
+    ]
+
+    const merged = mergeProfessionalIdentity(current, incoming)
+
+    expect(merged.data.expertise).toEqual([
+      expect.objectContaining({
+        id: 'platform-ops-a',
+        label: ' platform ops ',
+        summary: 'Second inferred summary.',
+        tags: ['operations'],
+      }),
+    ])
+    expect(merged.details).toEqual(
+      expect.arrayContaining([
+        'Added expertise: platform-ops-a.',
+        'Updated expertise: platform-ops-a.',
+        'Remapped expertise ids: platform-ops-b->platform-ops-a.',
+      ]),
+    )
+  })
+
+  it('defaults missing expertise arrays during merge', () => {
+    const current = createIdentity() as unknown as Omit<ProfessionalIdentityV3, 'expertise'> & {
+      expertise?: ProfessionalIdentityV3['expertise']
+    }
+    const incoming = createIdentity() as unknown as Omit<ProfessionalIdentityV3, 'expertise'> & {
+      expertise?: ProfessionalIdentityV3['expertise']
+    }
+    delete current.expertise
+    delete incoming.expertise
+
+    const merged = mergeProfessionalIdentity(
+      current as ProfessionalIdentityV3,
+      incoming as ProfessionalIdentityV3,
+    )
+
+    expect(merged.data.expertise).toEqual([])
+  })
+
+  it('does not merge distinct claimed expertise entries by label alone', () => {
+    const current = createIdentity()
+    current.expertise = [
+      {
+        id: 'platform-operations-a',
+        label: 'Platform operations',
+        summary: 'Claimed platform operations in infrastructure teams.',
+        tags: ['platform'],
+        evidence: [{ kind: 'role', role_id: 'acme' }],
+        provenance: 'claimed',
+      },
+    ]
+    const incoming = createIdentity()
+    incoming.expertise = [
+      {
+        id: 'platform-operations-b',
+        label: 'Platform operations',
+        summary: 'Separate corrected platform operations area.',
+        tags: ['operations'],
+        evidence: [{ kind: 'source', label: 'User notes' }],
+        provenance: 'corrected',
+      },
+    ]
+
+    const merged = mergeProfessionalIdentity(current, incoming)
+
+    expect(merged.data.expertise.map((entry) => entry.id)).toEqual([
+      'platform-operations-a',
+      'platform-operations-b',
+    ])
+    expect(merged.details).toEqual(
+      expect.arrayContaining(['Added expertise: platform-operations-b.']),
     )
   })
 
@@ -300,6 +399,45 @@ describe('identityMerge', () => {
     expect(merged.details).toEqual(
       expect.arrayContaining(['Updated expertise: platform-operations.']),
     )
+  })
+
+  it('preserves corrected expertise when an inferred draft updates the same id', () => {
+    const current = createIdentity()
+    current.expertise = [
+      {
+        id: 'platform-operations',
+        label: 'Platform operations',
+        summary: 'User-corrected summary.',
+        tags: ['platform'],
+        evidence: [{ kind: 'role', role_id: 'acme' }],
+        provenance: 'corrected',
+        needs_review: false,
+      },
+    ]
+    const incoming = createIdentity()
+    incoming.expertise = [
+      {
+        id: 'platform-operations',
+        label: 'Platform operations',
+        summary: 'Inferred overwrite.',
+        tags: ['inferred'],
+        evidence: [{ kind: 'bullet', role_id: 'acme', bullet_id: 'acme-1' }],
+        provenance: 'inferred',
+        needs_review: true,
+      },
+    ]
+
+    const merged = mergeProfessionalIdentity(current, incoming)
+
+    expect(merged.data.expertise).toEqual([
+      expect.objectContaining({
+        id: 'platform-operations',
+        summary: 'User-corrected summary.',
+        tags: ['platform'],
+        provenance: 'corrected',
+        needs_review: false,
+      }),
+    ])
   })
 
   it('preserves existing vectors and awareness when the incoming merge draft omits them', () => {
@@ -475,6 +613,62 @@ describe('identityMerge', () => {
     expect(merged.data.skills.groups[0]?.items[0]?.context).toContain('Primary language')
     expect(merged.data.skills.groups[0]?.items[0]?.positioning).toContain('Lead with this skill')
     expect(merged.data.skills.groups[0]?.items[0]?.enriched_by).toBe('user-edited-llm')
+  })
+
+  it('preserves corrected skill taxonomy when an incoming draft omits provenance', () => {
+    const current = createIdentity()
+    current.skills.groups[0] = {
+      ...current.skills.groups[0],
+      source_label: 'Technical Skills',
+      career_class: 'software-engineering',
+      category: 'programming-languages',
+      provenance: 'corrected',
+      needs_review: false,
+      items: [
+        {
+          ...current.skills.groups[0].items[0],
+          aliases: ['TS'],
+          career_class: 'software-engineering',
+          category: 'programming-languages',
+          provenance: 'corrected',
+          needs_review: false,
+        },
+      ],
+    }
+    const incoming = createIdentity()
+    incoming.skills.groups[0] = {
+      ...incoming.skills.groups[0],
+      source_label: 'Skills',
+      career_class: 'software-engineering',
+      category: 'frameworks',
+      needs_review: true,
+      items: [
+        {
+          name: 'TypeScript',
+          aliases: ['Type Script'],
+          career_class: 'software-engineering',
+          category: 'frameworks',
+          needs_review: true,
+          tags: ['platform', 'frontend'],
+        },
+      ],
+    }
+
+    const merged = mergeProfessionalIdentity(current, incoming)
+
+    expect(merged.data.skills.groups[0]).toMatchObject({
+      source_label: 'Technical Skills',
+      category: 'programming-languages',
+      provenance: 'corrected',
+      needs_review: false,
+    })
+    expect(merged.data.skills.groups[0]?.items[0]).toMatchObject({
+      aliases: ['TS'],
+      category: 'programming-languages',
+      provenance: 'corrected',
+      needs_review: false,
+      tags: ['platform', 'frontend'],
+    })
   })
 
   it('removes omitted skills from a provided group during merge', () => {

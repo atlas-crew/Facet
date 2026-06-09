@@ -93,7 +93,24 @@ Use this minimal valid shape for the identity object:
     "constraints": {}
   },
   "skills": {
-    "groups": [{ "id": string, "label": string, "items": [{ "name": string, "tags": string[] }] }]
+    "groups": [{
+      "id": string,
+      "label": string,
+      "source_label": optional string,
+      "career_class": optional string,
+      "category": optional string,
+      "provenance": optional "claimed" | "inferred" | "corrected",
+      "needs_review": optional boolean,
+      "items": [{
+        "name": string,
+        "aliases": optional string[],
+        "career_class": optional string,
+        "category": optional string,
+        "provenance": optional "claimed" | "inferred" | "corrected",
+        "needs_review": optional boolean,
+        "tags": string[]
+      }]
+    }]
   },
   "profiles": [{ "id": string, "tags": string[], "text": string }],
   "expertise": [{
@@ -109,8 +126,8 @@ Use this minimal valid shape for the identity object:
       "label": optional string,
       "source_text": optional string
     }],
-    "provenance": "claimed" | "inferred" | "corrected",
-    "needs_review": boolean
+    "provenance": optional "claimed" | "inferred" | "corrected",
+    "needs_review": optional boolean
   }],
   "roles": [{
     "id": string,
@@ -183,7 +200,9 @@ Rules:
 - expertise must always be present as an array, using [] when the source is silent.
 - Expertise is domain or subject-matter judgment, not tool proficiency. Examples: payments security, developer productivity, observability cost control, compliance automation, distributed-systems migration.
 - Inferred expertise must use provenance "inferred", needs_review true, and cite evidence with role/project/bullet ids or source context. User-stated expertise may use provenance "claimed".
-- For first-pass extraction, keep skill items limited to { name, tags }. Do not emit depth, proficiency, context, or positioning.
+  - For skill groups, preserve the user's/imported grouping in source_label when it differs from the system-assigned label/category. Add system taxonomy metadata with career_class and category as open strings. Seed Software Engineering with career_class "software-engineering" and categories "programming-languages", "frameworks", "systems", "operations-tools", and "soft-skills"; do not force unrelated career types into those values.
+  - For first-pass extraction, skill items may include name, aliases, career_class, category, provenance, needs_review, and tags. Do not emit depth, proficiency, context, or positioning.
+  - User/import-stated skills should use provenance "claimed". Skills inferred from roles, projects, bullets, technologies, or supplemental context must have provenance "inferred" and needs_review true. Only infer skills with concrete evidence in the supplied material.
 - Use empty arrays/objects/strings when the source is silent instead of inventing alternate keys.
 - Prefer a strong first draft over sparse placeholders.
 - Use "guessing" only when the source implies something but does not state it directly.

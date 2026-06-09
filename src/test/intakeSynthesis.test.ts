@@ -166,6 +166,271 @@ describe('intakeSynthesis', () => {
     expect(seed.roleVariantTitles).toEqual({})
   })
 
+  it('unions repeated skill item tags and aliases while preserving latest taxonomy metadata', () => {
+    const earlySource = makeResumeSource({
+      fileName: 'early.pdf',
+      scannedAt: '2026-01-01T00:00:00.000Z',
+      identity: makeIdentity({
+        skillGroups: [
+          {
+            id: 'platform',
+            label: 'Platform',
+            source_label: 'Technical Skills',
+            career_class: 'software-engineering',
+            category: 'systems',
+            provenance: 'claimed',
+            needs_review: false,
+            items: [
+              {
+                name: 'Kubernetes',
+                tags: ['platform', ''],
+                aliases: ['K8s'],
+                career_class: 'software-engineering',
+                category: 'systems',
+                provenance: 'claimed',
+              },
+            ],
+          },
+        ],
+      }),
+    })
+    const lateSource = makeResumeSource({
+      fileName: 'late.pdf',
+      scannedAt: '2026-04-05T00:00:00.000Z',
+      identity: makeIdentity({
+        skillGroups: [
+          {
+            id: 'platform',
+            label: 'Platform',
+            items: [
+              {
+                name: 'Kubernetes',
+                tags: ['Platform', 'operations', '  '],
+                aliases: ['k8s', 'kube', ''],
+                career_class: 'software-engineering',
+                category: 'operations-tools',
+                provenance: 'inferred',
+                needs_review: true,
+              },
+            ],
+          },
+        ],
+      }),
+    })
+
+    const seed = intakeSynthesis([earlySource, lateSource])
+
+    expect(seed.identity.skills.groups[0]).toMatchObject({
+      source_label: 'Technical Skills',
+      career_class: 'software-engineering',
+      category: 'systems',
+      provenance: 'claimed',
+      needs_review: false,
+    })
+    expect(seed.identity.skills.groups[0]?.items[0]).toMatchObject({
+      name: 'Kubernetes',
+      tags: ['platform', 'operations'],
+      aliases: ['K8s', 'kube'],
+      career_class: 'software-engineering',
+      category: 'operations-tools',
+      provenance: 'inferred',
+      needs_review: true,
+    })
+  })
+
+  it('uses latest defined skill group taxonomy metadata across sources', () => {
+    const earlySource = makeResumeSource({
+      fileName: 'early.pdf',
+      scannedAt: '2026-01-01T00:00:00.000Z',
+      identity: makeIdentity({
+        skillGroups: [
+          {
+            id: 'platform-early',
+            label: 'Platform',
+            source_label: 'Technical Skills',
+            career_class: 'software-engineering',
+            category: 'systems',
+            provenance: 'claimed',
+            needs_review: false,
+            items: [{ name: 'Kubernetes', tags: ['platform'] }],
+          },
+        ],
+      }),
+    })
+    const lateSource = makeResumeSource({
+      fileName: 'late.pdf',
+      scannedAt: '2026-04-05T00:00:00.000Z',
+      identity: makeIdentity({
+        skillGroups: [
+          {
+            id: 'platform-late',
+            label: 'Platform',
+            source_label: 'Reviewed Skills',
+            career_class: 'software-engineering',
+            category: 'operations-tools',
+            provenance: 'inferred',
+            needs_review: true,
+            items: [{ name: 'Kubernetes', tags: ['operations'] }],
+          },
+        ],
+      }),
+    })
+
+    const seed = intakeSynthesis([earlySource, lateSource])
+
+    expect(seed.identity.skills.groups[0]).toMatchObject({
+      id: 'platform-late',
+      source_label: 'Reviewed Skills',
+      career_class: 'software-engineering',
+      category: 'operations-tools',
+      provenance: 'inferred',
+      needs_review: true,
+    })
+  })
+
+  it('omits empty skill aliases when repeated items have none', () => {
+    const earlySource = makeResumeSource({
+      fileName: 'early.pdf',
+      scannedAt: '2026-01-01T00:00:00.000Z',
+      identity: makeIdentity({
+        skillGroups: [
+          {
+            id: 'platform',
+            label: 'Platform',
+            items: [{ name: 'Kubernetes', tags: [], aliases: [] }],
+          },
+        ],
+      }),
+    })
+    const lateSource = makeResumeSource({
+      fileName: 'late.pdf',
+      scannedAt: '2026-04-05T00:00:00.000Z',
+      identity: makeIdentity({
+        skillGroups: [
+          {
+            id: 'platform',
+            label: 'Platform',
+            items: [{ name: 'Kubernetes', tags: [], aliases: [] }],
+          },
+        ],
+      }),
+    })
+
+    const seed = intakeSynthesis([earlySource, lateSource])
+
+    expect(seed.identity.skills.groups[0]?.items[0]).not.toHaveProperty('aliases')
+  })
+
+  it('backfills missing skill group taxonomy from a later source', () => {
+    const earlySource = makeResumeSource({
+      fileName: 'early.pdf',
+      scannedAt: '2026-01-01T00:00:00.000Z',
+      identity: makeIdentity({
+        skillGroups: [makeSkillGroup('platform', 'Platform', ['Kubernetes'])],
+      }),
+    })
+    const lateSource = makeResumeSource({
+      fileName: 'late.pdf',
+      scannedAt: '2026-04-05T00:00:00.000Z',
+      identity: makeIdentity({
+        skillGroups: [
+          {
+            id: 'platform',
+            label: 'Platform',
+            source_label: 'Reviewed Skills',
+            career_class: 'software-engineering',
+            category: 'operations-tools',
+            provenance: 'inferred',
+            needs_review: true,
+            items: [{ name: 'Kubernetes', tags: [] }],
+          },
+        ],
+      }),
+    })
+
+    const seed = intakeSynthesis([earlySource, lateSource])
+
+    expect(seed.identity.skills.groups[0]).toMatchObject({
+      source_label: 'Reviewed Skills',
+      career_class: 'software-engineering',
+      category: 'operations-tools',
+      provenance: 'inferred',
+      needs_review: true,
+    })
+  })
+
+  it('retains existing skill scalars when later items omit them while folding arrays across sources', () => {
+    const firstSource = makeResumeSource({
+      fileName: 'first.pdf',
+      scannedAt: '2026-01-01T00:00:00.000Z',
+      identity: makeIdentity({
+        skillGroups: [
+          {
+            id: 'platform',
+            label: 'Platform',
+            items: [
+              {
+                name: 'Kubernetes',
+                tags: ['platform'],
+                aliases: ['K8s'],
+                provenance: 'claimed',
+                needs_review: true,
+              },
+            ],
+          },
+        ],
+      }),
+    })
+    const secondSource = makeResumeSource({
+      fileName: 'second.pdf',
+      scannedAt: '2026-02-01T00:00:00.000Z',
+      identity: makeIdentity({
+        skillGroups: [
+          {
+            id: 'platform',
+            label: 'Platform',
+            items: [
+              {
+                name: 'Kubernetes',
+                tags: ['operations'],
+                aliases: ['k8s', 'kube'],
+                needs_review: false,
+              },
+            ],
+          },
+        ],
+      }),
+    })
+    const thirdSource = makeResumeSource({
+      fileName: 'third.pdf',
+      scannedAt: '2026-03-01T00:00:00.000Z',
+      identity: makeIdentity({
+        skillGroups: [
+          {
+            id: 'platform',
+            label: 'Platform',
+            items: [
+              {
+                name: 'Kubernetes',
+                tags: ['systems'],
+                aliases: ['Kube', 'orchestration'],
+              },
+            ],
+          },
+        ],
+      }),
+    })
+
+    const seed = intakeSynthesis([firstSource, secondSource, thirdSource])
+
+    expect(seed.identity.skills.groups[0]?.items[0]).toMatchObject({
+      tags: ['platform', 'operations', 'systems'],
+      aliases: ['K8s', 'kube', 'orchestration'],
+      provenance: 'claimed',
+      needs_review: false,
+    })
+  })
+
   it('keeps separate roles when the same company has non-overlapping date ranges', () => {
     const earlyRole = makeRole({
       id: 'contoso-early',
@@ -290,6 +555,11 @@ describe('intakeSynthesis', () => {
     const platformGroup = seed.identity.skills.groups.find((group) => group.label === 'Platform')
     const cloudGroup = seed.identity.skills.groups.find((group) => group.label === 'Cloud')
     expect(platformGroup?.items.map((item) => item.name)).toContain('Kubernetes')
+    expect(platformGroup).not.toHaveProperty('source_label')
+    expect(platformGroup).not.toHaveProperty('career_class')
+    expect(platformGroup).not.toHaveProperty('category')
+    expect(platformGroup).not.toHaveProperty('provenance')
+    expect(platformGroup).not.toHaveProperty('needs_review')
     expect(cloudGroup).toBeUndefined()
   })
 

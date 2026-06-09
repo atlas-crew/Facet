@@ -1006,9 +1006,14 @@ const toIdentity = ({
     skills.map((group, index) => ({
       id: slugify(group.label) || `skills-${index + 1}`,
       label: group.label,
+      // The extraction pass may assign a system label/category; keep the parsed resume label
+      // available as the original grouping even when it initially matches `label`.
+      source_label: group.label,
+      provenance: 'claimed',
       items: group.items.map((item) => ({
         name: item,
         tags: [],
+        provenance: 'claimed',
       })),
     })),
   )

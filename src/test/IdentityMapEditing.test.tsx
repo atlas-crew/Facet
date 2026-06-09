@@ -1135,7 +1135,9 @@ describe('Identity Map — match-rule add/remove', () => {
       })
       const deferred =
         createDeferred<
-          Awaited<ReturnType<typeof identityParameterMocks.generateIdentityProfilesFromIdentityMock>>
+          Awaited<
+            ReturnType<typeof identityParameterMocks.generateIdentityProfilesFromIdentityMock>
+          >
         >()
       identityParameterMocks.generateIdentityProfilesFromIdentityMock.mockReturnValueOnce(
         deferred.promise,
@@ -1230,7 +1232,9 @@ describe('Identity Map — match-rule add/remove', () => {
     expect(within(panel).getByText('Bullet evidence is already structured.')).toBeTruthy()
     expect(within(panel).getByText('Skill depth is already complete.')).toBeTruthy()
     expect(within(panel).getByText('Search parameters already exist.')).toBeTruthy()
-    expect(within(panel).getByRole('button', { name: 'Retry unfinished' }).getAttribute('disabled')).not.toBeNull()
+    expect(
+      within(panel).getByRole('button', { name: 'Retry unfinished' }).getAttribute('disabled'),
+    ).not.toBeNull()
     expect(identityParameterMocks.generateIdentityThesisFromIdentityMock).not.toHaveBeenCalled()
     expect(identityParameterMocks.generateIdentityProfilesFromIdentityMock).not.toHaveBeenCalled()
   })
@@ -1259,9 +1263,13 @@ describe('Identity Map — match-rule add/remove', () => {
     })
     const panel = screen.getByRole('region', { name: 'Run all inference' })
     await waitFor(() => {
-      expect(within(panel).getByText('Thesis needs review before run all can continue.')).toBeTruthy()
+      expect(
+        within(panel).getByText('Thesis needs review before run all can continue.'),
+      ).toBeTruthy()
     })
-    expect(within(panel).getByText('Review and apply the generated draft, then retry unfinished steps.')).toBeTruthy()
+    expect(
+      within(panel).getByText('Review and apply the generated draft, then retry unfinished steps.'),
+    ).toBeTruthy()
     expect(screen.getByRole('region', { name: 'Generated thesis draft' })).toBeTruthy()
   })
 
@@ -1293,10 +1301,14 @@ describe('Identity Map — match-rule add/remove', () => {
 
       const panel = await screen.findByRole('region', { name: 'Run all inference' })
       await waitFor(() => {
-        expect(within(panel).getByText('Profiles did not finish. Retry unfinished steps when ready.')).toBeTruthy()
+        expect(
+          within(panel).getByText('Profiles did not finish. Retry unfinished steps when ready.'),
+        ).toBeTruthy()
       })
       expect(within(panel).getByText('Thesis already exists.')).toBeTruthy()
-      expect(within(panel).getByText('Failed. Successful earlier steps were preserved.')).toBeTruthy()
+      expect(
+        within(panel).getByText('Failed. Successful earlier steps were preserved.'),
+      ).toBeTruthy()
 
       fireEvent.click(within(panel).getByRole('button', { name: 'Retry unfinished' }))
 
@@ -1312,7 +1324,9 @@ describe('Identity Map — match-rule add/remove', () => {
       await waitFor(() => {
         expect(within(panel).getByText('Run all inference finished.')).toBeTruthy()
       })
-      expect(identityParameterMocks.generateIdentityProfilesFromIdentityMock).toHaveBeenCalledTimes(2)
+      expect(identityParameterMocks.generateIdentityProfilesFromIdentityMock).toHaveBeenCalledTimes(
+        2,
+      )
     } finally {
       consoleErrorSpy.mockRestore()
     }
@@ -1332,7 +1346,9 @@ describe('Identity Map — match-rule add/remove', () => {
       }))
       const deferred =
         createDeferred<
-          Awaited<ReturnType<typeof identityParameterMocks.generateIdentityProfilesFromIdentityMock>>
+          Awaited<
+            ReturnType<typeof identityParameterMocks.generateIdentityProfilesFromIdentityMock>
+          >
         >()
       identityParameterMocks.generateIdentityProfilesFromIdentityMock.mockReturnValueOnce(
         deferred.promise,
@@ -1347,7 +1363,9 @@ describe('Identity Map — match-rule add/remove', () => {
         await Promise.resolve()
       })
 
-      expect(identityParameterMocks.generateIdentityProfilesFromIdentityMock).toHaveBeenCalledTimes(1)
+      expect(identityParameterMocks.generateIdentityProfilesFromIdentityMock).toHaveBeenCalledTimes(
+        1,
+      )
       const panel = screen.getByRole('region', { name: 'Run all inference' })
       expect(within(panel).getByText('Running Profiles.')).toBeTruthy()
 
@@ -1408,7 +1426,9 @@ describe('Identity Map — match-rule add/remove', () => {
 
     const panel = await screen.findByRole('region', { name: 'Run all inference' })
     await waitFor(() => {
-      expect(within(panel).getByText('Skill depth did not finish. Retry unfinished steps when ready.')).toBeTruthy()
+      expect(
+        within(panel).getByText('Skill depth did not finish. Retry unfinished steps when ready.'),
+      ).toBeTruthy()
     })
     expect(
       within(panel).getByText('Blocked. Resolve the section message, then retry unfinished steps.'),
@@ -1470,7 +1490,9 @@ describe('Identity Map — match-rule add/remove', () => {
       expect(within(panel).getByText('Skipped by the section.')).toBeTruthy()
     })
     await waitFor(() => {
-      expect(identityParameterMocks.generateIdentityProfilesFromIdentityMock).toHaveBeenCalledTimes(1)
+      expect(identityParameterMocks.generateIdentityProfilesFromIdentityMock).toHaveBeenCalledTimes(
+        1,
+      )
     })
     await waitFor(() => {
       expect(within(panel).getByText('Run all inference finished.')).toBeTruthy()
@@ -3635,18 +3657,12 @@ describe('Identity Map — match-rule add/remove', () => {
       throw new Error('Expected expertise section to render.')
     }
 
-    fireEvent.change(
-      within(section).getByLabelText('Expertise label for expertise area 1'),
-      {
-        target: { value: 'Customer-hosted platform delivery' },
-      },
-    )
-    fireEvent.change(
-      within(section).getByLabelText('Expertise summary for expertise area 1'),
-      {
-        target: { value: 'Designs deployment paths for regulated customers.' },
-      },
-    )
+    fireEvent.change(within(section).getByLabelText('Expertise label for expertise area 1'), {
+      target: { value: 'Customer-hosted platform delivery' },
+    })
+    fireEvent.change(within(section).getByLabelText('Expertise summary for expertise area 1'), {
+      target: { value: 'Designs deployment paths for regulated customers.' },
+    })
     const tagsInput = within(section).getByLabelText('Expertise tags for expertise area 1')
     fireEvent.change(tagsInput, {
       target: { value: 'Platform, enterprise, platform,' },
@@ -5741,6 +5757,106 @@ describe('Identity Map — skill inline editing', () => {
     expect(screen.getByText('high confidence')).toBeTruthy()
   })
 
+  it('edits skill taxonomy, aliases, provenance, and review status inline', () => {
+    seed((id) => {
+      const skill = id.skills.groups[0]!.items[0]!
+      skill.aliases = ['K8s']
+      skill.career_class = 'software-engineering'
+      skill.category = 'systems'
+      skill.provenance = 'inferred'
+      skill.needs_review = true
+    })
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Kubernetes' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit skill' }))
+    fireEvent.change(screen.getByLabelText('Aliases (comma-separated)'), {
+      target: { value: 'K8s, kube' },
+    })
+    fireEvent.change(screen.getByLabelText('Career class'), {
+      target: { value: 'software-engineering' },
+    })
+    fireEvent.change(screen.getByLabelText('Category'), {
+      target: { value: 'operations-tools' },
+    })
+    fireEvent.change(screen.getByLabelText(/^Skill status/), {
+      target: { value: 'claimed' },
+    })
+    fireEvent.click(screen.getByLabelText('Needs review'))
+    fireEvent.click(screen.getByRole('button', { name: 'Save skill' }))
+
+    expect(useIdentityStore.getState().currentIdentity!.skills.groups[0]!.items[0]).toMatchObject({
+      aliases: ['K8s', 'kube'],
+      career_class: 'software-engineering',
+      category: 'operations-tools',
+      provenance: 'claimed',
+      needs_review: undefined,
+    })
+    expect(screen.getByText('Operations & Tools')).toBeTruthy()
+    expect(screen.getByText('claimed')).toBeTruthy()
+  })
+
+  it('marks taxonomy edits as corrected when status is unchanged', () => {
+    seed((id) => {
+      const skill = id.skills.groups[0]!.items[0]!
+      skill.category = 'systems'
+      skill.provenance = 'inferred'
+    })
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Kubernetes' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit skill' }))
+    fireEvent.change(screen.getByLabelText('Category'), {
+      target: { value: 'operations-tools' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save skill' }))
+
+    expect(useIdentityStore.getState().currentIdentity!.skills.groups[0]!.items[0]).toMatchObject({
+      category: 'operations-tools',
+      provenance: 'corrected',
+    })
+  })
+
+  it('marks alias-only taxonomy edits as corrected when status is unchanged', () => {
+    seed((id) => {
+      const skill = id.skills.groups[0]!.items[0]!
+      skill.aliases = ['K8s']
+      skill.provenance = 'inferred'
+    })
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Kubernetes' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit skill' }))
+    fireEvent.change(screen.getByLabelText('Aliases (comma-separated)'), {
+      target: { value: 'K8s, kube' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save skill' }))
+
+    expect(useIdentityStore.getState().currentIdentity!.skills.groups[0]!.items[0]).toMatchObject({
+      aliases: ['K8s', 'kube'],
+      provenance: 'corrected',
+    })
+  })
+
+  it('prompts for review when an inferred skill needs confirmation', () => {
+    seed((id) => {
+      const skill = id.skills.groups[0]!.items[0]!
+      skill.provenance = 'inferred'
+      skill.needs_review = true
+      skill.aliases = ['K8s']
+      skill.category = 'operations-tools'
+    })
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Kubernetes' }))
+
+    expect(
+      screen.getByText(
+        'This skill was inferred or imported with review requested. Confirm the category, aliases, and status before relying on it downstream.',
+      ),
+    ).toBeTruthy()
+  })
+
   it('clears inline depth confidence when the depth changes', () => {
     seed((id) => {
       id.skills.groups[0]!.items[0]!.depthConfidence = 'high'
@@ -6256,6 +6372,71 @@ describe('Identity Map — skill inline editing', () => {
     expect(screen.getByRole('button', { name: 'Platform Engineering' })).toBeTruthy()
   })
 
+  it('edits skill group taxonomy separately from the original imported label', () => {
+    seed((id) => {
+      id.skills.groups[0] = {
+        ...id.skills.groups[0]!,
+        source_label: 'Technical Skills',
+        career_class: 'software-engineering',
+        category: 'systems',
+        provenance: 'inferred',
+        needs_review: true,
+      }
+    })
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Platform' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit group details' }))
+    fireEvent.change(screen.getByLabelText('Original group label'), {
+      target: { value: 'Technical Skills & Tools' },
+    })
+    fireEvent.change(screen.getByLabelText('Career class'), {
+      target: { value: 'software-engineering' },
+    })
+    fireEvent.change(screen.getByLabelText('Category'), {
+      target: { value: 'operations-tools' },
+    })
+    fireEvent.change(screen.getByLabelText(/^Group status/), {
+      target: { value: 'corrected' },
+    })
+    fireEvent.click(screen.getByLabelText('Needs review'))
+    fireEvent.click(screen.getByRole('button', { name: 'Save group' }))
+
+    expect(useIdentityStore.getState().currentIdentity!.skills.groups[0]).toMatchObject({
+      label: 'Platform',
+      source_label: 'Technical Skills & Tools',
+      career_class: 'software-engineering',
+      category: 'operations-tools',
+      provenance: 'corrected',
+      needs_review: undefined,
+    })
+    expect(screen.getByText('Technical Skills & Tools')).toBeTruthy()
+    expect(screen.getByText('Operations & Tools')).toBeTruthy()
+  })
+
+  it('marks skill group taxonomy edits as corrected when status is unchanged', () => {
+    seed((id) => {
+      id.skills.groups[0] = {
+        ...id.skills.groups[0]!,
+        category: 'systems',
+        provenance: 'inferred',
+      }
+    })
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Platform' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit group details' }))
+    fireEvent.change(screen.getByLabelText('Category'), {
+      target: { value: 'operations-tools' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save group' }))
+
+    expect(useIdentityStore.getState().currentIdentity!.skills.groups[0]).toMatchObject({
+      category: 'operations-tools',
+      provenance: 'corrected',
+    })
+  })
+
   it('suggests standardized skill group names and applies them without losing metadata', async () => {
     seed((id) => {
       id.skills.groups[0] = {
@@ -6302,9 +6483,7 @@ describe('Identity Map — skill inline editing', () => {
     const proposals = await screen.findByLabelText('Suggested skill group names')
     expect(within(proposals).getByText('Platform Infrastructure')).toBeTruthy()
     expect(within(proposals).getByText('Application Languages')).toBeTruthy()
-    expect(
-      screen.getByText(/per-group revert is deferred for now/i),
-    ).toBeTruthy()
+    expect(screen.getByText(/per-group revert is deferred for now/i)).toBeTruthy()
     expect(
       (screen.getByRole('button', { name: 'Deepen all skills' }) as HTMLButtonElement).disabled,
     ).toBe(true)
@@ -6340,7 +6519,9 @@ describe('Identity Map — skill inline editing', () => {
     ).toBe(true)
 
     expect(
-      await screen.findAllByText('AI suggestions are disabled. Configure VITE_ANTHROPIC_PROXY_URL.'),
+      await screen.findAllByText(
+        'AI suggestions are disabled. Configure VITE_ANTHROPIC_PROXY_URL.',
+      ),
     ).not.toHaveLength(0)
     expect(skillGroupNamingMocks.generateSkillGroupNameSuggestionsMock).not.toHaveBeenCalled()
   })
@@ -6596,7 +6777,9 @@ describe('Identity Map — skill inline editing', () => {
     const targetSelect = screen.getByLabelText('Move to group') as HTMLSelectElement
     fireEvent.change(targetSelect, { target: { value: 'cloud' } })
     expect(screen.getByRole('button', { name: 'Move & merge' })).toBeTruthy()
-    const mergeHint = screen.getByText(/cloud already has\s+kubernetes\s+\. moving will merge tags/i)
+    const mergeHint = screen.getByText(
+      /cloud already has\s+kubernetes\s+\. moving will merge tags/i,
+    )
     expect(mergeHint).toBeTruthy()
     expect(mergeHint.getAttribute('aria-live')).toBe('polite')
     expect(targetSelect.getAttribute('aria-describedby')).toBe(mergeHint.id)

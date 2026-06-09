@@ -3,6 +3,7 @@ import type {
   ProfessionalSkillDepthSource,
   ProfessionalSkillEnrichedBy,
   ProfessionalSkillItem,
+  ProfessionalSkillProvenance,
 } from './schema'
 
 export interface SkillNameDedupeEvent {
@@ -33,6 +34,27 @@ const mergeSkillTags = (canonical: string[], duplicate: string[]): string[] => {
   return merged
 }
 
+const mergeSkillAliases = (
+  canonical: string[] | undefined,
+  duplicate: string[] | undefined,
+): string[] | undefined => {
+  if (!canonical && !duplicate) return undefined
+
+  const seen = new Set<string>()
+  const merged: string[] = []
+
+  for (const alias of [...(canonical ?? []), ...(duplicate ?? [])]) {
+    const key = alias.trim().toLocaleLowerCase()
+    if (!key || seen.has(key)) {
+      continue
+    }
+    seen.add(key)
+    merged.push(alias)
+  }
+
+  return merged.length > 0 ? merged : undefined
+}
+
 const depthSourceRank = (source: ProfessionalSkillDepthSource | undefined): number => {
   if (source === 'corrected') return 2
   if (source === 'inferred') return 1
@@ -43,6 +65,13 @@ const enrichedByRank = (source: ProfessionalSkillEnrichedBy | undefined): number
   if (source === 'user') return 3
   if (source === 'user-edited-llm') return 2
   if (source === 'llm-accepted') return 1
+  return 0
+}
+
+const provenanceRank = (source: ProfessionalSkillProvenance | undefined): number => {
+  if (source === 'corrected') return 3
+  if (source === 'claimed') return 2
+  if (source === 'inferred') return 1
   return 0
 }
 
@@ -84,6 +113,11 @@ const shouldUseDuplicateEnrichment = (
   return enrichedByRank(duplicate.enriched_by) > enrichedByRank(canonical.enriched_by)
 }
 
+const shouldUseDuplicateTaxonomy = (
+  canonical: ProfessionalSkillItem,
+  duplicate: ProfessionalSkillItem,
+): boolean => provenanceRank(duplicate.provenance) > provenanceRank(canonical.provenance)
+
 const chooseMergedValue = <T>(
   useDuplicate: boolean,
   canonical: T | undefined,
@@ -102,6 +136,24 @@ const mergeCaseVariantSkill = (
 ): ProfessionalSkillItem => {
   const useDuplicateDepth = shouldUseDuplicateDepth(canonical, duplicate)
   const useDuplicateEnrichment = shouldUseDuplicateEnrichment(canonical, duplicate)
+  const useDuplicateTaxonomy = shouldUseDuplicateTaxonomy(canonical, duplicate)
+  const aliases = mergeSkillAliases(canonical.aliases, duplicate.aliases)
+  const careerClass = chooseMergedValue(
+    useDuplicateTaxonomy,
+    canonical.career_class,
+    duplicate.career_class,
+  )
+  const category = chooseMergedValue(useDuplicateTaxonomy, canonical.category, duplicate.category)
+  const provenance = chooseMergedValue(
+    useDuplicateTaxonomy,
+    canonical.provenance,
+    duplicate.provenance,
+  )
+  const needsReview = chooseMergedValue(
+    useDuplicateTaxonomy,
+    canonical.needs_review,
+    duplicate.needs_review,
+  )
   const context = chooseMergedValue(useDuplicateEnrichment, canonical.context, duplicate.context)
   const contextStale = chooseMergedValue(
     useDuplicateEnrichment,
@@ -151,6 +203,11 @@ const mergeCaseVariantSkill = (
   return {
     ...canonical,
     tags: mergeSkillTags(canonical.tags, duplicate.tags),
+    ...(aliases !== undefined ? { aliases } : {}),
+    ...(careerClass !== undefined ? { career_class: careerClass } : {}),
+    ...(category !== undefined ? { category } : {}),
+    ...(provenance !== undefined ? { provenance } : {}),
+    ...(needsReview !== undefined ? { needs_review: needsReview } : {}),
     ...(useDuplicateDepth
       ? {
           depth: duplicate.depth,

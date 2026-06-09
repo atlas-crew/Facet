@@ -6,6 +6,8 @@ import {
   importProfessionalIdentity,
   looksLikeProfessionalIdentity,
   normalizeRuntimeProfessionalIdentity,
+  SOFTWARE_ENGINEERING_SKILL_CAREER_CLASS,
+  SOFTWARE_ENGINEERING_SKILL_CATEGORIES,
   type ProfessionalIdentityV3,
 } from '../identity/schema'
 
@@ -250,32 +252,49 @@ describe('professional identity schema', () => {
     )
   })
 
-  it('rejects duplicate expertise ids', () => {
+  it('drops duplicate expertise ids with a warning', () => {
     const duplicate = clone(baseIdentityFixture)
     duplicate.expertise.push({ ...duplicate.expertise[0]! })
 
-    expect(() => importProfessionalIdentity(duplicate)).toThrow(/expertise has duplicate id/)
+    const parsed = importProfessionalIdentity(duplicate)
+
+    expect(parsed.data.expertise).toHaveLength(1)
+    expect(parsed.warnings).toEqual(
+      expect.arrayContaining([
+        'expertise[1] was dropped: expertise has duplicate id "developer-productivity".',
+      ]),
+    )
   })
 
-  it('rejects invalid expertise evidence kinds', () => {
+  it('drops invalid expertise evidence kinds with a warning', () => {
     const invalid = clone(baseIdentityFixture) as unknown as Record<string, unknown>
     const expertise = invalid.expertise as Array<{ evidence: Array<{ kind: string }> }>
     expertise[0]!.evidence[0]!.kind = 'invalid'
 
-    expect(() => importProfessionalIdentity(invalid)).toThrow(
-      /expertise\[0\]\.evidence\[0\]\.kind/,
+    const parsed = importProfessionalIdentity(invalid)
+
+    expect(parsed.data.expertise).toEqual([])
+    expect(parsed.warnings).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/expertise\[0\] was dropped: expertise\[0\]\.evidence\[0\]\.kind/),
+      ]),
     )
   })
 
-  it('rejects invalid expertise review metadata', () => {
+  it('drops invalid expertise review metadata with warnings', () => {
     const invalidProvenance = clone(baseIdentityFixture) as unknown as Record<string, unknown>
     const expertiseWithInvalidProvenance = invalidProvenance.expertise as Array<{
       provenance: string
     }>
     expertiseWithInvalidProvenance[0]!.provenance = 'hallucinated'
 
-    expect(() => importProfessionalIdentity(invalidProvenance)).toThrow(
-      /expertise\[0\]\.provenance/,
+    const parsedInvalidProvenance = importProfessionalIdentity(invalidProvenance)
+
+    expect(parsedInvalidProvenance.data.expertise).toEqual([])
+    expect(parsedInvalidProvenance.warnings).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/expertise\[0\] was dropped: expertise\[0\]\.provenance/),
+      ]),
     )
 
     const invalidReviewFlag = clone(baseIdentityFixture) as unknown as Record<string, unknown>
@@ -284,8 +303,13 @@ describe('professional identity schema', () => {
     }>
     expertiseWithInvalidReviewFlag[0]!.needs_review = 'yes'
 
-    expect(() => importProfessionalIdentity(invalidReviewFlag)).toThrow(
-      /expertise\[0\]\.needs_review/,
+    const parsedInvalidReviewFlag = importProfessionalIdentity(invalidReviewFlag)
+
+    expect(parsedInvalidReviewFlag.data.expertise).toEqual([])
+    expect(parsedInvalidReviewFlag.warnings).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/expertise\[0\] was dropped: expertise\[0\]\.needs_review/),
+      ]),
     )
   })
 
@@ -308,7 +332,7 @@ describe('professional identity schema', () => {
     )
   })
 
-  it('rejects malformed expertise evidence shapes', () => {
+  it('drops malformed expertise evidence shapes with warnings', () => {
     const cases: Array<{
       label: string
       evidence: unknown
@@ -335,6 +359,16 @@ describe('professional identity schema', () => {
         error: /expertise\[0\]\.evidence\[0\]\.source_text/,
       },
       {
+        label: 'source evidence with identity ids',
+        evidence: { kind: 'source', source_text: 'User notes.', role_id: 'contoso' },
+        error: /source evidence cannot reference identity entity ids/,
+      },
+      {
+        label: 'bullet evidence with project id',
+        evidence: { kind: 'bullet', bullet_id: 'a10-delivery', project_id: 'proj-facet' },
+        error: /project_id is not allowed for bullet evidence/,
+      },
+      {
         label: 'project evidence with role id',
         evidence: { kind: 'project', project_id: 'proj-facet', role_id: 'contoso' },
         error: /project evidence cannot reference role or bullet ids/,
@@ -350,7 +384,11 @@ describe('professional identity schema', () => {
       const invalid = clone(baseIdentityFixture)
       invalid.expertise[0]!.evidence = [testCase.evidence as never]
 
-      expect(() => importProfessionalIdentity(invalid), testCase.label).toThrow(testCase.error)
+      const parsed = importProfessionalIdentity(invalid)
+      expect(parsed.data.expertise, testCase.label).toEqual([])
+      expect(parsed.warnings, testCase.label).toEqual(
+        expect.arrayContaining([expect.stringMatching(testCase.error)]),
+      )
     }
   })
 
@@ -1394,6 +1432,146 @@ describe('professional identity schema', () => {
     expect(items[1].depthSource).toBe('inferred')
   })
 
+  it('preserves skill taxonomy metadata, aliases, provenance, and review status', () => {
+    const enriched = clone(baseIdentityFixture)
+    enriched.skills.groups[0] = {
+      ...enriched.skills.groups[0],
+      source_label: 'Technical Skills',
+      career_class: SOFTWARE_ENGINEERING_SKILL_CAREER_CLASS,
+      category: 'programming-languages',
+      provenance: 'inferred',
+      needs_review: true,
+      items: [
+        {
+          name: 'TypeScript',
+          aliases: ['TS', 'ts', '   ', ' Type Script '],
+          career_class: SOFTWARE_ENGINEERING_SKILL_CAREER_CLASS,
+          category: 'programming-languages',
+          provenance: 'claimed',
+          needs_review: false,
+          tags: ['platform'],
+        },
+      ],
+    }
+
+    const { data: parsed, warnings } = importProfessionalIdentity(enriched)
+    const group = parsed.skills.groups[0]!
+    const item = group.items[0]!
+
+    expect(group).toMatchObject({
+      source_label: 'Technical Skills',
+      career_class: SOFTWARE_ENGINEERING_SKILL_CAREER_CLASS,
+      category: 'programming-languages',
+      provenance: 'inferred',
+      needs_review: true,
+    })
+    expect(item).toMatchObject({
+      aliases: ['TS', 'Type Script'],
+      career_class: SOFTWARE_ENGINEERING_SKILL_CAREER_CLASS,
+      category: 'programming-languages',
+      provenance: 'claimed',
+      needs_review: false,
+    })
+    expect(warnings).toContain(
+      'skills.groups[0].items[0].aliases contained duplicate value "ts" that was deduplicated.',
+    )
+    expect(warnings).toContain(
+      'skills.groups[0].items[0].aliases contained an empty value that was removed.',
+    )
+  })
+
+  it('dedupes skill case variants without letting inferred taxonomy overwrite corrected taxonomy', () => {
+    const enriched = clone(baseIdentityFixture)
+    enriched.skills.groups[0].items = [
+      {
+        name: 'Rust',
+        aliases: ['Rust language'],
+        career_class: 'software-engineering',
+        category: 'systems',
+        provenance: 'corrected',
+        needs_review: false,
+        tags: ['systems'],
+      },
+      {
+        name: 'rust',
+        aliases: ['rustlang', 'Rust language'],
+        career_class: 'software-engineering',
+        category: 'programming-languages',
+        provenance: 'inferred',
+        needs_review: true,
+        tags: ['backend'],
+      },
+    ]
+
+    const { data: parsed } = importProfessionalIdentity(enriched)
+
+    expect(parsed.skills.groups[0].items).toEqual([
+      expect.objectContaining({
+        name: 'Rust',
+        aliases: ['Rust language', 'rustlang'],
+        category: 'systems',
+        provenance: 'corrected',
+        needs_review: false,
+        tags: ['systems', 'backend'],
+      }),
+    ])
+  })
+
+  it('lets corrected duplicate skill taxonomy win over claimed canonical taxonomy', () => {
+    const enriched = clone(baseIdentityFixture)
+    enriched.skills.groups[0].items = [
+      {
+        name: 'React',
+        career_class: 'software-engineering',
+        category: 'frameworks',
+        provenance: 'claimed',
+        tags: ['frontend'],
+      },
+      {
+        name: 'react',
+        career_class: 'software-engineering',
+        category: 'operations-tools',
+        provenance: 'corrected',
+        needs_review: false,
+        tags: ['ui'],
+      },
+    ]
+
+    const { data: parsed } = importProfessionalIdentity(enriched)
+
+    expect(parsed.skills.groups[0].items[0]).toMatchObject({
+      name: 'React',
+      category: 'operations-tools',
+      provenance: 'corrected',
+      needs_review: false,
+      tags: ['frontend', 'ui'],
+    })
+  })
+
+  it('keeps Software Engineering skill taxonomy categories open but seeded', () => {
+    expect(SOFTWARE_ENGINEERING_SKILL_CATEGORIES.map((category) => category.id)).toEqual([
+      'programming-languages',
+      'frameworks',
+      'systems',
+      'operations-tools',
+      'soft-skills',
+    ])
+
+    const enriched = clone(baseIdentityFixture)
+    enriched.skills.groups[0] = {
+      ...enriched.skills.groups[0],
+      career_class: 'go-to-market',
+      category: 'enterprise-sales',
+    }
+
+    const { data: parsed } = importProfessionalIdentity(enriched)
+
+    expect(parsed.skills.groups[0]).toMatchObject({
+      career_class: 'go-to-market',
+      category: 'enterprise-sales',
+    })
+  })
+
   it('preserves valid depthConfidence on skill items with depth', () => {
     const enriched = clone(baseIdentityFixture)
     enriched.skills.groups[0].items = [
@@ -1433,6 +1611,31 @@ describe('professional identity schema', () => {
     ]
 
     expect(() => importProfessionalIdentity(invalid)).toThrow(/depthSource/i)
+  })
+
+  it('rejects unknown skill provenance values', () => {
+    const invalid = clone(baseIdentityFixture)
+    invalid.skills.groups[0].items = [
+      { name: 'Python', provenance: 'hallucinated', tags: ['backend'] } as never,
+    ]
+
+    expect(() => importProfessionalIdentity(invalid)).toThrow(/provenance/i)
+  })
+
+  it('rejects unknown skill group taxonomy review metadata', () => {
+    const invalidProvenance = clone(baseIdentityFixture)
+    invalidProvenance.skills.groups[0].provenance = 'hallucinated' as never
+
+    expect(() => importProfessionalIdentity(invalidProvenance)).toThrow(
+      /skills\.groups\[0\]\.provenance/,
+    )
+
+    const invalidReview = clone(baseIdentityFixture)
+    invalidReview.skills.groups[0].needs_review = 'yes' as never
+
+    expect(() => importProfessionalIdentity(invalidReview)).toThrow(
+      /skills\.groups\[0\]\.needs_review/,
+    )
   })
 
   it('rejects unknown depthConfidence values', () => {

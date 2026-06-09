@@ -5,6 +5,10 @@ import type {
   ProfessionalSkillDepthConfidence,
   ProfessionalSkillItem,
 } from '../../../identity/schema'
+import {
+  SOFTWARE_ENGINEERING_SKILL_CAREER_CLASS,
+  SOFTWARE_ENGINEERING_SKILL_CATEGORIES,
+} from '../../../identity/schema'
 import { useIdentityStore } from '../../../store/identityStore'
 import { facetClientEnv } from '../../../utils/facetEnv'
 import { sanitizeEndpointUrl } from '../../../utils/idUtils'
@@ -27,6 +31,11 @@ import {
   type PositioningSelection,
   resolvePositioningSelection,
 } from '../../../utils/skillPositioning'
+import {
+  type EditableSkillProvenance,
+  getSkillCategoryLabel,
+  resolveCorrectedSkillProvenance,
+} from '../../../utils/skillTaxonomy'
 import {
   Actions,
   MetaRows,
@@ -51,9 +60,8 @@ const DEPTH_OPTIONS: Array<{ value: ProfessionalSkillDepth; label: string }> = [
   { value: 'avoid', label: 'Avoid' },
 ]
 
-const getFallbackMoveTargetGroupId = (
-  groups: ProfessionalIdentityV3['skills']['groups'],
-): string => groups[0]?.id ?? ''
+const getFallbackMoveTargetGroupId = (groups: ProfessionalIdentityV3['skills']['groups']): string =>
+  groups[0]?.id ?? ''
 
 const computeStaleFlag = ({
   text,
@@ -103,6 +111,11 @@ export function SkillItemInspector({
   const [draftPositioningSelection, setDraftPositioningSelection] =
     useState<PositioningSelection>('')
   const [draftTags, setDraftTags] = useState('')
+  const [draftAliases, setDraftAliases] = useState('')
+  const [draftCareerClass, setDraftCareerClass] = useState('')
+  const [draftCategory, setDraftCategory] = useState('')
+  const [draftProvenance, setDraftProvenance] = useState<EditableSkillProvenance>('')
+  const [draftNeedsReview, setDraftNeedsReview] = useState(false)
   const [moveTargetGroupId, setMoveTargetGroupId] = useState(() =>
     getFallbackMoveTargetGroupId(moveTargetGroups),
   )
@@ -114,6 +127,9 @@ export function SkillItemInspector({
   const confirmRowId = useId()
   const positioningFieldId = useId()
   const customPositioningFieldId = useId()
+  const careerClassOptionsId = useId()
+  const categoryOptionsId = useId()
+  const statusHintId = useId()
   const moveTargetFieldId = useId()
   const moveMergeHintId = useId()
   const removeButtonRef = useRef<HTMLButtonElement>(null)
@@ -127,8 +143,7 @@ export function SkillItemInspector({
   const confidence = item?.depthConfidence
   const confidenceLabel = confidence ? `${confidence} confidence` : '—'
   const selectedMoveTarget =
-    moveTargetGroups.find((candidate) => candidate.id === moveTargetGroupId) ??
-    moveTargetGroups[0]
+    moveTargetGroups.find((candidate) => candidate.id === moveTargetGroupId) ?? moveTargetGroups[0]
   const effectiveMoveTargetGroupId = selectedMoveTarget?.id ?? ''
   const selectedMoveTargetDuplicate =
     item && selectedMoveTarget
@@ -151,6 +166,11 @@ export function SkillItemInspector({
     setDraftPositioning(item.positioning ?? '')
     setDraftPositioningSelection(resolvePositioningSelection(item.positioning ?? ''))
     setDraftTags(tagsToInput(item.tags))
+    setDraftAliases(tagsToInput(item.aliases ?? []))
+    setDraftCareerClass(item.career_class ?? '')
+    setDraftCategory(item.category ?? '')
+    setDraftProvenance(item.provenance ?? '')
+    setDraftNeedsReview(Boolean(item.needs_review))
     setEditing(true)
   }
 
@@ -159,10 +179,23 @@ export function SkillItemInspector({
     const editedAt = new Date().toISOString()
     const nextContext = draftContext.trim()
     const nextPositioning = draftPositioning.trim()
+    const nextAliases = inputToTags(draftAliases)
+    const nextCareerClass = draftCareerClass.trim()
+    const nextCategory = draftCategory.trim()
     const nextIdentity = updateIdentityEnrichmentSkill(identity, groupId, itemName, (skill) => {
       const depthChanged = draftDepth !== (skill.depth ?? '')
       const contextChanged = nextContext !== (skill.context ?? '')
       const positioningChanged = nextPositioning !== (skill.positioning ?? '')
+      const aliasesChanged = tagsToInput(nextAliases) !== tagsToInput(skill.aliases ?? [])
+      const taxonomyDetailChanged =
+        aliasesChanged ||
+        nextCareerClass !== (skill.career_class ?? '') ||
+        nextCategory !== (skill.category ?? '')
+      const nextProvenance = resolveCorrectedSkillProvenance({
+        draftProvenance,
+        currentProvenance: skill.provenance,
+        taxonomyDetailChanged,
+      })
       const enrichmentChanged =
         depthChanged ||
         draftConfidence !== (skill.depthConfidence ?? '') ||
@@ -196,6 +229,11 @@ export function SkillItemInspector({
               skipped_at: undefined,
             }
           : {}),
+        aliases: nextAliases.length > 0 ? nextAliases : undefined,
+        career_class: nextCareerClass || undefined,
+        category: nextCategory || undefined,
+        provenance: nextProvenance,
+        needs_review: draftNeedsReview || undefined,
         tags: inputToTags(draftTags),
       }
     })
@@ -278,7 +316,9 @@ export function SkillItemInspector({
           : (item.positioning ?? ''),
       }
       setSuggestion(normalizedSuggestion)
-      setSuggestionNotice('Draft ready. Review the depth, context, and positioning before applying.')
+      setSuggestionNotice(
+        'Draft ready. Review the depth, context, and positioning before applying.',
+      )
     } catch (caughtError) {
       if (controller.signal.aborted) return
       setSuggestionError(
@@ -472,6 +512,74 @@ export function SkillItemInspector({
               onChange={(e) => setDraftTags(e.target.value)}
             />
           </label>
+          <label className="inspector-field">
+            <span className="inspector-field-label label-tracked">Aliases (comma-separated)</span>
+            <input
+              className="inspector-input"
+              type="text"
+              value={draftAliases}
+              onChange={(e) => setDraftAliases(e.target.value)}
+            />
+          </label>
+          <label className="inspector-field">
+            <span className="inspector-field-label label-tracked">Career class</span>
+            <input
+              className="inspector-input"
+              type="text"
+              list={careerClassOptionsId}
+              value={draftCareerClass}
+              onChange={(e) => setDraftCareerClass(e.target.value)}
+            />
+          </label>
+          <datalist id={careerClassOptionsId}>
+            <option value={SOFTWARE_ENGINEERING_SKILL_CAREER_CLASS} />
+          </datalist>
+          <label className="inspector-field">
+            <span className="inspector-field-label label-tracked">Category</span>
+            <input
+              className="inspector-input"
+              type="text"
+              list={categoryOptionsId}
+              value={draftCategory}
+              onChange={(e) => setDraftCategory(e.target.value)}
+            />
+          </label>
+          <datalist id={categoryOptionsId}>
+            {SOFTWARE_ENGINEERING_SKILL_CATEGORIES.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.label}
+              </option>
+            ))}
+          </datalist>
+          <label className="inspector-field">
+            <span className="inspector-field-label label-tracked">Skill status</span>
+            <select
+              className="inspector-input"
+              value={draftProvenance}
+              aria-describedby={statusHintId}
+              onChange={(e) => setDraftProvenance(e.target.value as EditableSkillProvenance)}
+            >
+              <option value="">Not set</option>
+              <option value="claimed">Claimed</option>
+              <option value="inferred">Inferred</option>
+              <option value="corrected">Corrected</option>
+            </select>
+            <p id={statusHintId} className="inspector-field-hint info">
+              Editing aliases, career class, or category without changing this status saves it as
+              Corrected.
+            </p>
+          </label>
+          <label className="inspector-field">
+            <span className="inspector-field-label label-tracked">
+              <input
+                type="checkbox"
+                checked={draftNeedsReview}
+                onChange={(e) => setDraftNeedsReview(e.target.checked)}
+                style={{ marginRight: 8 }}
+              />
+              Needs review
+            </span>
+          </label>
           <Actions>
             <button type="submit" className="inspector-btn primary">
               Save skill
@@ -494,8 +602,19 @@ export function SkillItemInspector({
           ['Context', item.context?.trim() || '—'],
           ['Positioning', item.positioning?.trim() || '—'],
           ['Tags', item.tags?.join(' · ') || '—'],
+          ['Aliases', item.aliases?.join(' · ') || '—'],
+          ['Career class', item.career_class ?? '—'],
+          ['Category', getSkillCategoryLabel(item.category) ?? '—'],
+          ['Skill status', item.provenance ?? '—'],
+          ['Review', item.needs_review ? 'Needs review' : '—'],
         ]}
       />
+      {item.needs_review ? (
+        <Prompt
+          label="Review"
+          text="This skill was inferred or imported with review requested. Confirm the category, aliases, and status before relying on it downstream."
+        />
+      ) : null}
       {moveTargetGroups.length > 0 ? (
         <div className="inspector-field">
           <label className="inspector-field-label label-tracked" htmlFor={moveTargetFieldId}>
@@ -552,7 +671,9 @@ export function SkillItemInspector({
           <div className="skill-draft-card-head">
             <span className="label-tracked">AI draft</span>
             <span className="skill-draft-confidence label-tracked">
-              {suggestion.depthConfidence ? `${suggestion.depthConfidence} confidence` : 'no confidence'}
+              {suggestion.depthConfidence
+                ? `${suggestion.depthConfidence} confidence`
+                : 'no confidence'}
             </span>
           </div>
           <MetaRows

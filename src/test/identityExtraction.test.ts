@@ -244,6 +244,22 @@ describe('identityExtraction', () => {
     )
     expect(EXTRACTION_SYSTEM_PROMPT).toContain('"search_vectors": []')
     expect(EXTRACTION_SYSTEM_PROMPT).toContain('"awareness": { "open_questions": [] }')
+    expect(EXTRACTION_SYSTEM_PROMPT).toContain('"source_label": optional string')
+    expect(EXTRACTION_SYSTEM_PROMPT).toContain('"career_class": optional string')
+    expect(EXTRACTION_SYSTEM_PROMPT).toContain('"aliases": optional string[]')
+    expect(EXTRACTION_SYSTEM_PROMPT).toContain('"operations-tools"')
+    expect(EXTRACTION_SYSTEM_PROMPT).toContain(
+      'Skills inferred from roles, projects, bullets, technologies, or supplemental context must have provenance "inferred" and needs_review true.',
+    )
+    expect(EXTRACTION_SYSTEM_PROMPT).toContain('"expertise": [{')
+    expect(EXTRACTION_SYSTEM_PROMPT).toContain('"kind": "role" | "project" | "bullet" | "source"')
+    expect(EXTRACTION_SYSTEM_PROMPT).toContain('- expertise: []')
+    expect(EXTRACTION_SYSTEM_PROMPT).toContain(
+      'expertise must always be present as an array, using [] when the source is silent.',
+    )
+    expect(EXTRACTION_SYSTEM_PROMPT).toContain(
+      'Inferred expertise must use provenance "inferred", needs_review true',
+    )
     expect(BULLET_DEEPENING_SYSTEM_PROMPT).toContain('Professional Identity Schema v3.1')
   })
 
@@ -282,6 +298,64 @@ describe('identityExtraction', () => {
     )
     expect(parsed.bullets[1]?.assumptions).toEqual([])
     expect(parsed.warnings.some((warning) => warning.includes('unknown bullet'))).toBe(true)
+  })
+
+  it('parses extraction output with expertise and skill taxonomy metadata intact', () => {
+    const response = structuredClone(responseBody)
+    response.identity.expertise = [
+      {
+        id: 'developer-productivity',
+        label: 'Developer productivity',
+        summary: 'Improves delivery systems and handoff quality for engineering teams.',
+        tags: ['platform'],
+        evidence: [{ kind: 'bullet', role_id: 'acme', bullet_id: 'acme-1' }],
+        provenance: 'inferred',
+        needs_review: true,
+      },
+    ]
+    response.identity.skills.groups[0] = {
+      ...response.identity.skills.groups[0]!,
+      source_label: 'Technical Skills',
+      career_class: 'software-engineering',
+      category: 'programming-languages',
+      provenance: 'inferred',
+      needs_review: true,
+      items: [
+        {
+          name: 'TypeScript',
+          aliases: ['TS'],
+          career_class: 'software-engineering',
+          category: 'programming-languages',
+          provenance: 'claimed',
+          needs_review: false,
+          tags: ['platform'],
+        },
+      ],
+    }
+
+    const parsed = parseIdentityExtractionResponse(JSON.stringify(response))
+
+    expect(parsed.identity.expertise).toEqual([
+      expect.objectContaining({
+        id: 'developer-productivity',
+        provenance: 'inferred',
+        needs_review: true,
+      }),
+    ])
+    expect(parsed.identity.skills.groups[0]).toMatchObject({
+      source_label: 'Technical Skills',
+      career_class: 'software-engineering',
+      category: 'programming-languages',
+      provenance: 'inferred',
+      needs_review: true,
+    })
+    expect(parsed.identity.skills.groups[0]?.items[0]).toMatchObject({
+      aliases: ['TS'],
+      career_class: 'software-engineering',
+      category: 'programming-languages',
+      provenance: 'claimed',
+      needs_review: false,
+    })
   })
 
   it('preserves the scanned seed structure when AI extraction returns a partial identity', async () => {
