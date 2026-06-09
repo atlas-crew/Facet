@@ -142,6 +142,11 @@ clobbering that newer work. A successful undo writes the restored identity
 through the normal identity synchronization path and advances `model_revision`,
 so downstream generated artifacts remain correctly marked stale.
 
+Background AI completions are treated as later identity edits. If a current
+bullet deepen finishes after another AI generation has recorded an undo slot,
+the deepen advances `model_revision` and the earlier undo becomes expired
+rather than rebasing across the completed background change.
+
 The stack depth is exactly one: each newly applied Identity AI generation
 replaces the previous undo slot. Per-section local undo controls are deferred;
 the global topbar control is the shared recovery surface.

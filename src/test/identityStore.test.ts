@@ -2522,6 +2522,46 @@ describe('identityStore model_revision', () => {
     expect(useIdentityStore.getState().aiGenerationUndo).toBeNull()
   })
 
+  it('expires AI generation undo when a background current bullet deepen completes', () => {
+    seedCurrent(3)
+    const beforeIdentity = structuredClone(useIdentityStore.getState().currentIdentity!)
+
+    useIdentityStore.getState().updateCurrentProfiles([
+      {
+        id: 'generated-platform',
+        text: 'Generated platform leadership lens.',
+        tags: ['platform'],
+      },
+    ])
+    useIdentityStore
+      .getState()
+      .recordAiGenerationUndo('generated profile lenses', beforeIdentity)
+
+    useIdentityStore.getState().startCurrentBulletDeepen('contoso', 'platform-migration')
+    useIdentityStore.getState().completeCurrentBulletDeepen(createDeepenedBullet())
+
+    expect(getIdentityAiGenerationUndoStatus(useIdentityStore.getState())).toEqual({
+      canUndo: false,
+      label: 'generated profile lenses',
+      reason: 'expired',
+    })
+
+    const result = useIdentityStore.getState().undoLastAiGeneration()
+
+    expect(result).toEqual({ status: 'expired', label: 'generated profile lenses' })
+    expect(useIdentityStore.getState().currentIdentity?.profiles).toEqual([
+      {
+        id: 'generated-platform',
+        text: 'Generated platform leadership lens.',
+        tags: ['platform'],
+      },
+    ])
+    expect(
+      useIdentityStore.getState().currentIdentity?.roles[0]?.bullets[0]?.problem,
+    ).toBe('Cloud-only delivery blocked on-prem installs.')
+    expect(useIdentityStore.getState().aiGenerationUndo).toBeNull()
+  })
+
   it('excludes AI generation undo snapshots from persisted identity state', async () => {
     seedCurrent(3)
     const beforeIdentity = structuredClone(useIdentityStore.getState().currentIdentity!)
