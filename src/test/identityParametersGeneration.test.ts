@@ -13,7 +13,7 @@ import {
 } from '../utils/identityParametersGeneration'
 import { JsonExtractionError } from '../utils/llmProxy'
 import { RESEARCH_PROFILE_INFERENCE_TIMEOUT_MS } from '../utils/researchProfileInferenceConfig'
-import { importProfessionalIdentity } from '../identity/schema'
+import { importProfessionalIdentity, type ProfessionalIdentityV3 } from '../identity/schema'
 
 describe('identityParametersGeneration', () => {
   beforeEach(() => {
@@ -1156,12 +1156,51 @@ describe('identityParametersGeneration', () => {
       ).toThrow('unknown roleId')
     })
 
+    it('rejects a role-bullet through the unknown-id path when roles are absent', () => {
+      const { roles: _roles, ...partialIdentity } = cloneIdentityFixture()
+      expect(() =>
+        normalizeAnswerPatch(
+          {
+            kind: 'role-bullet',
+            roleId: 'contoso',
+            bullet: { problem: 'p', action: 'a', outcome: 'o' },
+          },
+          partialIdentity as ProfessionalIdentityV3,
+        ),
+      ).toThrow('unknown roleId')
+    })
+
     it('rejects a skill with an unknown groupId', () => {
       const identity = cloneIdentityFixture()
       expect(() =>
         normalizeAnswerPatch(
           { kind: 'skill', groupId: 'nonexistent-group', skillName: 'Rust' },
           identity,
+        ),
+      ).toThrow('unknown groupId')
+    })
+
+    it('rejects a skill through the unknown-id path when skill groups are absent', () => {
+      const partialIdentity = {
+        ...cloneIdentityFixture(),
+        skills: {},
+      } as ProfessionalIdentityV3
+
+      expect(() =>
+        normalizeAnswerPatch(
+          { kind: 'skill', groupId: 'platform', skillName: 'Rust' },
+          partialIdentity,
+        ),
+      ).toThrow('unknown groupId')
+    })
+
+    it('rejects a skill through the unknown-id path when skills are absent', () => {
+      const { skills: _skills, ...partialIdentity } = cloneIdentityFixture()
+
+      expect(() =>
+        normalizeAnswerPatch(
+          { kind: 'skill', groupId: 'platform', skillName: 'Rust' },
+          partialIdentity as ProfessionalIdentityV3,
         ),
       ).toThrow('unknown groupId')
     })

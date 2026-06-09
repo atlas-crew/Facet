@@ -710,7 +710,7 @@ export const normalizeAnswerPatch = (
   if (kind === 'role-bullet') {
     const roleId = isString(record.roleId) ? record.roleId.trim() : ''
     if (!roleId) throw new Error('AnswerPatch role-bullet missing roleId.')
-    if (!identity.roles.some((r) => r.id === roleId)) {
+    if (!(identity.roles?.some((r) => r.id === roleId) ?? false)) {
       throw new Error(`AnswerPatch role-bullet references unknown roleId: ${roleId}.`)
     }
 
@@ -761,7 +761,7 @@ export const normalizeAnswerPatch = (
     const skillName = isString(record.skillName) ? record.skillName.trim() : ''
     if (!groupId) throw new Error('AnswerPatch skill missing groupId.')
     if (!skillName) throw new Error('AnswerPatch skill missing skillName.')
-    if (!identity.skills.groups.some((g) => g.id === groupId)) {
+    if (!(identity.skills?.groups?.some((g) => g.id === groupId) ?? false)) {
       throw new Error(`AnswerPatch skill references unknown groupId: ${groupId}.`)
     }
     return { kind: 'skill', groupId, skillName }
