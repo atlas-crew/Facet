@@ -115,6 +115,7 @@ const AI_PRO_PASS_REDEMPTION_MONTHS = 12
 //   Haiku 4.5  — mechanical field extraction
 const FEATURE_MODEL_DEFAULTS = {
   // Opus 4.7 — quality-critical
+  'identity.compensation-suggestion': CURRENT_OPUS_MODEL,
   'identity.deepen': CURRENT_OPUS_MODEL,
   'identity.deepen_project': CURRENT_OPUS_MODEL,
   'pipeline.t3.interviewer': CURRENT_OPUS_MODEL, // unwired today; revisit when feature lands
@@ -137,6 +138,7 @@ const FEATURE_MODEL_DEFAULTS = {
 const DEFAULT_AI_FEATURE_RATE_LIMITS = {
   'build.bullet-reframe': { max: 12, windowMs: 60_000 },
   'identity.extract': { max: 8, windowMs: 60_000 },
+  'identity.compensation-suggestion': { max: 10, windowMs: 60_000 },
   'identity.deepen': { max: 12, windowMs: 60_000 },
   'identity.skill-group-naming': { max: 12, windowMs: 60_000 },
   'identity.deepen_project': { max: 12, windowMs: 60_000 },

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { cloneIdentityFixture } from './fixtures/identityFixture'
 import {
   generateAwarenessFromIdentity,
+  generateCompensationSuggestionFromIdentity,
   generateIdentityProfilesFromIdentity,
   generateIdentityThesisFromIdentity,
   generateSearchVectorsFromIdentity,
@@ -223,6 +224,311 @@ describe('identityParametersGeneration', () => {
         text: 'Connects security constraints to platform adoption.',
       },
     ])
+  })
+
+  it('normalizes generated compensation suggestions and strips voice tells', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                base_floor: '$220,000',
+                base_target: '275000',
+                justification:
+                  'Staff platform scope in Denver remote markets — with Kubernetes and enterprise delivery evidence.',
+              }),
+            },
+          },
+        ],
+      }),
+    } as Response)
+
+    const suggestion = await generateCompensationSuggestionFromIdentity(
+      cloneIdentityFixture(),
+      'https://ai.example/proxy',
+    )
+
+    expect(suggestion).toEqual({
+      base_floor: 220000,
+      base_target: 275000,
+      justification:
+        'Staff platform scope in Denver remote markets, with Kubernetes and enterprise delivery evidence.',
+    })
+    const requestBody = JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body))
+    expect(requestBody).toMatchObject({ feature: 'identity.compensation-suggestion', model: 'opus' })
+    expect(requestBody.system).toContain('not a fact or guarantee')
+  })
+
+  it('rejects generated compensation suggestions without usable range values', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: '{"base_floor":250000,"base_target":200000,"justification":"Too low."}' } }],
+      }),
+    } as Response)
+
+    await expect(
+      generateCompensationSuggestionFromIdentity(
+        cloneIdentityFixture(),
+        'https://ai.example/proxy',
+      ),
+    ).rejects.toThrow('base_target greater than or equal to base_floor')
+  })
+
+  it('accepts equal compensation floor and target values', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                base_floor: 250000,
+                base_target: 250000,
+                justification: 'Single-point advisory range for constrained searches.',
+              }),
+            },
+          },
+        ],
+      }),
+    } as Response)
+
+    await expect(
+      generateCompensationSuggestionFromIdentity(
+        cloneIdentityFixture(),
+        'https://ai.example/proxy',
+      ),
+    ).resolves.toEqual({
+      base_floor: 250000,
+      base_target: 250000,
+      justification: 'Single-point advisory range for constrained searches.',
+    })
+  })
+
+  it('rounds fractional generated compensation amounts to whole dollars', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                base_floor: 220000.6,
+                base_target: '$274,999.40',
+                justification: 'Rounded advisory range.',
+              }),
+            },
+          },
+        ],
+      }),
+    } as Response)
+
+    await expect(
+      generateCompensationSuggestionFromIdentity(
+        cloneIdentityFixture(),
+        'https://ai.example/proxy',
+      ),
+    ).resolves.toEqual({
+      base_floor: 220001,
+      base_target: 274999,
+      justification: 'Rounded advisory range.',
+    })
+  })
+
+  it('rejects generated compensation suggestions without positive values', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                base_floor: 0,
+                base_target: 'not a number',
+                justification: 'Invalid range.',
+              }),
+            },
+          },
+        ],
+      }),
+    } as Response)
+
+    await expect(
+      generateCompensationSuggestionFromIdentity(
+        cloneIdentityFixture(),
+        'https://ai.example/proxy',
+      ),
+    ).rejects.toThrow('positive base_floor')
+  })
+
+  it('rejects generated compensation suggestions with non-numeric target values', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                base_floor: 220000,
+                base_target: 'competitive',
+                justification: 'Invalid target.',
+              }),
+            },
+          },
+        ],
+      }),
+    } as Response)
+
+    await expect(
+      generateCompensationSuggestionFromIdentity(
+        cloneIdentityFixture(),
+        'https://ai.example/proxy',
+      ),
+    ).rejects.toThrow('positive base_target')
+  })
+
+  it('rejects implausible generated compensation salary amounts', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                base_floor: 5,
+                base_target: 99_999_999,
+                justification: 'Implausible range.',
+              }),
+            },
+          },
+        ],
+      }),
+    } as Response)
+
+    await expect(
+      generateCompensationSuggestionFromIdentity(
+        cloneIdentityFixture(),
+        'https://ai.example/proxy',
+      ),
+    ).rejects.toThrow('between 40000 and 1000000')
+  })
+
+  it('rejects generated compensation salary amounts above the plausible ceiling', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                base_floor: 250000,
+                base_target: 1_500_000,
+                justification: 'Implausibly high base salary.',
+              }),
+            },
+          },
+        ],
+      }),
+    } as Response)
+
+    await expect(
+      generateCompensationSuggestionFromIdentity(
+        cloneIdentityFixture(),
+        'https://ai.example/proxy',
+      ),
+    ).rejects.toThrow('between 40000 and 1000000')
+  })
+
+  it('accepts generated compensation salary amounts at plausible boundaries', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                base_floor: 40000,
+                base_target: 1000000,
+                justification: 'Boundary advisory range.',
+              }),
+            },
+          },
+        ],
+      }),
+    } as Response)
+
+    await expect(
+      generateCompensationSuggestionFromIdentity(
+        cloneIdentityFixture(),
+        'https://ai.example/proxy',
+      ),
+    ).resolves.toEqual({
+      base_floor: 40000,
+      base_target: 1000000,
+      justification: 'Boundary advisory range.',
+    })
+  })
+
+  it('uses the expanded timeout budget for compensation suggestions', async () => {
+    const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout')
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content:
+                '{"base_floor":220000,"base_target":275000,"justification":"Advisory range."}',
+            },
+          },
+        ],
+      }),
+    } as Response)
+
+    await generateCompensationSuggestionFromIdentity(
+      cloneIdentityFixture(),
+      'https://ai.example/proxy',
+    )
+
+    expect(setTimeoutSpy).toHaveBeenCalledWith(
+      expect.any(Function),
+      RESEARCH_PROFILE_INFERENCE_TIMEOUT_MS,
+    )
+    setTimeoutSpy.mockRestore()
+  })
+
+  it('rejects generated compensation suggestions without justification', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: '{"base_floor":220000,"base_target":275000}' } }],
+      }),
+    } as Response)
+
+    await expect(
+      generateCompensationSuggestionFromIdentity(
+        cloneIdentityFixture(),
+        'https://ai.example/proxy',
+      ),
+    ).rejects.toThrow('must include justification')
+  })
+
+  it('preserves extraction errors for missing compensation suggestion JSON blocks', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: 'A fair advisory range depends on market data.' } }],
+      }),
+    } as Response)
+
+    await expect(
+      generateCompensationSuggestionFromIdentity(
+        cloneIdentityFixture(),
+        'https://ai.example/proxy',
+      ),
+    ).rejects.toBeInstanceOf(JsonExtractionError)
   })
 
   it('preserves extraction errors for missing profile JSON blocks', async () => {

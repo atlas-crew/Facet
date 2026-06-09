@@ -18,6 +18,9 @@ import { RESEARCH_PROFILE_INFERENCE_TIMEOUT_MS } from './researchProfileInferenc
 import { dedupeUnfairAdvantages } from './unfairAdvantagesDedupe'
 
 const GENERATION_MODEL = 'opus'
+// Base salary only; reject obvious unit errors such as hourly rates, cents, or total-comp figures.
+export const MIN_REASONABLE_BASE_SALARY = 40_000
+export const MAX_REASONABLE_BASE_SALARY = 1_000_000
 const VECTOR_PRIORITY_VALUES = new Set<ProfessionalSearchVectorPriority>(['high', 'medium', 'low'])
 const AWARENESS_SEVERITY_VALUES = new Set<ProfessionalAwarenessSeverity>(['high', 'medium', 'low'])
 
@@ -26,6 +29,12 @@ export interface ProfessionalStrategicInference {
   unfair_advantages: string[]
   search_vectors: ProfessionalSearchVector[]
   open_questions: ProfessionalOpenQuestion[]
+}
+
+export interface ProfessionalCompensationSuggestion {
+  base_floor: number
+  base_target: number
+  justification: string
 }
 
 export type ProfessionalIdentityThesisInference = Pick<
@@ -288,6 +297,47 @@ const normalizeGeneratedProfiles = (payload: unknown): ProfessionalProfile[] => 
   })
 }
 
+const parseCompensationAmount = (value: unknown, label: string): number => {
+  const amount =
+    typeof value === 'number'
+      ? value
+      : isString(value)
+        ? Number(value.replace(/[$,\s]/g, ''))
+        : Number.NaN
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error(`Generated compensation response must include a positive ${label}.`)
+  }
+  const roundedAmount = Math.round(amount)
+  if (
+    roundedAmount < MIN_REASONABLE_BASE_SALARY ||
+    roundedAmount > MAX_REASONABLE_BASE_SALARY
+  ) {
+    throw new Error(
+      `Generated compensation response ${label} must be between ${MIN_REASONABLE_BASE_SALARY} and ${MAX_REASONABLE_BASE_SALARY}.`,
+    )
+  }
+  return roundedAmount
+}
+
+const normalizeCompensationSuggestion = (payload: unknown): ProfessionalCompensationSuggestion => {
+  const record = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {}
+  const baseFloor = parseCompensationAmount(record.base_floor, 'base_floor')
+  const baseTarget = parseCompensationAmount(record.base_target, 'base_target')
+  const justification = normalizeOptionalString(record.justification)
+  if (!justification) {
+    throw new Error('Generated compensation response must include justification.')
+  }
+  if (baseTarget < baseFloor) {
+    throw new Error('Generated compensation response must keep base_target greater than or equal to base_floor.')
+  }
+
+  return {
+    base_floor: baseFloor,
+    base_target: baseTarget,
+    justification: removeVoiceTells(justification),
+  }
+}
+
 export async function generateIdentityProfilesFromIdentity(
   identity: ProfessionalIdentityV3,
   endpoint: string,
@@ -337,6 +387,55 @@ Response schema:
       throw error
     }
     throw error instanceof Error ? error : new Error('Failed to parse generated profiles.')
+  }
+}
+
+export async function generateCompensationSuggestionFromIdentity(
+  identity: ProfessionalIdentityV3,
+  endpoint: string,
+  options: { signal?: AbortSignal } = {},
+): Promise<ProfessionalCompensationSuggestion> {
+  const systemPrompt = `You are a compensation strategy advisor for senior engineering candidates. Return JSON only.
+Suggest an advisory base salary floor and target from the supplied identity model.
+
+Use the candidate's durable profile: roles, seniority signals, skills, profiles, self_model, location/work-model preferences, and search_vectors. Treat the result as a market-informed suggestion, not a fact or guarantee.
+
+Reasoning requirements:
+- Produce base salary only, not total compensation.
+- Use broad current market knowledge for comparable senior/staff/principal engineering roles.
+- Ground the range in the candidate evidence and stated preferences.
+- If location or market context is incomplete, state the assumption in justification.
+- Do not invent candidate claims.
+- Do not claim live source access or cite fabricated URLs.
+- Keep justification short enough to fit in compensation notes.
+
+Voice requirements:
+- Advisory, specific, and calm.
+- Avoid AI tells: no em dashes, no hype, no vague transformation language.
+
+Response schema:
+{
+  "base_floor": 220000,
+  "base_target": 275000,
+  "justification": "short string"
+}`
+
+  const rawResponse = await callLlmProxy(endpoint, systemPrompt, buildGenerationPrompt(identity), {
+    feature: 'identity.compensation-suggestion',
+    model: GENERATION_MODEL,
+    timeoutMs: RESEARCH_PROFILE_INFERENCE_TIMEOUT_MS,
+    signal: options.signal,
+  })
+
+  try {
+    return normalizeCompensationSuggestion(
+      parseGeneratedPayload(rawResponse, 'Generated compensation suggestion response'),
+    )
+  } catch (error) {
+    if (error instanceof JsonExtractionError) {
+      throw error
+    }
+    throw error instanceof Error ? error : new Error('Failed to parse generated compensation suggestion.')
   }
 }
 
