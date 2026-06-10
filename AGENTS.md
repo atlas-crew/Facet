@@ -32,15 +32,17 @@ Read these before making structural changes. Architectural ADRs live in `docs/ar
 
 ## Build, Test, and Development Commands
 
-Use Node `>=20.19.0`.
+Use Node `>=20.19.0`. Facet is a **pnpm workspace** (`pnpm@10.32.1`, pinned via `packageManager`); a root install also covers `proxy/`. Do not run `npm install` — it would create a competing `package-lock.json` and drift off the pnpm lockfile.
 
-- `npm run dev` or `just dev`: start the local Vite app.
-- `npm run build` or `just build`: run TypeScript build checks and create `dist/`.
-- `npm run typecheck` or `just typecheck`: run strict TypeScript validation without emitting files.
-- `npm run test` or `just test`: run the full Vitest suite.
-- `npx vitest run src/test/ResearchPage.test.tsx` or `just test-file src/test/ResearchPage.test.tsx`: run a focused test file.
-- `npm run lint` or `just lint`: run ESLint over the repo.
-- `npm run preview` or `just preview`: serve the production build locally.
+**Fresh-clone / cloud-agent setup** — `bash scripts/setup.sh` takes a bare checkout to a test-ready state: it pins the toolchain, installs with `--frozen-lockfile` (matching CI), seeds the gitignored `.env`/`proxy/.env` from their committed `.example` files, and runs a typecheck smoke check. Use it as the Codex cloud setup script (Environment → setup script), a `run:` step in a Claude Code action, or a devcontainer `postCreateCommand`. `FACET_SETUP_VERIFY=full` runs the whole gate (typecheck + lint + test); `none` skips verification.
+
+- `pnpm run dev` or `just dev`: start the local Vite app.
+- `pnpm run build` or `just build`: run TypeScript build checks and create `dist/`.
+- `pnpm run typecheck` or `just typecheck`: run strict TypeScript validation without emitting files.
+- `pnpm run test` or `just test`: run the full Vitest suite.
+- `pnpm exec vitest run src/test/ResearchPage.test.tsx` or `just test-file src/test/ResearchPage.test.tsx`: run a focused test file.
+- `pnpm run lint` or `just lint`: run ESLint over the repo.
+- `pnpm run preview` or `just preview`: serve the production build locally.
 
 Tests use Vitest with jsdom. Configuration is inline via Vite (no separate vitest config file).
 
@@ -70,7 +72,7 @@ Use the tool that keeps the work clearest and most reviewable.
 
 ## Testing Guidelines
 
-Vitest and Testing Library are the test stack. Name tests `*.test.ts` or `*.test.tsx` and keep them in `src/test/` near the feature they exercise. Prefer behavior-focused assertions and add focused utility tests for pure helpers. Before merging, run `npm run typecheck && npm run test`; run `npm run build` when routes, rendering, or persisted state wiring changes.
+Vitest and Testing Library are the test stack. Name tests `*.test.ts` or `*.test.tsx` and keep them in `src/test/` near the feature they exercise. Prefer behavior-focused assertions and add focused utility tests for pure helpers. Before merging, run `pnpm run typecheck && pnpm run test`; run `pnpm run build` when routes, rendering, or persisted state wiring changes.
 
 ## Commit & Pull Request Guidelines
 
