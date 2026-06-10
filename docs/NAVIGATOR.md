@@ -91,6 +91,16 @@ Documentation for contributors and developers working on the Facet codebase.
 | [Style Guide](development/ui/facet-style-guide.md)                  | Design system, CSS custom properties, color palette, typography, and UI conventions                                          |
 | [Refactor Process](development/refactor-process.md)                 | Audit-first pattern for cross-cutting refactors in Facet                                                                     |
 
+### Design Notes
+
+Design notes and rollout plans live under `development/design/`. Key identity-extraction notes:
+
+| Document                                                                                                                        | Description                                                                                                                       |
+| ------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| [Identity Derivation Graph — Reframe & Roadmap](development/design/identity-derivation-graph-reframe-and-roadmap.md)             | The map as a second generation surface; one derivation graph with two feed points; two staleness graphs sharing one mechanism; three-thread roadmap |
+| [Thread 1 — Correction-Driven Inference Staleness](development/design/correction-driven-inference-staleness-thread-1-design.md)  | Wiring inspector corrections into the intra-identity dependency chain; persisted stale set; producer/owner map; mechanism choice  |
+| [Shepherding — Extraction Loops & Correction Flow](development/design/shepherding-design-extraction-loops-correction-flow-architecture.md) | Correction-over-blank-box principle, free-context sources, per-stage extraction moments, and the identity→artifact impact graph   |
+
 ### Hosted Platform (Wave 1)
 
 | Document                                                                                         | Description                                                                                                |
@@ -120,7 +130,6 @@ Documentation for contributors and developers working on the Facet codebase.
 
 | Document                                                                                                    | Description                                                                                                |
 | ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| [Competitive Analysis & Growth Strategy (2026-04)](development/reports/competitive-analysis-2026-04.md)     | Competitive landscape, market sizing, addressable professions, pricing, scaling roadmap, and data strategy |
 | [LLM-Identity Anti-Pattern Audit (2026-04)](development/reports/2026-04-llm-identity-anti-pattern-audit.md) | Repo-state snapshot identifying LLM-generated fields that violate the identity-canonical-data rule         |
 
 ### Plans (Archived)
