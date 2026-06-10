@@ -72,7 +72,6 @@ The authoritative feature inventory for engineering and support is maintained in
 - `src/types/hosted.ts`
 - `proxy/aiFeatures.js`
 - `proxy/aiAccess.js`
-- `docs/development/platform/wave-1-pricing-and-entitlements.md`
 
 If a hosted AI feature is unavailable:
 

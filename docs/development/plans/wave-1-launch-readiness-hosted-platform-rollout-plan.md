@@ -185,8 +185,8 @@ Tasks should be attached to existing milestones rather than creating a new one:
 ## Pointers
 
 - Brand pricing canonical source: `brand/PRICING.md`, `brand/MANIFESTO.md` ("Career-search runs in bursts" section)
-- Internal entitlement spec: `docs/development/platform/wave-1-pricing-and-entitlements.md`
-- Sibling Wave 1 docs (already swept by TASK-227): `wave-1-domain-contract.md`, `wave-1-hosting-foundation.md`, `wave-1-infrastructure-provisioning.md`, `wave-1-beta-support-playbook.md` (`wave-1-operations-runbook.md` and `wave-1-beta-readiness-gate.md` were clean, no edits needed)
+- Internal entitlement spec: `wave-1-pricing-and-entitlements.md` — relocated to the private vault (`facet/ref-materials/platform/`)
+- Sibling Wave 1 docs (same vault location): `wave-1-domain-contract.md`, `wave-1-hosting-foundation.md`, `wave-1-infrastructure-provisioning.md`, `wave-1-beta-support-playbook.md`, `wave-1-operations-runbook.md`, `wave-1-beta-readiness-gate.md`
 - Hosted code surfaces: `proxy/`, `proxy/aiAccess.js`, `proxy/billingState.js`, `proxy/postgresBillingStore.js`, `src/utils/hostedSession.ts`, `src/utils/facetEnv.ts`, `src/types/hosted.ts`, `supabase/migrations/`, `src/router.tsx`, `src/components/AppShell.tsx`
 - Admin panel architecture decisions: `TASK-189` description (workspace role vs platform role distinction, app_metadata claim, proxy-side authorization)
 

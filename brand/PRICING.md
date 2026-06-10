@@ -3,9 +3,7 @@
 Public-facing pricing language. The numbers, the argument behind them,
 and what stays yours after a pass closes. For long-form positioning,
 see [`MANIFESTO.md`](MANIFESTO.md). For predictable Q&A, see
-[`FAQ.md`](FAQ.md). For internal entitlement enforcement and
-implementation detail, see
-[`docs/development/platform/wave-1-pricing-and-entitlements.md`](../docs/development/platform/wave-1-pricing-and-entitlements.md).
+[`FAQ.md`](FAQ.md).
 
 ---
 
@@ -144,11 +142,8 @@ across searches.
 
 This doc is the **public-facing pricing argument**. Implementation
 details — entitlement enforcement, AI-feature gating, billing system
-contracts, Stripe integration specifics — live in the internal
-hosted-platform docs at
-[`docs/development/platform/`](../docs/development/platform/). If
-you're a contributor or operator and need to know exactly which
-features are gated or how billing is wired, that's where to look.
+contracts, Stripe integration specifics — are maintained in internal
+hosted-platform docs kept outside this repository.
 
 Topics deliberately out of scope for this doc:
 
