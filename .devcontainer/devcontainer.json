@@ -1,0 +1,59 @@
+// Facet dev container — reproducible workspace for VS Code Dev Containers,
+// GitHub Codespaces, and Claude Code on the web.
+//
+// Provisioning is delegated entirely to scripts/setup.sh — the same script CI
+// and Codex cloud use — so there is ONE source of truth for the toolchain,
+// frozen install, env scaffold, and verification. See AGENTS.md → Build, Test,
+// and Development Commands.
+{
+  "name": "Facet",
+
+  // Node 20 matches .nvmrc / .node-version (the canonical dev pin). The
+  // typescript-node image bundles git, zsh, corepack, and a non-root `node`
+  // user. CI also covers Node 22 and prod builds on 22, so bumping this tag to
+  // `1-22-bookworm` is a safe alternative if you prefer the prod runtime.
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:1-20-bookworm",
+
+  "features": {
+    // gh powers the task workflow described in AGENTS.md (gh issue / gh project;
+    // gh-seq for blocked-by ordering, installable via `gh extension install`).
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+
+  // Keep corepack non-interactive so any pnpm call (not just setup.sh) that has
+  // to download the pinned version can't hang an unattended container build.
+  "containerEnv": {
+    "COREPACK_ENABLE_DOWNLOAD_PROMPT": "0"
+  },
+
+  // 5173 = Vite dev server, 9001 = local AI proxy. Vite binds 127.0.0.1
+  // (vite.config.ts); the in-container forwarder reaches loopback fine. For
+  // external/Codespaces exposure, run: pnpm run dev -- --host
+  "forwardPorts": [5173, 9001],
+  "portsAttributes": {
+    "5173": { "label": "Vite dev server", "onAutoForward": "notify" },
+    "9001": { "label": "AI proxy", "onAutoForward": "silent" }
+  },
+
+  // Runs once after create, with network available: toolchain check + frozen
+  // install + env scaffold + typecheck smoke. Set FACET_SETUP_VERIFY=full for
+  // the whole gate. Live AI features also need a real ANTHROPIC_API_KEY in
+  // proxy/.env (the scaffold seeds a `replace-me` placeholder).
+  "postCreateCommand": "bash scripts/setup.sh",
+
+  "remoteUser": "node",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "vitest.explorer"
+      ],
+      "settings": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "eslint.useFlatConfig": true
+      }
+    }
+  }
+}
