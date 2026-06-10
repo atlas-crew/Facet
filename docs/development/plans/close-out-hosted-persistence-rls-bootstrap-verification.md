@@ -2,7 +2,7 @@
 
 ## TL;DR
 
-Earlier drafts of this document were premised on "build server-authoritative persistence." On 2026-04-23 I verified production state directly via `flyctl logs` + Supabase MCP + reading `src/persistence/runtime.ts` + `hydration.ts` — and **hosted persistence is already working end-to-end.** The Fly-deployed proxy (`facet-api.fly.dev`) verifies Supabase JWTs, reads workspace snapshots from Postgres, and serves them to the authenticated client. The client's `runtime.ts` hydrates Zustand stores from server snapshots and debounce-writes changes back via the proxy. This is already the server-authoritative pattern doc-5 described.
+Earlier drafts of this document were premised on "build server-authoritative persistence." On 2026-04-23 I verified production state directly via `flyctl logs` + Supabase MCP + reading `src/persistence/runtime.ts` + `hydration.ts` — and **hosted persistence is already working end-to-end.** The Fly-deployed proxy (`REDACTED-API-HOST`) verifies Supabase JWTs, reads workspace snapshots from Postgres, and serves them to the authenticated client. The client's `runtime.ts` hydrates Zustand stores from server snapshots and debounce-writes changes back via the proxy. This is already the server-authoritative pattern doc-5 described.
 
 What remains is a close-out punchlist, not a migration:
 
@@ -34,7 +34,7 @@ All facts below verified on 2026-04-23 via tool-grounded inspection (Supabase MC
       │
       │  JWKS-verifies JWT, resolves actor, executes SQL with service role via pg pool
       ▼
-  Supabase Postgres                          [Supabase project: zxcptjtlcvbtvzxybqio]
+  Supabase Postgres                          [Supabase project: REDACTED-SUPABASE-REF]
       ├── auth.*      (Supabase-managed, RLS on)
       └── public.*    (6 app tables, RLS OFF ← P0 item)
 ```
@@ -57,7 +57,7 @@ All facts below verified on 2026-04-23 via tool-grounded inspection (Supabase MC
 
 ### Supabase project
 
-- Project URL: `https://zxcptjtlcvbtvzxybqio.supabase.co`
+- Project URL: `https://REDACTED-SUPABASE-REF.supabase.co`
 - Single migration applied: `20260406075155_initial_hosted_schema` (local file: `supabase/migrations/20260405_001_initial_schema.sql`)
 - Six tables in `public.*`, all with `rls_enabled=false`:
   - `actors` — `{ user_id TEXT PK, tenant_id, account_id, email, created_at }` (comment in migration: "users resolved from Supabase JWT" — `user_id` is `auth.uid()::text`)
@@ -78,7 +78,7 @@ All facts below verified on 2026-04-23 via tool-grounded inspection (Supabase MC
   - If no snapshot → `hydrateStoresFromLegacyStorage()` reads legacy localStorage keys and `persistCurrentState()` pushes that data up to the server (one-shot migration, automatic)
   - Subscribes to every domain store; on change, 150ms debounce → `coordinator.importWorkspaceSnapshot(snapshot, {mode:'replace'})` → backend writes
 - `replacePersistenceRuntime({ backend })` hot-swaps the backend — used to transition from `indexedDb` (unauthenticated) to `remoteBackend` (after hosted auth)
-- `src/persistence/remoteBackend.ts` is the REST client for `facet-api.fly.dev` — reads/writes via `/api/persistence/workspaces/*`
+- `src/persistence/remoteBackend.ts` is the REST client for `REDACTED-API-HOST` — reads/writes via `/api/persistence/workspaces/*`
 - `hostedAppStore.ts` + `hostedSession.ts` gate the remote backend behind `getFacetDeploymentMode() === 'hosted'` and an authenticated Supabase session
 
 ### Production evidence (Fly logs, 2026-04-23)
@@ -205,7 +205,7 @@ CREATE POLICY billing_member_read ON public.billing_accounts
 2. Run `supabase db advisors` (or MCP `get_advisors`) — fix any flagged gaps
 3. Run a sanity-check: authenticate as a test user, confirm they can read only their own workspace; confirm anon role cannot read anything
 4. Promote to production via `supabase db push`
-5. Verify post-deploy: hit `facet-api.fly.dev` with an auth'd user, confirm reads still succeed (proxy uses service role, should be unaffected)
+5. Verify post-deploy: hit `REDACTED-API-HOST` with an auth'd user, confirm reads still succeed (proxy uses service role, should be unaffected)
 
 ### Traps this avoids (from `supabase` skill's security checklist)
 
@@ -410,7 +410,7 @@ Not blockers for the punchlist, but worth tracking:
 2. **`role` CHECK widening** for future team features. `workspace_memberships.role CHECK (role = 'owner')` is restrictive. Expanding to `CHECK (role IN ('owner','editor','viewer'))` is one ALTER when team features arrive.
 3. **Snapshot history.** Today `workspace_snapshots` holds one row per workspace with revision bumps. No history. If we ever want "restore to 3 days ago," we need either a separate `workspace_snapshot_history` table or a versioned retention policy. Defer.
 4. **`aggregate.*` schema creation.** Reserve the namespace for future doc-31 (Anonymization & Consent). Zero work now.
-5. **Audit CORS origins list.** Fly env shows `https://myfacets.cv, https://demo.myfacets.cv, https://facet-app-navy.vercel.app` — the Vercel preview URL suggests preview deploys need it. Confirm the demo subdomain is intentional.
+5. **Audit CORS origins list.** Fly env shows `https://myfacets.cv, https://demo.myfacets.cv, https://REDACTED-VERCEL-HOST` — the Vercel preview URL suggests preview deploys need it. Confirm the demo subdomain is intentional.
 
 ---
 
@@ -443,5 +443,5 @@ Downstream:
 - **Client persistence runtime** — `src/persistence/runtime.ts`, `src/persistence/hydration.ts`, `src/persistence/coordinator.ts`, `src/persistence/remoteBackend.ts`, `src/persistence/contracts.ts`
 - **Supabase skill** (`.claude/skills/supabase/SKILL.md`) — security checklist, CLI patterns
 - **Supabase Postgres best-practices skill** (`.claude/skills/supabase-postgres-best-practices/SKILL.md`) — rule index for implementation-time optimization
-- **Production URLs** — `https://myfacets.cv` (frontend), `https://facet-api.fly.dev` (proxy), `https://zxcptjtlcvbtvzxybqio.supabase.co` (Supabase)
+- **Production URLs** — `https://myfacets.cv` (frontend), `https://REDACTED-API-HOST` (proxy), `https://REDACTED-SUPABASE-REF.supabase.co` (Supabase)
 - **Phase 1 commits** — `9f4c270` (schema), `49d74c9` (generator), `72b3880` (renderer), `40d514e` (doc-28)
