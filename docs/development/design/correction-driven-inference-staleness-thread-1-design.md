@@ -69,13 +69,18 @@ Add to `identityStore`:
 staleInferenceSections: IdentityInferenceSection[]   // additive, optional-defaulted []
 ```
 
-- **Persistence — decided (2026-06-10):** persist **and travel with the workspace** — the stale
-  set lives on the identity artifact and is included in the workspace snapshot, so it survives
-  reload, export/import, and hosted sync. It is durable derivation state about the canonical
-  model, not a device-local hint. Additive optional field defaulted to `[]` → no migration
-  required (additive optional fields skip migration). Run through the `facet-persistence-changes`
-  checklist at implementation time to confirm snapshot inclusion (`FACET_WORKSPACE_SNAPSHOT`
-  identity artifact), not just the local Zustand-persist slice.
+- **Persistence — corrected (2026-06-10):** the original "travels with the workspace snapshot /
+  hosted sync" answer was **not buildable** and has been retracted. Verified against code:
+  identity is **not** a workspace artifact — `FACET_ARTIFACT_TYPES` (`contracts.ts:24`) has no
+  `identity`; `createWorkspaceSnapshotFromStores` (`snapshot.ts:232`) does not read
+  `useIdentityStore`; identity persists only through its own **tier-1 Zustand persist**
+  (`identityStore.ts:912`, store `version: 4`). So Thread 1 persists the stale set on the
+  **identityStore's own persisted slice (tier-1, localStorage)**: survives reload, **device-local**,
+  no model schema change, no migration. Ensure the field is included in the store's `partialize`
+  (persisted partition). True portability — travelling with backup/restore + hosted sync —
+  requires first promoting identity to a first-class artifact, a separate initiative:
+  [`identity-as-workspace-artifact-design.md`](./identity-as-workspace-artifact-design.md).
+  Thread 1 does **not** depend on it.
 - The map reads `staleInferenceSections` from the store instead of `useState`. Its existing
   `markStaleInferenceSections` / `clearStaleInferenceSections` helpers become store actions
   (`markInferenceSectionsStale`, `clearInferenceSectionsStale`). The cascade plumbing
@@ -174,9 +179,12 @@ panel now lights up from corrections, not only regenerations. Two cheap, optiona
 
 ## Open decisions (need a call before build)
 
-1. **Persisted vs. session staleness.** ✅ **Decided (2026-06-10):** persist + travel with the
-   workspace snapshot (export/import + hosted sync), as durable derivation state on the identity
-   artifact.
+1. **Persistence tier.** ✅ **Decided (2026-06-10, corrected):** persist on the **identityStore
+   tier-1 slice** (localStorage) — survives reload, device-local. The original "travels with the
+   workspace snapshot / hosted sync" answer was not buildable: identity is not a workspace
+   artifact (verified — see §1). True portability is deferred to the identity-as-artifact
+   initiative ([`identity-as-workspace-artifact-design.md`](./identity-as-workspace-artifact-design.md));
+   Thread 1 does not depend on it.
 2. **Preferences → search.** Confirm preference edits should mark `search` stale (they feed
    lanes/filters per the shepherding graph). Low cost, high correctness; recommend yes.
 3. **Answer-patch granularity (§5).** Accept conservative union for Thread 1, or hold answer
