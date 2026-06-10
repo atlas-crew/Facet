@@ -44,11 +44,6 @@ import {
 import { ScanReviewPane } from './ScanReviewPane'
 import { SOURCE_MATERIAL_SAMPLES } from './sampleSourceMaterial'
 
-const extractionHeroImage = new URL(
-  '../../../brand/exports/hero/facet-product-explanation-hero.webp',
-  import.meta.url,
-).href
-
 export const AI_CONVERSATION_EXPORT_PROMPT = `I'm moving to a new career tool and I'd like to export what you know about me.
 Please produce a structured summary of everything you know about my professional
 background, including:
@@ -326,60 +321,51 @@ export function ExtractionAgentCard({
 
   return (
     <section className="identity-card identity-extraction-card">
-      <div className="identity-extraction-hero">
-        <img
-          className="identity-extraction-hero-image"
-          src={extractionHeroImage}
-          alt=""
-          aria-hidden="true"
-        />
-        <div className="identity-extraction-hero-scrim" aria-hidden="true" />
-        <div className="identity-card-header identity-extraction-hero-content">
-          <div className="identity-extraction-hero-copy">
-            <h2>Intake Sources</h2>
-            <p>
-              Bring in recent source variants first, then fall back to pasted source text when the
-              scan needs clarification.
-            </p>
-            {statusLabel ? <span className="identity-section-status">{statusLabel}</span> : null}
-          </div>
-          <div className="identity-card-actions">
-            <button
-              className={`identity-btn ${intakeMode === 'upload' ? 'identity-btn-primary' : ''}`}
-              type="button"
-              onClick={onRequestUpload}
-            >
-              <ScanSearch size={16} />
-              Upload Resume
-            </button>
-            <button
-              className={`identity-btn ${intakeMode === 'paste' ? 'identity-btn-primary' : ''}`}
-              type="button"
-              onClick={() => onSetIntakeMode('paste')}
-            >
-              <Upload size={16} />
-              Paste Source Text
-            </button>
-            <button
-              className="identity-btn identity-btn-primary"
-              type="button"
-              onClick={() => void onGenerate('fresh')}
-              disabled={isGenerating || isScanning}
-              aria-busy={isGenerating || isScanning}
-            >
-              <Sparkles size={16} />
-              {isGenerating ? 'Synthesizing…' : generateButtonLabel}
-            </button>
-            <button
-              className="identity-btn"
-              type="button"
-              onClick={() => void onGenerate('regenerate')}
-              disabled={isGenerating || isScanning || (!draft && !currentIdentity)}
-            >
-              <RefreshCcw size={16} />
-              Regenerate
-            </button>
-          </div>
+      <div className="identity-card-header">
+        <div>
+          <h2>Intake Sources</h2>
+          <p>
+            Bring in recent source variants first, then fall back to pasted source text when the
+            scan needs clarification.
+          </p>
+          {statusLabel ? <span className="identity-section-status">{statusLabel}</span> : null}
+        </div>
+        <div className="identity-card-actions">
+          <button
+            className={`identity-btn ${intakeMode === 'upload' ? 'identity-btn-primary' : ''}`}
+            type="button"
+            onClick={onRequestUpload}
+          >
+            <ScanSearch size={16} />
+            Upload Resume
+          </button>
+          <button
+            className={`identity-btn ${intakeMode === 'paste' ? 'identity-btn-primary' : ''}`}
+            type="button"
+            onClick={() => onSetIntakeMode('paste')}
+          >
+            <Upload size={16} />
+            Paste Source Text
+          </button>
+          <button
+            className="identity-btn identity-btn-primary"
+            type="button"
+            onClick={() => void onGenerate('fresh')}
+            disabled={isGenerating || isScanning}
+            aria-busy={isGenerating || isScanning}
+          >
+            <Sparkles size={16} />
+            {isGenerating ? 'Synthesizing…' : generateButtonLabel}
+          </button>
+          <button
+            className="identity-btn"
+            type="button"
+            onClick={() => void onGenerate('regenerate')}
+            disabled={isGenerating || isScanning || (!draft && !currentIdentity)}
+          >
+            <RefreshCcw size={16} />
+            Regenerate
+          </button>
         </div>
       </div>
 

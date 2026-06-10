@@ -759,6 +759,30 @@ describe('IdentityPage', () => {
     ).toBeTruthy()
   })
 
+  it('links back to the Identity Map from the import header', () => {
+    render(<IdentityPage />)
+
+    fireEvent.click(
+      within(screen.getByRole('banner')).getByRole('button', { name: 'Identity Map' }),
+    )
+
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/identity' })
+  })
+
+  it('hides the decorative import hero if the image fails to load', () => {
+    const { container } = render(<IdentityPage />)
+
+    const heroImage = container.querySelector('.identity-import-hero img')
+    expect(heroImage).toBeTruthy()
+
+    fireEvent.error(heroImage as Element)
+
+    expect(container.querySelector('.identity-import-hero img')).toBeNull()
+    expect(
+      within(screen.getByRole('banner')).getByRole('button', { name: 'Identity Map' }),
+    ).toBeTruthy()
+  })
+
   it('bypasses replacement confirmation when the current identity shell is still empty', async () => {
     const emptyIdentity = cloneIdentityFixture()
     emptyIdentity.roles = []

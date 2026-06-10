@@ -8,7 +8,7 @@ import {
   type DragEvent,
 } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { Download, FileJson, Upload } from 'lucide-react'
+import { Download, FileJson, Map as MapIcon, Upload } from 'lucide-react'
 import { professionalIdentityToResumeData } from '../../identity/resumeAdapter'
 import type { ProfessionalIdentityV3 } from '../../identity/schema'
 import {
@@ -57,6 +57,11 @@ import { ExtractionAgentCard } from './ExtractionAgentCard'
 import { IdentityModelBuilderCard } from './IdentityModelBuilderCard'
 import { ProposedVectorsCard } from './ProposedVectorsCard'
 import './identity.css'
+
+const identityImportHeroImage = new URL(
+  '../../../brand/exports/hero/facet-import.webp',
+  import.meta.url,
+).href
 
 const downloadJson = (filename: string, content: string) => {
   const blob = new Blob([content], { type: 'application/json' })
@@ -124,6 +129,8 @@ export function IdentityPage() {
   const [pendingModelScrollTarget, setPendingModelScrollTarget] = useState<'draft' | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [isScanning, setIsScanning] = useState(false)
+  // Bundled decorative art should quietly disappear if it ever fails to load.
+  const [isImportHeroVisible, setImportHeroVisible] = useState(true)
   const [pageError, setPageError] = useState<string | null>(null)
   const [pageNotice, setPageNotice] = useState<string | null>(null)
   const [pendingReplaceGenerateMode, setPendingReplaceGenerateMode] = useState<
@@ -1167,44 +1174,70 @@ export function IdentityPage() {
           </p>
         </div>
 
-        <div className="identity-header-controls">
-          <div className="identity-header-actions identity-header-actions-shell">
-            <button
-              ref={primaryActionButtonRef}
-              className="identity-btn identity-btn-primary"
-              type="button"
-              onClick={handlePrimaryAction}
-              disabled={isPrimaryActionDisabled}
-              aria-busy={isPrimaryActionDisabled}
-            >
-              {primaryActionLabel}
-            </button>
-            <div className="identity-header-secondary-actions">
-              <button
-                className="identity-btn"
-                type="button"
-                onClick={() => importRef.current?.click()}
-              >
-                <Upload size={16} />
-                Import JSON
-              </button>
-              <button className="identity-btn" type="button" onClick={handleExportDraft}>
-                <Download size={16} />
-                Export Draft
-              </button>
-              <button className="identity-btn" type="button" onClick={handleExportCurrent}>
-                <FileJson size={16} />
-                Export Identity
-              </button>
+        <div className="identity-header-side">
+          {isImportHeroVisible ? (
+            <div className="identity-import-hero">
+              <img
+                src={identityImportHeroImage}
+                alt=""
+                aria-hidden="true"
+                width={1920}
+                height={1080}
+                fetchPriority="low"
+                decoding="async"
+                onError={() => setImportHeroVisible(false)}
+              />
             </div>
+          ) : null}
+          <div className="identity-header-controls">
+            <div className="identity-header-actions identity-header-actions-shell">
+              <button
+                ref={primaryActionButtonRef}
+                className="identity-btn identity-btn-primary"
+                type="button"
+                onClick={handlePrimaryAction}
+                disabled={isPrimaryActionDisabled}
+                aria-busy={isPrimaryActionDisabled}
+              >
+                {primaryActionLabel}
+              </button>
+              <div className="identity-header-secondary-actions">
+                <button
+                  className="identity-btn"
+                  type="button"
+                  onClick={() => importRef.current?.click()}
+                >
+                  <Upload size={16} />
+                  Import JSON
+                </button>
+                <button className="identity-btn" type="button" onClick={handleExportDraft}>
+                  <Download size={16} />
+                  Export Draft
+                </button>
+                <button className="identity-btn" type="button" onClick={handleExportCurrent}>
+                  <FileJson size={16} />
+                  Export Identity
+                </button>
+                {/* This import page is mounted at /identity/import; /identity is the map route. */}
+                <button
+                  className="identity-btn"
+                  type="button"
+                  title="Open Identity Map"
+                  onClick={() => void navigate({ to: '/identity' })}
+                >
+                  <MapIcon size={16} />
+                  Identity Map
+                </button>
+              </div>
+            </div>
+            <input
+              ref={importRef}
+              hidden
+              type="file"
+              accept="application/json,.json"
+              onChange={handleImportJson}
+            />
           </div>
-          <input
-            ref={importRef}
-            hidden
-            type="file"
-            accept="application/json,.json"
-            onChange={handleImportJson}
-          />
         </div>
       </header>
 
