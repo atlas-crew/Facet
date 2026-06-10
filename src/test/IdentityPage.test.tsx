@@ -2,6 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import type { AnchorHTMLAttributes, ReactNode } from 'react'
 import { IdentityPage } from '../routes/identity/IdentityPage'
 import { getActiveResumeScan, useIdentityStore } from '../store/identityStore'
 import { useJDAnalysisStore } from '../store/jdAnalysisStore'
@@ -22,7 +23,17 @@ const resumeScannerMocks = vi.hoisted(() => ({
   scanResumePdfMock: vi.fn(),
 }))
 
+type RouterLinkMockProps = AnchorHTMLAttributes<HTMLAnchorElement> & {
+  children: ReactNode
+  to: string
+}
+
 vi.mock('@tanstack/react-router', () => ({
+  Link: ({ children, to, ...props }: RouterLinkMockProps) => (
+    <a href={to} {...props}>
+      {children}
+    </a>
+  ),
   useNavigate: () => navigateMock,
 }))
 
@@ -762,25 +773,25 @@ describe('IdentityPage', () => {
   it('links back to the Identity Map from the import header', () => {
     render(<IdentityPage />)
 
-    fireEvent.click(
-      within(screen.getByRole('banner')).getByRole('button', { name: 'Identity Map' }),
-    )
-
-    expect(navigateMock).toHaveBeenCalledWith({ to: '/identity' })
+    expect(
+      within(screen.getByRole('banner'))
+        .getByRole('link', { name: 'Identity Map' })
+        .getAttribute('href'),
+    ).toBe('/identity')
+    expect(navigateMock).not.toHaveBeenCalled()
   })
 
-  it('hides the decorative import hero if the image fails to load', () => {
+  it('renders the decorative import hero in the header', () => {
     const { container } = render(<IdentityPage />)
 
     const heroImage = container.querySelector('.identity-import-hero img')
     expect(heroImage).toBeTruthy()
-
-    fireEvent.error(heroImage as Element)
-
-    expect(container.querySelector('.identity-import-hero img')).toBeNull()
-    expect(
-      within(screen.getByRole('banner')).getByRole('button', { name: 'Identity Map' }),
-    ).toBeTruthy()
+    expect(heroImage?.getAttribute('alt')).toBe('')
+    expect(heroImage?.getAttribute('aria-hidden')).toBe('true')
+    expect(heroImage?.getAttribute('width')).toBe('960')
+    expect(heroImage?.getAttribute('height')).toBe('540')
+    expect(heroImage?.getAttribute('fetchpriority')).toBe('low')
+    expect(heroImage?.getAttribute('decoding')).toBe('async')
   })
 
   it('bypasses replacement confirmation when the current identity shell is still empty', async () => {

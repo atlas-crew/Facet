@@ -320,7 +320,7 @@ export function ExtractionAgentCard({
   }
 
   return (
-    <section className="identity-card identity-extraction-card">
+    <section className="identity-card">
       <div className="identity-card-header">
         <div>
           <h2>Intake Sources</h2>

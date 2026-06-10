@@ -23,11 +23,11 @@
 }
 
 .identity-header-controls {
-  flex: 1 1 320px;
-  min-width: min(100%, 280px);
+  flex: 1 1 100%;
+  min-width: 0;
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
+  align-items: center;
+  justify-content: flex-end;
   gap: var(--space-3);
 }
 
@@ -36,11 +36,6 @@
   min-width: min(100%, 320px);
   display: grid;
   gap: var(--space-3);
-}
-
-.identity-header-side .identity-header-controls {
-  flex: none;
-  min-width: 0;
 }
 
 .identity-import-hero {
@@ -78,13 +73,7 @@
 }
 
 .identity-header-actions-shell {
-  align-items: flex-end;
-  justify-content: flex-end;
-}
-
-.identity-header-secondary-actions {
-  display: flex;
-  gap: var(--space-2);
+  align-items: center;
   flex-wrap: wrap;
   justify-content: flex-end;
 }
@@ -231,6 +220,7 @@
   padding: var(--space-2) var(--space-3);
   font-size: 12px;
   font-weight: 500;
+  text-decoration: none;
   cursor: pointer;
   transition:
     background var(--duration-fast) var(--easing),
@@ -727,8 +717,7 @@
   }
 
   .identity-header-controls,
-  .identity-header-actions-shell,
-  .identity-header-secondary-actions {
+  .identity-header-actions-shell {
     width: 100%;
     align-items: stretch;
     justify-content: flex-start;
