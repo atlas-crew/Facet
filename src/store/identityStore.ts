@@ -195,6 +195,7 @@ interface IdentityState {
   clearScanResult: () => void
   clearLastError: () => void
   importIdentity: (value: unknown, summary?: string) => IdentityApplyResult
+  hydrateIdentityFromSnapshot: (identity: ProfessionalIdentityV3) => void
   applyDraft: (mode: IdentityApplyMode) => IdentityApplyResult
 }
 
@@ -2211,6 +2212,26 @@ export const useIdentityStore = create<IdentityState>()(
 
         return result
       },
+      hydrateIdentityFromSnapshot: (identity) =>
+        // Faithful restore of a persisted identity model from the workspace
+        // snapshot. Unlike importIdentity it does NOT advance model_revision or
+        // write a changelog entry — it reinstates the model exactly, running it
+        // through the same runtime normalizer the persist merge uses. Callers
+        // (workspace hydration) only invoke this with a populated model; a
+        // null/absent snapshot identity is a no-op upstream so it can never
+        // clobber a populated local identity.
+        set((state) => {
+          const normalized = normalizeRuntimeProfessionalIdentity(identity)
+          return {
+            currentIdentity: normalized,
+            // Keep the JSON editor in sync with the restored model, but never
+            // stomp an in-progress draft the user is editing.
+            draftDocument:
+              state.draft === null || state.draft === undefined
+                ? formatIdentityDocument(normalized)
+                : state.draftDocument,
+          }
+        }),
       applyDraft: (mode) => {
         const { currentIdentity, draftDocument } = get()
         const parsedDraft = parseDraftDocument(draftDocument)

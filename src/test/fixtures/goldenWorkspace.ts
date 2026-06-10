@@ -153,6 +153,12 @@ const buildSnapshotFromPersona = (
         exportedAt,
       ),
       research: buildArtifactSnapshot('research', clone(persona.research), workspaceId, exportedAt),
+      identity: buildArtifactSnapshot(
+        'identity',
+        { identity: clone(persona.identity) },
+        workspaceId,
+        exportedAt,
+      ),
     },
     exportedAt,
   }

@@ -1,5 +1,6 @@
 import { useCoverLetterStore } from '../store/coverLetterStore'
 import { useDebriefStore } from '../store/debriefStore'
+import { useIdentityStore } from '../store/identityStore'
 import { useJDAnalysisStore } from '../store/jdAnalysisStore'
 import { useLinkedInStore } from '../store/linkedinStore'
 import { usePipelineStore } from '../store/pipelineStore'
@@ -99,6 +100,12 @@ export const DURABLE_PERSISTENCE_BOUNDARIES: PersistenceBoundaryDefinition[] = [
     target: 'workspace.artifacts.research.payload',
     durability: 'durable',
     notes: 'Research profiles and runs are part of durable workspace history.',
+  },
+  {
+    source: 'identityStore.currentIdentity',
+    target: 'workspace.artifacts.identity.payload.identity',
+    durability: 'durable',
+    notes: 'The canonical identity model travels with backup/restore, import/export, and future hosted sync (TASK-40).',
   },
 ]
 
@@ -244,6 +251,7 @@ export const createWorkspaceSnapshotFromStores = (
   const recruiterState = useRecruiterStore.getState()
   const debriefState = useDebriefStore.getState()
   const searchState = useSearchStore.getState()
+  const identityState = useIdentityStore.getState()
 
   return {
     snapshotVersion: FACET_WORKSPACE_SNAPSHOT_VERSION,
@@ -341,6 +349,14 @@ export const createWorkspaceSnapshotFromStores = (
         },
         exportedAt,
       ),
+      identity: buildArtifactSnapshot(
+        'identity',
+        workspaceId,
+        {
+          identity: cloneValue(identityState.currentIdentity),
+        },
+        exportedAt,
+      ),
     },
     exportedAt,
   }
@@ -392,6 +408,7 @@ export const createEmptyWorkspaceSnapshot = (
         },
         exportedAt,
       ),
+      identity: buildArtifactSnapshot('identity', workspaceId, { identity: null }, exportedAt),
     },
     exportedAt,
   }

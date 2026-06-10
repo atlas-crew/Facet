@@ -108,7 +108,7 @@ describe('remotePersistenceBackend', () => {
     })
 
     await expect(backend.loadWorkspaceSnapshot('ws-1')).rejects.toThrow('denied')
-    await expect(backend.loadWorkspaceSnapshot('ws-1')).rejects.toThrow(/expected 1, got 999/)
+    await expect(backend.loadWorkspaceSnapshot('ws-1')).rejects.toThrow(/expected 2, got 999/)
   })
 
   it('classifies auth and offline failures for hosted recovery UX', async () => {

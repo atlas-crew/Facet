@@ -1,4 +1,5 @@
 export { DEFAULT_LOCAL_WORKSPACE_ID } from '../types/durable'
+import type { ProfessionalIdentityV3 } from '../identity/schema'
 import type { CoverLetterWorkspaceData } from '../types/coverLetter'
 import type { DebriefSession } from '../types/debrief'
 import type { JDAnalysis } from '../types/jdAnalysis'
@@ -17,7 +18,11 @@ import type {
 } from '../types/search'
 import type { VectorSelection } from '../types'
 
-export const FACET_WORKSPACE_SNAPSHOT_VERSION = 1 as const
+// v2 (TASK-40): the identity model joins the workspace artifact set so the
+// product's canonical model travels with backup/restore, import/export, and
+// hosted sync. Legacy v1 snapshots predate the identity artifact;
+// normalizeWorkspaceSnapshot upgrades them in place before validation.
+export const FACET_WORKSPACE_SNAPSHOT_VERSION = 2 as const
 export const FACET_LOCAL_PREFERENCES_VERSION = 1 as const
 export const DEFAULT_LOCAL_WORKSPACE_NAME = 'Facet Local Workspace'
 
@@ -31,6 +36,7 @@ export const FACET_ARTIFACT_TYPES = [
   'recruiter',
   'debrief',
   'research',
+  'identity',
 ] as const
 
 export type FacetArtifactType = (typeof FACET_ARTIFACT_TYPES)[number]
@@ -75,6 +81,16 @@ export interface ResearchWorkspaceData {
   activeResearchJob?: ActiveResearchJobState | null
 }
 
+export interface IdentityWorkspaceData {
+  /**
+   * The canonical professional identity model (TASK-40). A singleton, not an
+   * ID-keyed entity list like every other artifact payload. `null` means "no
+   * identity captured" — hydration treats a null/absent identity as a no-op so
+   * a snapshot can never clobber a populated local identity model.
+   */
+  identity: ProfessionalIdentityV3 | null
+}
+
 export interface FacetWorkspaceDescriptor {
   id: string
   name: string
@@ -101,6 +117,7 @@ export type LinkedInArtifactSnapshot = FacetArtifactSnapshot<'linkedin', LinkedI
 export type RecruiterArtifactSnapshot = FacetArtifactSnapshot<'recruiter', RecruiterWorkspaceData>
 export type DebriefArtifactSnapshot = FacetArtifactSnapshot<'debrief', DebriefWorkspaceData>
 export type ResearchArtifactSnapshot = FacetArtifactSnapshot<'research', ResearchWorkspaceData>
+export type IdentityArtifactSnapshot = FacetArtifactSnapshot<'identity', IdentityWorkspaceData>
 
 export interface FacetWorkspaceArtifacts {
   resume: ResumeArtifactSnapshot
@@ -112,9 +129,10 @@ export interface FacetWorkspaceArtifacts {
   recruiter: RecruiterArtifactSnapshot
   debrief: DebriefArtifactSnapshot
   research: ResearchArtifactSnapshot
+  identity: IdentityArtifactSnapshot
 }
 
-export interface FacetWorkspaceSnapshotV1 {
+export interface FacetWorkspaceSnapshotV2 {
   snapshotVersion: typeof FACET_WORKSPACE_SNAPSHOT_VERSION
   tenantId: string | null
   userId: string | null
@@ -123,7 +141,7 @@ export interface FacetWorkspaceSnapshotV1 {
   exportedAt: string
 }
 
-export type FacetWorkspaceSnapshot = FacetWorkspaceSnapshotV1
+export type FacetWorkspaceSnapshot = FacetWorkspaceSnapshotV2
 
 export interface FacetUiLocalPreferences {
   selectedVector: VectorSelection

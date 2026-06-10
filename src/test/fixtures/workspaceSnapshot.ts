@@ -89,7 +89,7 @@ export function buildWorkspaceSnapshot(
   overrides: Partial<FacetWorkspaceSnapshot> = {},
 ): FacetWorkspaceSnapshot {
   return {
-    snapshotVersion: 1 as const,
+    snapshotVersion: 2 as const,
     tenantId: DEFAULT_TENANT_ID,
     userId: DEFAULT_USER_ID,
     workspace: {
@@ -111,6 +111,7 @@ export function buildWorkspaceSnapshot(
       recruiter: buildArtifact('recruiter', { cards: [] }),
       debrief: buildArtifact('debrief', { sessions: [] }),
       research: buildArtifact('research', { profile: null, requests: [], runs: [] }),
+      identity: buildArtifact('identity', { identity: null }),
     },
     exportedAt: DEFAULT_TIMESTAMP,
     ...overrides,
@@ -205,6 +206,13 @@ export function buildForgedWorkspaceSnapshot(): ForgedWorkspaceSnapshot {
       research: {
         ...base.artifacts.research,
         artifactId: `${FORGED_SCOPE}:research`,
+        workspaceId: FORGED_SCOPE,
+        revision: FORGED_ARTIFACT_REVISION,
+        updatedAt: FORGED_TIMESTAMP,
+      },
+      identity: {
+        ...base.artifacts.identity,
+        artifactId: `${FORGED_SCOPE}:identity`,
         workspaceId: FORGED_SCOPE,
         revision: FORGED_ARTIFACT_REVISION,
         updatedAt: FORGED_TIMESTAMP,

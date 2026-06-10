@@ -377,7 +377,7 @@ describe('persistence foundation', () => {
       exportedAt: '2026-03-11T12:00:00.000Z',
     })
 
-    expect(snapshot.snapshotVersion).toBe(1)
+    expect(snapshot.snapshotVersion).toBe(2)
     expect(snapshot.tenantId).toBeNull()
     expect(snapshot.userId).toBeNull()
     expect(snapshot.workspace).toEqual({
@@ -1411,6 +1411,7 @@ describe('persistence foundation', () => {
       'recruiterStore.cards',
       'debriefStore.sessions',
       'searchStore.profile,requests,runs',
+      'identityStore.currentIdentity',
     ])
     expect(LOCAL_ONLY_PERSISTENCE_BOUNDARIES.map((entry) => entry.target)).toEqual([
       'localPreferences.ui',
@@ -1724,11 +1725,11 @@ describe('persistence foundation', () => {
       validationCoordinator.importWorkspaceSnapshot(
         {
           ...imported,
-          snapshotVersion: 999 as 1,
+          snapshotVersion: 999 as 2,
         },
         { mode: 'replace' },
       ),
-    ).rejects.toThrow(/expected 1, got 999/)
+    ).rejects.toThrow(/expected 2, got 999/)
     expect(saveCalls).toBe(0)
     expect(validationCoordinator.getStatus().phase).toBe('idle')
 
@@ -1756,19 +1757,19 @@ describe('persistence foundation', () => {
     expect(() => assertValidWorkspaceSnapshot(42)).toThrow(/must be an object/)
     expect(() =>
       assertValidWorkspaceSnapshot({
-        snapshotVersion: 1,
+        snapshotVersion: 2,
         workspace: { id: 42 },
         artifacts: {},
       }),
     ).toThrow(/workspace.id string/)
     expect(() =>
       assertValidWorkspaceSnapshot({
-        snapshotVersion: 1,
+        snapshotVersion: 2,
       }),
     ).toThrow(/workspace.id string/)
     expect(() =>
       assertValidWorkspaceSnapshot({
-        snapshotVersion: 1,
+        snapshotVersion: 2,
         workspace: { id: 'ws-1' },
       }),
     ).toThrow(/valid workspace metadata/)
@@ -1781,9 +1782,9 @@ describe('persistence foundation', () => {
     expect(() =>
       assertValidWorkspaceSnapshot({
         ...valid,
-        snapshotVersion: 999 as 1,
+        snapshotVersion: 999 as 2,
       }),
-    ).toThrow(/Unsupported workspace snapshot version: expected 1, got 999/)
+    ).toThrow(/Unsupported workspace snapshot version: expected 2, got 999/)
 
     expect(() =>
       assertValidWorkspaceSnapshot({

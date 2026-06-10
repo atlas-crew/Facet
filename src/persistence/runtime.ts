@@ -257,6 +257,10 @@ export const createPersistenceRuntime = (
       useDebriefStore.subscribe(() => schedulePersist()),
       useSearchStore.subscribe(() => schedulePersist()),
       useUiStore.subscribe(() => schedulePersist()),
+      // Identity edits must refresh the workspace snapshot too; otherwise an
+      // identity-only change would leave the snapshot stale and the next boot's
+      // hydration could apply an outdated identity over the live one (TASK-40).
+      useIdentityStore.subscribe(() => schedulePersist()),
     ]
   }
 

@@ -25,6 +25,7 @@ import type { FacetWorkspaceSnapshot } from './contracts'
 import { normalizeResumeWorkspacePayload, updateResumeEntityContent } from '../utils/resumeEntities'
 import {
   createEmptyDebriefArtifactSnapshot,
+  createEmptyIdentityArtifactSnapshot,
   createEmptyJDAnalysisArtifactSnapshot,
   createEmptyLinkedInArtifactSnapshot,
   createEmptyRecruiterArtifactSnapshot,
@@ -408,6 +409,18 @@ export const mergeWorkspaceSnapshots = (
     current.artifacts.debrief ??
     imported.artifacts.debrief ??
     createEmptyDebriefArtifactSnapshot(current.workspace.id, imported.exportedAt)
+  // Identity is a singleton, not an ID-keyed list. Keep-existing-unless-empty:
+  // the local model wins; the imported model fills in only when local is absent.
+  // A merge import therefore can never discard a populated local identity in
+  // favour of an imported one (the highest-stakes clobber to prevent).
+  const identityArtifactSource =
+    current.artifacts.identity ??
+    imported.artifacts.identity ??
+    createEmptyIdentityArtifactSnapshot(current.workspace.id, imported.exportedAt)
+  const mergedIdentityModel =
+    current.artifacts.identity?.payload?.identity ??
+    imported.artifacts.identity?.payload?.identity ??
+    null
   const jdAnalysisArtifactSource =
     current.artifacts.jdAnalysis ??
     imported.artifacts.jdAnalysis ??
@@ -564,6 +577,14 @@ export const mergeWorkspaceSnapshots = (
         ...cloneValue(current.artifacts.research),
         payload: mergedResearchPayload,
       },
+      identity: {
+        ...cloneValue(identityArtifactSource),
+        artifactId: `${current.workspace.id}:identity`,
+        workspaceId: current.workspace.id,
+        payload: {
+          identity: cloneValue(mergedIdentityModel),
+        },
+      },
     },
     exportedAt: imported.exportedAt,
   }
@@ -600,5 +621,10 @@ export const scopeWorkspaceSnapshotToWorkspace = (
     recruiter: scopedArtifact(snapshot.artifacts.recruiter, workspaceId, 'recruiter'),
     debrief: scopedArtifact(snapshot.artifacts.debrief, workspaceId, 'debrief'),
     research: scopedArtifact(snapshot.artifacts.research, workspaceId, 'research'),
+    // Scoping runs before the coordinator normalizes, so a pre-promotion (v1)
+    // backup that predates the identity artifact must be tolerated here.
+    identity: snapshot.artifacts.identity
+      ? scopedArtifact(snapshot.artifacts.identity, workspaceId, 'identity')
+      : createEmptyIdentityArtifactSnapshot(workspaceId, snapshot.exportedAt),
   },
 })

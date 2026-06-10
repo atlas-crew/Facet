@@ -1,5 +1,6 @@
 import { defaultResumeData } from '../store/defaultData'
 import { useCoverLetterStore } from '../store/coverLetterStore'
+import { useIdentityStore } from '../store/identityStore'
 import { normalizeCoverLetterWorkspacePayload } from '../utils/coverLetterEntities'
 import { migrateDebriefState, useDebriefStore } from '../store/debriefStore'
 import { migrateLinkedInState, useLinkedInStore } from '../store/linkedinStore'
@@ -113,6 +114,11 @@ export const applyWorkspaceSnapshotToStores = (snapshot: FacetWorkspaceSnapshot)
     feedbackEvents: cloneValue(migratedResearch.feedbackEvents),
     activeResearchJob: cloneValue(migratedResearch.activeResearchJob),
   }
+  // Clobber rule (TASK-40): only a populated snapshot identity is applied. A
+  // null/absent identity (legacy v1 snapshot, a cleared workspace, or an import
+  // with no identity) leaves the live identity model untouched, so a snapshot
+  // can never wipe the product's most critical model.
+  const identityModel = cloneValue(snapshot.artifacts.identity?.payload?.identity ?? null)
 
   const previousResume = useResumeStore.getState()
   const previousPipeline = usePipelineStore.getState()
@@ -123,6 +129,7 @@ export const applyWorkspaceSnapshotToStores = (snapshot: FacetWorkspaceSnapshot)
   const previousRecruiter = useRecruiterStore.getState()
   const previousDebrief = useDebriefStore.getState()
   const previousSearch = useSearchStore.getState()
+  const previousIdentity = useIdentityStore.getState()
 
   // Hydration is a best-effort in-memory transaction: runtime callers suppress
   // persistence while this runs, and any failed apply reverts every store below.
@@ -184,6 +191,10 @@ export const applyWorkspaceSnapshotToStores = (snapshot: FacetWorkspaceSnapshot)
     }))
 
     useSearchStore.setState(searchState)
+
+    if (identityModel) {
+      useIdentityStore.getState().hydrateIdentityFromSnapshot(identityModel)
+    }
   } catch (error) {
     const rollbackErrors: unknown[] = []
     restoreWorkspaceHydrationStore(
@@ -246,6 +257,13 @@ export const applyWorkspaceSnapshotToStores = (snapshot: FacetWorkspaceSnapshot)
       'research store',
       () => {
         useSearchStore.setState(previousSearch, true)
+      },
+      rollbackErrors,
+    )
+    restoreWorkspaceHydrationStore(
+      'identity store',
+      () => {
+        useIdentityStore.setState(previousIdentity, true)
       },
       rollbackErrors,
     )

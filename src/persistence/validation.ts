@@ -283,6 +283,20 @@ const assertValidArtifactPayload = (
         throw new Error('Workspace snapshot has invalid artifacts.debrief.payload.sessions.')
       }
       break
+    case 'identity':
+      // Boundary check only: the identity is a singleton that is either a
+      // model-shaped object or null. The identityStore's own normalizer owns
+      // deep-shape validation; rejecting here on field shape would break legacy
+      // models that the store would otherwise repair.
+      if (
+        !('identity' in payload) ||
+        (payload.identity !== null && !isRecord(payload.identity))
+      ) {
+        throw new Error(
+          'Workspace snapshot has invalid artifacts.identity.payload.identity (expected object or null).',
+        )
+      }
+      break
     case 'research':
       if (
         (payload.profile !== null && payload.profile !== undefined && !isRecord(payload.profile)) ||
@@ -383,7 +397,7 @@ export function assertValidWorkspaceSnapshot(
     throw new Error('Workspace snapshot must include artifacts.')
   }
 
-  for (const key of ['resume', 'pipeline', 'jdAnalysis', 'prep', 'coverLetters', 'linkedin', 'recruiter', 'debrief', 'research'] as const) {
+  for (const key of ['resume', 'pipeline', 'jdAnalysis', 'prep', 'coverLetters', 'linkedin', 'recruiter', 'debrief', 'research', 'identity'] as const) {
     const artifact = snapshot.artifacts[key]
 
     if (!isRecord(artifact)) {

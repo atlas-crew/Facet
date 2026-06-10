@@ -146,6 +146,11 @@ const createAuthoritativeWorkspaceSnapshot = (
       revision: (current?.artifacts.research.revision ?? 0) + 1,
       updatedAt: savedAt,
     },
+    identity: {
+      ...cloneValue(snapshot.artifacts.identity),
+      revision: (current?.artifacts.identity?.revision ?? 0) + 1,
+      updatedAt: savedAt,
+    },
   },
   exportedAt: savedAt,
 })

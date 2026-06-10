@@ -189,7 +189,7 @@ describe('workspace backup bundle', () => {
 
     await expect(
       decryptEncryptedWorkspaceBackup(encrypted, 'super-secret-passphrase'),
-    ).rejects.toThrow(/expected 1, got 999/i)
+    ).rejects.toThrow(/expected 2, got 999/i)
   })
 
   it('rejects decrypted payloads that are not valid backup payload objects', async () => {
