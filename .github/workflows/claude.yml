@@ -1,0 +1,65 @@
+# Claude Code agent — responds to @claude mentions on issues and PRs.
+#
+# The agent is pre-provisioned with scripts/setup.sh (the same script CI and the
+# devcontainer use) before control is handed to Claude, so it lands in a
+# test-ready workspace and can run `pnpm test` without spending turns on install.
+#
+# Auth: a Claude Pro/Max subscription via CLAUDE_CODE_OAUTH_TOKEN. Generate it
+# locally with `claude setup-token`, then add it under
+# Settings → Secrets and variables → Actions. To bill pay-per-token instead,
+# replace the claude_code_oauth_token line below with:
+#   anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+#
+# Caveat: commits Claude pushes with the default GITHUB_TOKEN do NOT re-trigger
+# CI (GitHub blocks Action-on-Action recursion). To run CI on Claude's PRs,
+# install the Claude GitHub App (https://github.com/apps/claude) and pass its
+# token via `github_token`.
+name: Claude Code
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  issues:
+    types: [opened, assigned]
+
+# Least privilege: only what the agent needs to comment, push branches, and open PRs.
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  claude:
+    # Gate on an actual @claude mention so a runner only starts when needed
+    # (every other comment is a no-op that would otherwise burn Actions minutes).
+    if: |
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'issues' && contains(github.event.issue.body, '@claude'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      # Provisioning mirrors ci.yml: pnpm + Node 20 (.nvmrc) + dependency cache.
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      # FACET_SETUP_VERIFY=none: install + env scaffold only. The agent runs its
+      # own typecheck/test/lint as the task requires, so skip the smoke gate here.
+      - name: Provision environment
+        run: bash scripts/setup.sh
+        env:
+          FACET_SETUP_VERIFY: none
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Runaway/cost guard. Raise for larger tasks; add --model to pin a model
+          # (e.g. --model claude-opus-4-8 for harder work).
+          claude_args: "--max-turns 20"
