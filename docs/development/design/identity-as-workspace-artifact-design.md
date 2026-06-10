@@ -1,6 +1,9 @@
 # Identity as a First-Class Workspace Artifact
 
-**Status:** Design (2026-06-10). Surfaced while verifying the Thread 1 persistence decision
+**Status:** Implemented (2026-06-10, #40). See "Implementation notes" at the foot
+for what shipped and where it diverged from this design.
+
+Originally surfaced while verifying the Thread 1 persistence decision
 ([`correction-driven-inference-staleness-thread-1-design.md`](./correction-driven-inference-staleness-thread-1-design.md))
 — the "stale set travels with the workspace snapshot" answer wasn't buildable because identity
 isn't in the snapshot at all. This note addresses the underlying gap. Independent of the
@@ -141,3 +144,46 @@ not a dependency.
 validation vs migration, import-merge, backup fixtures), `facet-architecture-guard`
 (identity-canonical-data — the artifact is identity's durable representation, not a second source
 of truth), data-strategy privacy review for the hosted path.
+
+---
+
+## Implementation notes (2026-06-10, #40)
+
+What shipped, and where it diverged from the design above — all verified against the code:
+
+- **Store version is 5, not 4.** This design (and the issue) cited the identity Zustand store
+  `version: 4`; it is actually `version: 5` (the m-33 `scanResult → intakeSources` rename). No
+  effect on the plan — hydration reuses the model normalizer, not the store's persist merge.
+
+- **Clobber rule is the load-bearing mechanism, expressed once in hydration.** The "both-present
+  merge" open decision resolved to **keep-existing-unless-empty** for `merge`, and the broader
+  rule is: `applyWorkspaceSnapshotToStores` applies the snapshot identity **only when it is a
+  populated model**. A null/absent identity (legacy v1 snapshot, cleared workspace, or an
+  identity-less import) leaves the live model untouched. This made the promotion **non-regressive**:
+  `clearWorkspace` already did not touch identity pre-promotion (identity wasn't in the snapshot),
+  and the clobber rule preserves that — so no `clearWorkspace` change was needed, and the design's
+  "explicit user choice when both non-empty" UI was not required for the singleton.
+
+- **Identity stays a required, uniform artifact** (not optional). Absence in legacy snapshots is
+  handled by `normalizeWorkspaceSnapshot` defaulting it to `{ identity: null }` (exactly like
+  `jdAnalysis`/`linkedin`/`recruiter`/`debrief` were added), plus a v1→v2 version upgrade in
+  normalization. `scopeWorkspaceSnapshotToWorkspace` (which runs before the coordinator normalizes)
+  tolerates a pre-promotion backup that lacks the artifact.
+
+- **Envelope bump to v2 is safe** because every load/import path runs `normalizeWorkspaceSnapshot`
+  before `assertValidWorkspaceSnapshot`; normalization upgrades a `snapshotVersion: 1` to 2 in
+  place. Only the known prior version is upgraded — an unknown/future version is left intact so the
+  strict validation check still rejects it (preserving the existing 999-version rejection tests).
+
+- **One requirement the issue checklist omitted: identity must join `installSubscriptions`**
+  (`runtime.ts`). Without it an identity-only edit would not refresh the workspace snapshot, and the
+  next boot's hydration could apply a stale snapshot identity over the freshly Zustand-rehydrated
+  live one. `debrief`/`linkedin` are subscribed for the same reason.
+
+- **Hydration uses `normalizeRuntimeProfessionalIdentity`, not `importIdentity`.** `importIdentity`
+  advances `model_revision` and writes a changelog entry — wrong for a faithful restore. A dedicated
+  `hydrateIdentityFromSnapshot` store action reinstates the model exactly, through the same runtime
+  normalizer the persist merge uses.
+
+- **Hosted privacy** remains the flagged, separable follow-up — identity now flows to the tier-3
+  remote backend automatically, so the data-strategy privacy review gates hosted sync of identity.
