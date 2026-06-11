@@ -175,6 +175,7 @@ const readPersistedIdentityState = async () => {
       draftDocument?: string
       intakeSources?: IntakeSource[]
       warnings?: string[]
+      staleInferenceSections?: string[]
       mapSelection?: unknown
       aiGenerationUndo?: unknown
     }
@@ -196,6 +197,7 @@ beforeEach(() => {
     intakeSources: [],
     warnings: [],
     changelog: [],
+    staleInferenceSections: [],
     lastError: null,
     aiGenerationUndo: null,
   })
@@ -2757,5 +2759,90 @@ describe('identityStore intake sources (multi-source intake)', () => {
       id: 'intake-1',
       userLabel: 'platform',
     })
+  })
+})
+
+describe('identityStore inference staleness set', () => {
+  it('marks sections stale in canonical order and dedupes', () => {
+    useIdentityStore.getState().markInferenceSectionsStale(['search', 'profiles'])
+    useIdentityStore.getState().markInferenceSectionsStale(['profiles', 'chapters'])
+
+    // Sorted by IDENTITY_INFERENCE_ORDER; 'profiles' is not duplicated.
+    expect(useIdentityStore.getState().staleInferenceSections).toEqual([
+      'profiles',
+      'chapters',
+      'search',
+    ])
+  })
+
+  it('treats an empty mark as a no-op', () => {
+    useIdentityStore.getState().markInferenceSectionsStale(['thesis'])
+    const before = useIdentityStore.getState().staleInferenceSections
+    useIdentityStore.getState().markInferenceSectionsStale([])
+    // Same reference: no state write occurred.
+    expect(useIdentityStore.getState().staleInferenceSections).toBe(before)
+  })
+
+  it('recordIdentityCorrection marks downstream and clears the corrected section', () => {
+    // Pretend thesis was already flagged stale from an earlier upstream edit.
+    useIdentityStore.getState().markInferenceSectionsStale(['thesis'])
+
+    useIdentityStore.getState().recordIdentityCorrection('thesis')
+
+    // Re-authoring the thesis clears its own flag and marks everything downstream.
+    expect(useIdentityStore.getState().staleInferenceSections).toEqual([
+      'profiles',
+      'chapters',
+      'selfKnowledge',
+      'positioning',
+      'search',
+    ])
+  })
+
+  it('recordIdentityCorrection on a terminal section only clears its own flag', () => {
+    useIdentityStore.getState().markInferenceSectionsStale(['search'])
+
+    // 'search' is the last node — no downstream — so the correction just clears it.
+    useIdentityStore.getState().recordIdentityCorrection('search')
+
+    expect(useIdentityStore.getState().staleInferenceSections).toEqual([])
+  })
+
+  it('clears only the named sections', () => {
+    useIdentityStore.getState().markInferenceSectionsStale(['thesis', 'profiles', 'search'])
+    useIdentityStore.getState().clearInferenceSectionsStale(['profiles'])
+    expect(useIdentityStore.getState().staleInferenceSections).toEqual(['thesis', 'search'])
+  })
+
+  it('clears the whole set', () => {
+    useIdentityStore.getState().markInferenceSectionsStale(['thesis', 'search'])
+    useIdentityStore.getState().clearAllInferenceSectionsStale()
+    expect(useIdentityStore.getState().staleInferenceSections).toEqual([])
+  })
+
+  it('persists the stale set on the tier-1 slice', async () => {
+    useIdentityStore.getState().markInferenceSectionsStale(['profiles', 'thesis'])
+
+    const persisted = await readPersistedIdentityState()
+    expect(persisted.state.staleInferenceSections).toEqual(['thesis', 'profiles'])
+  })
+
+  it('defaults a legacy persisted state with no stale set to an empty array', async () => {
+    useIdentityStore.setState({ currentIdentity: null, draft: null, intakeSources: [] })
+
+    const legacyPersisted = {
+      state: {
+        currentIdentity: null,
+        draft: null,
+        intakeSources: [],
+        // no staleInferenceSections key — predates thread-1 staleness
+      },
+      version: 5,
+    }
+    await resolveStorage().setItem(IDENTITY_STORE_STORAGE_KEY, JSON.stringify(legacyPersisted))
+
+    await useIdentityStore.persist.rehydrate()
+
+    expect(useIdentityStore.getState().staleInferenceSections).toEqual([])
   })
 })

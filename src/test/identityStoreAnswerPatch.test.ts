@@ -21,11 +21,14 @@ const seed = (modifier?: (id: ProfessionalIdentityV3) => void) => {
     intakeSources: [],
     warnings: [],
     changelog: [],
+    staleInferenceSections: [],
     lastError: null,
     mapSelection: null,
   })
   return identity
 }
+
+const getStale = () => useIdentityStore.getState().staleInferenceSections
 
 const getIdentity = () => useIdentityStore.getState().currentIdentity!
 
@@ -407,6 +410,60 @@ describe('applyAnswerPatch — unfair-advantage', () => {
     useIdentityStore.getState().applyAnswerPatch(patch)
 
     expect(getIdentity().self_model.unfair_advantages).toContain('First advantage')
+  })
+})
+
+// ─────────────────────────────────────────────────────────────
+// applyAnswerPatch — correction cascade (thread-1 staleness)
+// ─────────────────────────────────────────────────────────────
+
+describe('applyAnswerPatch — correction cascade', () => {
+  it('a role-bullet answer marks everything downstream of bullets stale', () => {
+    seed()
+
+    useIdentityStore.getState().applyAnswerPatch({
+      kind: 'role-bullet',
+      roleId: 'contoso',
+      bullet: { problem: 'P', action: 'A', outcome: 'O' },
+    })
+
+    // bullets is the most-upstream node; resolving evidence cascades to all of
+    // its descendants but never marks bullets itself stale.
+    expect(getStale()).toEqual([
+      'skills',
+      'thesis',
+      'profiles',
+      'chapters',
+      'selfKnowledge',
+      'positioning',
+      'search',
+    ])
+  })
+
+  it('a competitive-moat answer marks only positioning downstream (search)', () => {
+    seed()
+
+    useIdentityStore.getState().applyAnswerPatch({
+      kind: 'competitive-moat',
+      text: 'A durable edge.',
+    })
+
+    expect(getStale()).toEqual(['search'])
+  })
+
+  it('a positioning answer does not clear an unrelated upstream stale flag', () => {
+    seed()
+    // Simulate bullets already flagged from an earlier evidence edit.
+    useIdentityStore.getState().markInferenceSectionsStale(['bullets'])
+
+    useIdentityStore.getState().applyAnswerPatch({
+      kind: 'unfair-advantage',
+      items: ['Edge'],
+    })
+
+    // positioning clears its own flag (not set here) and marks search; the
+    // pre-existing bullets flag is untouched.
+    expect(getStale()).toEqual(['bullets', 'search'])
   })
 })
 

@@ -486,9 +486,12 @@ export function IdentityMapPage() {
   const [staleNotice, setStaleNotice] = useState<string | null>(null)
   const [exportNotice, setExportNotice] = useState<ExportNotice | null>(null)
   const [showActionItems, setShowActionItems] = useState(false)
-  const [staleInferenceSections, setStaleInferenceSections] = useState<
-    IdentityInferenceSection[]
-  >([])
+  // Stale set now lives in identityStore (tier-1 persist) so it survives reload
+  // and navigation, and so corrections — not just regenerations — can mark it.
+  const staleInferenceSections = useIdentityStore((s) => s.staleInferenceSections)
+  const markInferenceSectionsStale = useIdentityStore((s) => s.markInferenceSectionsStale)
+  const clearInferenceSectionsStale = useIdentityStore((s) => s.clearInferenceSectionsStale)
+  const clearAllInferenceSectionsStale = useIdentityStore((s) => s.clearAllInferenceSectionsStale)
   const [downstreamPrompt, setDownstreamPrompt] =
     useState<DownstreamRegenerationPrompt | null>(null)
   const [selectedDownstreamSections, setSelectedDownstreamSections] = useState<
@@ -898,21 +901,10 @@ export function IdentityMapPage() {
     return { requestId: nextRequestId }
   }
 
-  const clearStaleInferenceSections = (sections: readonly IdentityInferenceSection[]) => {
-    if (sections.length === 0) return
-    const clear = new Set(sections)
-    setStaleInferenceSections((current) => current.filter((section) => !clear.has(section)))
-  }
-
-  const markStaleInferenceSections = (sections: readonly IdentityInferenceSection[]) => {
-    if (sections.length === 0) return
-    setStaleInferenceSections((current) => sortIdentityInferenceSections([...current, ...sections]))
-  }
-
   const runInferenceSectionRequest = (
     section: IdentityInferenceSection,
   ): InferenceDispatchResult => {
-    clearStaleInferenceSections([section])
+    clearInferenceSectionsStale([section])
     switch (section) {
       case 'bullets':
         goToBulletDepth()
@@ -1279,7 +1271,7 @@ export function IdentityMapPage() {
 
     const result = runInferenceSectionRequest(nextSection)
     if (DRAFT_REVIEW_INFERENCE_SECTIONS.has(nextSection)) {
-      markStaleInferenceSections(remaining)
+      markInferenceSectionsStale(remaining)
       setPendingInferenceCascade(null)
       return
     }
@@ -1302,8 +1294,8 @@ export function IdentityMapPage() {
     const deferred = downstreamPrompt.downstream.filter((section) => !selectedSet.has(section))
 
     const result = runIdentityActionNow(pendingDownstreamSourceAction)
-    clearStaleInferenceSections([downstreamPrompt.sourceSection])
-    markStaleInferenceSections(deferred)
+    clearInferenceSectionsStale([downstreamPrompt.sourceSection])
+    markInferenceSectionsStale(deferred)
     setPendingInferenceCascade(
       selected.length > 0 && !DRAFT_REVIEW_INFERENCE_SECTIONS.has(downstreamPrompt.sourceSection)
         ? {
@@ -1442,7 +1434,7 @@ export function IdentityMapPage() {
             break
           case 'failed':
           case 'blocked':
-            markStaleInferenceSections(pendingInferenceCascade.sections)
+            markInferenceSectionsStale(pendingInferenceCascade.sections)
             setPendingInferenceCascade(null)
             return
           case 'skipped':
@@ -1460,7 +1452,7 @@ export function IdentityMapPage() {
 
     const timeoutMs = Math.max(0, pendingInferenceCascade.deadlineAt - Date.now())
     const stallTimeout = window.setTimeout(() => {
-      markStaleInferenceSections(pendingInferenceCascade.sections)
+      markInferenceSectionsStale(pendingInferenceCascade.sections)
       setPendingInferenceCascade(null)
     }, timeoutMs)
     return () => window.clearTimeout(stallTimeout)
@@ -1793,7 +1785,7 @@ export function IdentityMapPage() {
                     <button
                       type="button"
                       className="inspector-btn"
-                      onClick={() => setStaleInferenceSections([])}
+                      onClick={() => clearAllInferenceSectionsStale()}
                       disabled={staleInferenceSections.length === 0}
                     >
                       Clear stale markers
@@ -1848,7 +1840,7 @@ export function IdentityMapPage() {
           onSelfKnowledgeRequestSettled={(requestId, status) =>
             markInferenceRequestSettled('selfKnowledge', requestId, status)
           }
-          onSelfKnowledgeRequestStarted={() => clearStaleInferenceSections(['selfKnowledge'])}
+          onSelfKnowledgeRequestStarted={() => clearInferenceSectionsStale(['selfKnowledge'])}
           onPositioningRequestSettled={(requestId, status) =>
             markInferenceRequestSettled('positioning', requestId, status)
           }

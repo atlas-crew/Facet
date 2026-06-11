@@ -44,6 +44,11 @@ import { skillNamesMatch, updateIdentityEnrichmentSkill } from '../utils/identit
 import { dedupeUnfairAdvantages } from '../utils/unfairAdvantagesDedupe'
 import { parseJsonWithRepair } from '../utils/jsonParsing'
 import { mergeProfessionalIdentity, replaceProfessionalIdentity } from '../utils/identityMerge'
+import {
+  getDownstreamIdentityInferenceSections,
+  sortIdentityInferenceSections,
+  type IdentityInferenceSection,
+} from '../routes/identity/identityInferenceDependencies'
 import { resolveStorage } from './storage'
 
 export const IDENTITY_STORE_STORAGE_KEY = 'facet-identity-workspace'
@@ -70,6 +75,11 @@ interface IdentityState {
   intakeSources: IntakeSource[]
   warnings: string[]
   changelog: IdentityChangeLogEntry[]
+  // Inference sections whose upstream inputs were corrected since the section
+  // was last generated. Device-local (tier-1 persist), not part of the canonical
+  // identity model nor the workspace snapshot — it is process metadata about what
+  // may need regeneration, not candidate data. See thread-1 staleness design.
+  staleInferenceSections: IdentityInferenceSection[]
   lastError: string | null
   mapSelection: MapSelection | null
   aiGenerationUndo: IdentityAiGenerationUndo | null
@@ -162,6 +172,10 @@ interface IdentityState {
   resolveAwarenessQuestion: (id: string, answer: string) => void
   applyAnswerPatch: (patch: AnswerPatch) => void
   updateCurrentAccuracyRules: (value: Record<string, string | string[]> | undefined) => void
+  markInferenceSectionsStale: (sections: readonly IdentityInferenceSection[]) => void
+  clearInferenceSectionsStale: (sections: readonly IdentityInferenceSection[]) => void
+  clearAllInferenceSectionsStale: () => void
+  recordIdentityCorrection: (section: IdentityInferenceSection) => void
   thesisDraft: ProfessionalIdentityThesisInference | null
   thesisDraftRevision: number | null
   setThesisDraft: (draft: ProfessionalIdentityThesisInference | null, revision: number | null) => void
@@ -758,6 +772,9 @@ const normalizePersistedIdentityState = (state: PersistedIdentityShape): Partial
       draft,
       draftDocument: resolveDraftDocument(),
       intakeSources: state.intakeSources ?? [],
+      staleInferenceSections: Array.isArray(state.staleInferenceSections)
+        ? state.staleInferenceSections
+        : [],
     }
   }
 
@@ -787,6 +804,9 @@ const normalizePersistedIdentityState = (state: PersistedIdentityShape): Partial
     draft,
     draftDocument: resolveDraftDocument(identity),
     intakeSources,
+    staleInferenceSections: Array.isArray(state.staleInferenceSections)
+      ? state.staleInferenceSections
+      : [],
   }
 }
 
@@ -923,6 +943,7 @@ export const useIdentityStore = create<IdentityState>()(
       intakeSources: [],
       warnings: [],
       changelog: [],
+      staleInferenceSections: [],
       lastError: null,
       mapSelection: null,
       aiGenerationUndo: null,
@@ -1813,6 +1834,9 @@ export const useIdentityStore = create<IdentityState>()(
         const identity = get().currentIdentity
         if (!identity) return
 
+        // Resolving an open question writes real candidate data, so it is a
+        // correction: each patch kind maps to exactly one producing section
+        // (§5 — single-region, so per-kind recordIdentityCorrection, not a union).
         switch (patch.kind) {
           case 'role-bullet': {
             const role = identity.roles.find((r) => r.id === patch.roleId)
@@ -1832,10 +1856,12 @@ export const useIdentityStore = create<IdentityState>()(
                 r.id === patch.roleId ? { ...r, bullets: [...r.bullets, newBullet] } : r,
               ),
             )
+            get().recordIdentityCorrection('bullets')
             return
           }
           case 'skill': {
             get().addSkillToCurrentIdentity(patch.groupId, patch.skillName)
+            get().recordIdentityCorrection('skills')
             return
           }
           case 'self-model-arc': {
@@ -1843,16 +1869,19 @@ export const useIdentityStore = create<IdentityState>()(
               ...(identity.self_model.arc ?? []),
               patch.entry,
             ])
+            get().recordIdentityCorrection('chapters')
             return
           }
           case 'competitive-moat': {
             get().updateCurrentCompetitiveMoat(patch.text)
+            get().recordIdentityCorrection('positioning')
             return
           }
           case 'unfair-advantage': {
             const existing = identity.self_model.unfair_advantages ?? []
             const merged = dedupeUnfairAdvantages([...existing, ...patch.items])
             get().updateCurrentUnfairAdvantages(merged)
+            get().recordIdentityCorrection('positioning')
             return
           }
           default: {
@@ -1870,6 +1899,38 @@ export const useIdentityStore = create<IdentityState>()(
             },
           })),
         ),
+      markInferenceSectionsStale: (sections) =>
+        set((state) => {
+          if (sections.length === 0) return {}
+          const next = sortIdentityInferenceSections([
+            ...state.staleInferenceSections,
+            ...sections,
+          ])
+          // sortIdentityInferenceSections dedupes, so an unchanged length means
+          // every incoming section was already marked — skip the persist write.
+          if (next.length === state.staleInferenceSections.length) return {}
+          return { staleInferenceSections: next }
+        }),
+      clearInferenceSectionsStale: (sections) =>
+        set((state) => {
+          if (sections.length === 0) return {}
+          const clear = new Set(sections)
+          const next = state.staleInferenceSections.filter((section) => !clear.has(section))
+          if (next.length === state.staleInferenceSections.length) return {}
+          return { staleInferenceSections: next }
+        }),
+      clearAllInferenceSectionsStale: () =>
+        set((state) =>
+          state.staleInferenceSections.length === 0 ? {} : { staleInferenceSections: [] },
+        ),
+      recordIdentityCorrection: (section) => {
+        // A human correction to `section`'s own output: everything downstream of
+        // it may now be stale, but the section itself was just (re)authored, so
+        // its own flag clears. Inference writebacks must NOT call this — they
+        // share the same setters but already clear via the dispatch path.
+        get().markInferenceSectionsStale(getDownstreamIdentityInferenceSections(section))
+        get().clearInferenceSectionsStale([section])
+      },
       saveSkillEnrichment: (groupId, skillName, updates, enrichedBy) =>
         set((state) => {
           if (!state.currentIdentity) {
@@ -2296,6 +2357,7 @@ export const useIdentityStore = create<IdentityState>()(
         intakeSources: state.intakeSources,
         warnings: state.warnings,
         changelog: state.changelog,
+        staleInferenceSections: state.staleInferenceSections,
       }),
       migrate: (persistedState: unknown) => {
         const state = unwrapPersistedIdentityState(persistedState)
