@@ -18,7 +18,10 @@ import { cloneIdentityFixture } from './fixtures/identityFixture'
 // happy-path fixture, exactly mirroring a localStorage/indexedDb snapshot
 // written before the promotion.
 const buildLegacyV1Snapshot = (): FacetWorkspaceSnapshot => {
-  const snapshot = buildWorkspaceSnapshot() as FacetWorkspaceSnapshot & {
+  const snapshot = buildWorkspaceSnapshot() as Omit<
+    FacetWorkspaceSnapshot,
+    'snapshotVersion' | 'artifacts'
+  > & {
     snapshotVersion: number
     artifacts: Partial<FacetWorkspaceSnapshot['artifacts']>
   }
@@ -74,12 +77,17 @@ describe('identity workspace artifact (TASK-40)', () => {
     })
 
     it('leaves an unknown/future snapshot version untouched so validation still rejects it', () => {
-      const snapshot = buildWorkspaceSnapshot() as FacetWorkspaceSnapshot & {
+      const snapshot = buildWorkspaceSnapshot() as Omit<
+        FacetWorkspaceSnapshot,
+        'snapshotVersion'
+      > & {
         snapshotVersion: number
       }
       snapshot.snapshotVersion = 999
 
-      expect(normalizeWorkspaceSnapshot(snapshot).snapshotVersion).toBe(999)
+      expect(
+        normalizeWorkspaceSnapshot(snapshot as FacetWorkspaceSnapshot).snapshotVersion,
+      ).toBe(999)
     })
   })
 
