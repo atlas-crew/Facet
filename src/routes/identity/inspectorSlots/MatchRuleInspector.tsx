@@ -21,6 +21,9 @@ export function MatchRuleInspector({
   justAdded?: boolean
 }) {
   const updateMatching = useIdentityStore((s) => s.updateCurrentMatching)
+  // Matching rules are an input to the 'search' section, produced by no
+  // inference, so editing them marks 'search' stale (never clears it).
+  const markStale = useIdentityStore((s) => s.markInferenceSectionsStale)
   const setSelection = useIdentityStore((s) => s.setMapSelection)
   const rules =
     kind === 'prioritize'
@@ -83,6 +86,7 @@ export function MatchRuleInspector({
       )
       updateMatching({ ...matching, avoid: next })
     }
+    markStale(['search'])
     if (justAdded) {
       setSelection({ type: 'match-rule', kind, id: ruleId })
     }
@@ -102,6 +106,7 @@ export function MatchRuleInspector({
         avoid: matching.avoid.filter((r) => r.id !== ruleId),
       })
     }
+    markStale(['search'])
     setSelection(null)
   }
 

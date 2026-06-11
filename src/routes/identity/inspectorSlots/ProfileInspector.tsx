@@ -18,6 +18,7 @@ export function ProfileInspector({
   profileId: string
 }) {
   const updateProfiles = useIdentityStore((s) => s.updateCurrentProfiles)
+  const recordCorrection = useIdentityStore((s) => s.recordIdentityCorrection)
   const profile = identity.profiles.find((p) => p.id === profileId)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState({ text: '', tags: '' })
@@ -37,6 +38,7 @@ export function ProfileInspector({
         : p,
     )
     updateProfiles(next)
+    recordCorrection('profiles')
     setEditing(false)
   }
 

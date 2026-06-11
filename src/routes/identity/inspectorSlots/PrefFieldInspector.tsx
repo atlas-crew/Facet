@@ -164,6 +164,9 @@ export function PrefFieldInspector({
   const updateWork = useIdentityStore((s) => s.updateCurrentWorkModel)
   const updateConstraints = useIdentityStore((s) => s.updateCurrentConstraints)
   const updateInterview = useIdentityStore((s) => s.updateCurrentInterviewProcess)
+  // Preferences are an input to the 'search' section (lanes/filters), produced by
+  // no inference, so a preference edit marks 'search' stale rather than clearing it.
+  const markStale = useIdentityStore((s) => s.markInferenceSectionsStale)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const [compensationDraft, setCompensationDraft] = useState<CompensationDraft | null>(null)
@@ -249,6 +252,7 @@ export function PrefFieldInspector({
       })
       setCompensationError(null)
       resetCompensationSuggestionState()
+      markStale(['search'])
       setEditing(false)
       return
     }
@@ -319,6 +323,7 @@ export function PrefFieldInspector({
       default:
         nonCompensationField satisfies never
     }
+    markStale(['search'])
     setEditing(false)
   }
 

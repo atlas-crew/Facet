@@ -91,6 +91,7 @@ export function SkillItemInspector({
   autoDraft?: boolean
 }) {
   const updateGroups = useIdentityStore((s) => s.updateCurrentSkillGroups)
+  const recordCorrection = useIdentityStore((s) => s.recordIdentityCorrection)
   const removeSkill = useIdentityStore((s) => s.removeSkillFromCurrentIdentity)
   const moveSkill = useIdentityStore((s) => s.moveSkillBetweenCurrentGroups)
   const setSelection = useIdentityStore((s) => s.setMapSelection)
@@ -238,6 +239,7 @@ export function SkillItemInspector({
       }
     })
     updateGroups(nextIdentity.skills.groups)
+    recordCorrection('skills')
     setEditing(false)
   }
 
@@ -249,12 +251,14 @@ export function SkillItemInspector({
   const handleRemove = () => {
     if (!item) return
     removeSkill(groupId, item.name)
+    recordCorrection('skills')
     setSelection({ type: 'skill-group', id: groupId })
   }
 
   const handleMove = () => {
     if (!item || !selectedMoveTarget) return
     moveSkill(groupId, selectedMoveTarget.id, item.name)
+    recordCorrection('skills')
     setSelection({
       type: 'skill-item',
       groupId: selectedMoveTarget.id,

@@ -19,6 +19,7 @@ export function PhilosophyInspector({
   positionId: string
 }) {
   const updatePhilosophy = useIdentityStore((s) => s.updateCurrentPhilosophy)
+  const recordCorrection = useIdentityStore((s) => s.recordIdentityCorrection)
   const position = identity.self_model.philosophy.find((p) => p.id === positionId)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState({ text: '', tags: '' })
@@ -37,6 +38,7 @@ export function PhilosophyInspector({
         : p,
     )
     updatePhilosophy(next)
+    recordCorrection('selfKnowledge')
     setEditing(false)
   }
 

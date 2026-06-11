@@ -126,6 +126,9 @@ export function SelfModelBand({
   const updateInterviewStyle = useIdentityStore((s) => s.updateCurrentInterviewStyle)
   const updateVectors = useIdentityStore((s) => s.updateCurrentSearchVectors)
   const updateQuestions = useIdentityStore((s) => s.updateCurrentAwarenessQuestions)
+  // Manual edits below tag the correction; the generation writebacks in this
+  // band (chapters, philosophy, positioning application) deliberately do not.
+  const recordCorrection = useIdentityStore((s) => s.recordIdentityCorrection)
   const recordAiGenerationUndo = useIdentityStore((s) => s.recordAiGenerationUndo)
   const fill = selfModelFillStrength(identity)
   const identityGenerationKey = useMemo(
@@ -400,10 +403,12 @@ export function SelfModelBand({
     const trimmed = newAdvantage.trim()
     if (!trimmed) return
     updateUnfairAdvantages([...advantages, trimmed])
+    recordCorrection('positioning')
     setNewAdvantage('')
   }
   const handleRemoveAdvantage = (index: number) => {
     updateUnfairAdvantages(advantages.filter((_, i) => i !== index))
+    recordCorrection('positioning')
   }
   const handleAddExpertise = () => {
     const label = newExpertiseLabel.trim()
@@ -418,6 +423,7 @@ export function SelfModelBand({
       needs_review: false,
     }
     updateExpertise([...expertise, next])
+    recordCorrection('skills')
     setNewExpertiseLabel('')
   }
   const handleUpdateExpertise = (id: string, patch: Partial<ProfessionalExpertise>) => {
@@ -431,6 +437,7 @@ export function SelfModelBand({
           : entry,
       ),
     )
+    recordCorrection('skills')
   }
   const handleUpdateExpertiseTags = (id: string, value: string) => {
     const tags = normalizeExpertiseTags(value)
@@ -467,6 +474,7 @@ export function SelfModelBand({
   }
   const handleRemoveExpertise = (id: string) => {
     updateExpertise(expertise.filter((entry) => entry.id !== id))
+    recordCorrection('skills')
   }
 
   const handleRefreshPositioning = useCallback(async () => {

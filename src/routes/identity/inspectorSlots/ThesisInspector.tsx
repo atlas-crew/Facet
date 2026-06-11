@@ -5,6 +5,7 @@ import { Actions, MetaRows, NotFound, SlotShell, countBullets } from './slotPrim
 
 export function ThesisInspector({ identity }: { identity: ProfessionalIdentityV3 }) {
   const updateCore = useIdentityStore((s) => s.updateCurrentIdentityCore)
+  const recordCorrection = useIdentityStore((s) => s.recordIdentityCorrection)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState({
     thesis: identity.identity.thesis ?? '',
@@ -33,6 +34,7 @@ export function ThesisInspector({ identity }: { identity: ProfessionalIdentityV3
       elaboration: trimmedElaboration ? trimmedElaboration : undefined,
       title: trimmedTitle ? trimmedTitle : undefined,
     })
+    recordCorrection('thesis')
     setEditing(false)
   }
 

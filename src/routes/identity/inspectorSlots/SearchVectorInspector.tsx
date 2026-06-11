@@ -50,6 +50,7 @@ export function SearchVectorInspector({
   justAdded?: boolean
 }) {
   const updateVectors = useIdentityStore((s) => s.updateCurrentSearchVectors)
+  const recordCorrection = useIdentityStore((s) => s.recordIdentityCorrection)
   const setSelection = useIdentityStore((s) => s.setMapSelection)
   const vector = identity.search_vectors?.find((v) => v.id === vectorId)
   const titleHintId = useId()
@@ -84,6 +85,9 @@ export function SearchVectorInspector({
   ) => {
     const current = identity.search_vectors ?? []
     updateVectors(updater(current))
+    // Search vectors are the 'search' section's own output; re-authoring them
+    // clears search's stale flag (terminal node — no downstream to mark).
+    recordCorrection('search')
   }
 
   const handleSave = () => {

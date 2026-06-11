@@ -217,6 +217,7 @@ export function BulletInspector({
   bulletId: string
 }) {
   const updateRoles = useIdentityStore((s) => s.updateCurrentRoles)
+  const recordCorrection = useIdentityStore((s) => s.recordIdentityCorrection)
   const startCurrentBulletDeepen = useIdentityStore((s) => s.startCurrentBulletDeepen)
   const completeCurrentBulletDeepen = useIdentityStore((s) => s.completeCurrentBulletDeepen)
   const failCurrentBulletDeepen = useIdentityStore((s) => s.failCurrentBulletDeepen)
@@ -292,6 +293,7 @@ export function BulletInspector({
           },
     )
     updateRoles(next)
+    recordCorrection('bullets')
     setSheetState(null)
   }
 
@@ -313,6 +315,7 @@ export function BulletInspector({
           },
     )
     updateRoles(next)
+    recordCorrection('bullets')
     setMetricsSheetState(null)
   }
 
@@ -403,6 +406,7 @@ export function BulletInspector({
           },
     )
     updateRoles(next)
+    recordCorrection('bullets')
     setNewTag('')
     setEditing(false)
   }

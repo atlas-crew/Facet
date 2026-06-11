@@ -9,6 +9,7 @@ export function CompetitiveMoatInspector({
   identity: ProfessionalIdentityV3
 }) {
   const updateCompetitiveMoat = useIdentityStore((s) => s.updateCurrentCompetitiveMoat)
+  const recordCorrection = useIdentityStore((s) => s.recordIdentityCorrection)
   const moat = identity.self_model.competitive_moat?.trim() ?? ''
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
@@ -20,6 +21,7 @@ export function CompetitiveMoatInspector({
 
   const handleSave = () => {
     updateCompetitiveMoat(draft)
+    recordCorrection('positioning')
     setEditing(false)
   }
 

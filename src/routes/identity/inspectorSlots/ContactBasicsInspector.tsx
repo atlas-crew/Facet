@@ -138,6 +138,10 @@ export function ContactBasicsInspector({ identity }: { identity: ProfessionalIde
 
   const handleSave = () => {
     if (!canSave) return
+    // No recordIdentityCorrection here by design: contact basics (name, email,
+    // phone, location, links) feed no inference section, so a contact edit
+    // marks nothing stale. updateCurrentIdentityCore is shared with the thesis
+    // path, which DOES cascade — see ThesisInspector.
     updateCore({
       name: draft.name.trim(),
       display_name: normalizeOptional(draft.displayName),

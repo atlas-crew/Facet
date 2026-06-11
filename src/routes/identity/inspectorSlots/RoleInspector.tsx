@@ -11,6 +11,7 @@ export function RoleInspector({
   roleId: string
 }) {
   const updateRoles = useIdentityStore((s) => s.updateCurrentRoles)
+  const recordCorrection = useIdentityStore((s) => s.recordIdentityCorrection)
   const role = identity.roles.find((r) => r.id === roleId)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState({ company: '', title: '', dates: '', subtitle: '' })
@@ -41,6 +42,7 @@ export function RoleInspector({
         : r,
     )
     updateRoles(next)
+    recordCorrection('bullets')
     setEditing(false)
   }
 

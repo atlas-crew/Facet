@@ -157,6 +157,7 @@ export function ProjectInspector({
   projectId: string
 }) {
   const updateProjects = useIdentityStore((s) => s.updateCurrentProjects)
+  const recordCorrection = useIdentityStore((s) => s.recordIdentityCorrection)
   const recordAiGenerationUndo = useIdentityStore((s) => s.recordAiGenerationUndo)
   const correctionNotes = useIdentityStore((s) => s.correctionNotes)
   const project = identity.projects.find((p) => p.id === projectId)
@@ -193,6 +194,10 @@ export function ProjectInspector({
     updateProjects(
       identity.projects.map((entry) => (entry.id === projectId ? updater(entry) : entry)),
     )
+    // Projects are evidence consumed by the 'bullets' section. The AI-deepen
+    // writeback below calls updateProjects directly (not this helper), so it
+    // stays out of the correction cascade.
+    recordCorrection('bullets')
   }
 
   const startEditing = () => {

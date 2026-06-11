@@ -13,6 +13,7 @@ export function ArcStopInspector({
   onSelectRole: (company: string) => void
 }) {
   const updateArc = useIdentityStore((s) => s.updateCurrentSelfModelArc)
+  const recordCorrection = useIdentityStore((s) => s.recordIdentityCorrection)
   const arc = identity.self_model.arc
   const arcIndex = arc.findIndex((entry, i) => `${entry.company}:${i}` === selectionId)
   const arcEntry = arcIndex >= 0 ? arc[arcIndex] : null
@@ -32,6 +33,7 @@ export function ArcStopInspector({
   const handleSave = () => {
     const next = arc.map((entry, i) => (i === arcIndex ? { ...entry, chapter: draft.trim() } : entry))
     updateArc(next)
+    recordCorrection('chapters')
     setEditing(false)
   }
 

@@ -20,6 +20,7 @@ export function SkillGroupInspector({
   groupId: string
 }) {
   const updateGroups = useIdentityStore((s) => s.updateCurrentSkillGroups)
+  const recordCorrection = useIdentityStore((s) => s.recordIdentityCorrection)
   const group = identity.skills.groups.find((g) => g.id === groupId)
   const careerClassOptionsId = useId()
   const categoryOptionsId = useId()
@@ -90,6 +91,7 @@ export function SkillGroupInspector({
       }
     })
     updateGroups(next)
+    recordCorrection('skills')
     setEditing(false)
   }
 
