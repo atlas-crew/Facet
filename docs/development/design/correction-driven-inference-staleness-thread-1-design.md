@@ -1,9 +1,9 @@
 # Thread 1 — Correction-Driven Inference Staleness
 
-**Status:** Design (2026-06-10). Thread 1 of the roadmap in
+**Status:** Implemented (2026-06-11). Thread 1 of the roadmap in
 [`identity-derivation-graph-reframe-and-roadmap.md`](./identity-derivation-graph-reframe-and-roadmap.md).
-Design only — no implementation yet; this reshapes the identity write path and is argued on
-paper first.
+See the **Implementation notes** section at the bottom for the as-built decisions, including
+where the correction surface turned out to be wider than this design's §2 table assumed.
 
 **One line:** When a user corrects part of the identity model on the map, the inference
 sections that consumed the corrected region should be marked potentially stale — using the
@@ -217,3 +217,64 @@ mechanism at two altitudes. Do not invent a second field-path scheme.
 - `facet-architecture-guard` — evidence-vs-narrative (corrections to evidence re-derive
   narrative, never the reverse) and identity-canonical-data (staleness is about
   `currentIdentity`).
+
+---
+
+## Implementation notes (2026-06-11)
+
+Built as designed, with the deltas below. Landed as: a behavior-preserving store migration, the
+correction trigger, and the UI wiring.
+
+### Where the build matched the design
+
+- **Persistence — tier-1, confirmed.** `staleInferenceSections: IdentityInferenceSection[]` lives
+  on the `identityStore` persisted slice (`partialize`), defaulted `[]` in
+  `normalizePersistedIdentityState`, no migration. It is **not** in the workspace snapshot:
+  verified the identity artifact payload (TASK-40) is just `{ identity }`, so by
+  identity-canonical-data the stale set — process metadata, not candidate data — stays
+  device-local. The §1 retraction holds even though identity is now an artifact.
+- **Mechanism — Option B, action-tagged.** `recordIdentityCorrection(section)` marks
+  `getDownstream(section)` and clears the section's own flag, called at the edit site. No
+  diff-subscription. Map plumbing (`pendingInferenceCascade`, cascade settle effect) reads/writes
+  the store set unchanged.
+- **Self-edit + terminal nodes.** Re-authoring a section clears its own flag (downstream is
+  exclusive of self). `search` is terminal, so a search-vector edit just clears `search`.
+- **Preferences → search.** Matching rules and the comp/work/constraints/interview fields mark
+  `['search']` (input-only — marked, never cleared).
+- **Answer patches (§5).** `applyAnswerPatch` maps each patch kind to exactly one producing
+  section (`role-bullet`→bullets, `skill`→skills, `self-model-arc`→chapters, `competitive-moat`
+  and `unfair-advantage`→positioning). Single-region per kind, so per-kind
+  `recordIdentityCorrection`, not a union.
+
+### Deltas from the design worth recording
+
+- **The correction surface is wider than the §2 table.** The table is framed around inspectors,
+  but **bands host inline human-edit affordances too**, interleaved with generation writebacks on
+  the *same setter*. Concretely, `SelfModelBand.updateUnfairAdvantages` is a human edit in
+  `handleAddAdvantage`/`handleRemoveAdvantage` (tagged `positioning`) but a writeback in the
+  positioning `application.*` path (untagged); `updateExpertise` add/edit/remove are human edits
+  (tagged `skills` — expertise is owned by `skills` per §2). Tagging is therefore **per-handler,
+  never per-setter** — which is exactly why Option A (subscription) was rejected.
+- **AI-apply paths are treated as writebacks, not corrections.** `SkillItemInspector.handleApplyDraft`
+  and `ProjectInspector`'s deepen path apply AI-generated enrichment; they do **not** cascade
+  (cascading would over-warn on accepted inference output). Only the manual save/remove/move paths
+  tag.
+- **Blank-scaffold adds skip; the inspector covers the real edit.** `SearchStrategyBand.handleAddVector`
+  and `PreferencesBand.handleAdd*` create an empty entity and open its inspector, which tags on the
+  real save/remove. Tagging the scaffold-add would risk wrongly clearing a live `search` flag if the
+  user then cancels.
+- **Awareness-question *edits* are a no-op.** Editing the open-questions list
+  (`updateCurrentAwarenessQuestions`) feeds no inference section and does not cascade; only
+  *answering* a question (`applyAnswerPatch`, above) does. The §2 "awareness answers" row refers to
+  answer patches, not question-list edits.
+- **Contact basics: documented no-op.** `ContactBasicsInspector` carries an explicit comment that
+  it intentionally does not call the trigger, since `updateCurrentIdentityCore` is shared with the
+  thesis path (which does cascade).
+
+### Carried forward to later threads
+
+- The store imports `getDownstreamIdentityInferenceSections` from
+  `src/routes/identity/identityInferenceDependencies.ts` (the Thread-3 anchor path, kept stable).
+  Thread 3 can sharpen downstream expansion behind that signature with no store change.
+- Over-warning is accepted: a no-op save still fires the trigger. Option C (input fingerprints,
+  auto-clearing on revert) remains the post-Thread-3 robustness upgrade.
