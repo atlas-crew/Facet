@@ -1,8 +1,9 @@
 # Thread 3 — Inference Dependency Graph: Linear Chain → DAG Precision
 
-**Status:** Design (2026-06-10). Thread 3 of the roadmap in
+**Status:** Implemented (2026-06-11). Thread 3 of the roadmap in
 [`identity-derivation-graph-reframe-and-roadmap.md`](./identity-derivation-graph-reframe-and-roadmap.md).
-Design only.
+See the **Implementation notes** at the bottom for the as-built DAG and the two edge decisions
+that diverged from (or sharpened) this design's proposed table.
 
 **One line:** Replace the conservative *linear* inference dependency chain with an **authored
 semantic DAG** of material consumption edges, so intra-identity staleness is precise instead of
@@ -127,3 +128,57 @@ the downstream expansion sharpens.
 
 `facet-architecture-guard` (evidence-vs-narrative: the DAG must keep evidence upstream of
 narrative — note `chapters` is authored-from-roles, never derived).
+
+---
+
+## Implementation notes (as built, 2026-06-11)
+
+Landed in `src/routes/identity/identityInferenceDependencies.ts`. The module now encodes the DAG
+as a **material-inputs (upstream) adjacency** (`IDENTITY_INFERENCE_INPUTS`); downstream is its
+transitive transpose. `getDownstreamIdentityInferenceSections` keeps its signature, so both
+consumers — `identityStore.recordIdentityCorrection` (the Thread 1 cascade) and
+`IdentityMapPage`'s downstream-regenerate prompt — got sharper output with no call-site change.
+
+**The as-built DAG (upstream inputs):**
+
+| Section | Inputs | Downstream (transpose closure) |
+|---|---|---|
+| bullets | — | everything |
+| skills | bullets | thesis, profiles, selfKnowledge, positioning, search |
+| thesis | bullets, skills | profiles, selfKnowledge, positioning, search |
+| profiles | bullets, skills, thesis | **— (leaf)** |
+| chapters | bullets | selfKnowledge, positioning, search |
+| selfKnowledge | bullets, chapters, thesis | positioning, search |
+| positioning | bullets, skills, thesis, chapters, selfKnowledge | search |
+| search | skills, thesis, chapters, selfKnowledge, positioning | — |
+
+**Forward-only rule (resolves Open decision #2).** The generators are full-context, so a prompt
+like the thesis generator's lists `profiles`/`self_model` as evidence even though those are
+authored *later*. Those are pre-existing-context refinements, not derivation edges — encoding
+them would make the graph cyclic and reintroduce the linear chain's paranoia ("correct your moat
+→ thesis stale"), which contradicts the user's mental model. So every input precedes its section
+in `IDENTITY_INFERENCE_ORDER` (enforced by test). This is what removes the headline false
+positive: **`chapters` is downstream of `bullets` only** — editing thesis/skills/profiles no
+longer flags the career arc.
+
+**Two contested edges, decided:**
+
+- **`profiles` is a downstream leaf** (user-confirmed). The selfKnowledge/positioning prompts do
+  name `profiles` as evidence, but it is a sibling presentation lens, not a primary driver of the
+  narrative — matching this design's table, which omits `profiles` from every input list. Cost:
+  it cascades to nothing, so the `IdentityMapPage` cascade-machinery tests (which used `profiles`
+  as a convenient trigger) were re-pointed onto `selfKnowledge`, the only async-mockable non-leaf
+  non-draft-review source.
+- **`selfKnowledge` is *not* a leaf.** The bare `self_model` input listed for `positioning` and
+  `search` resolves (in part) to `self_model.philosophy`, which `selfKnowledge` owns — so it feeds
+  both. This preserved the existing "regenerate self-knowledge → downstream prompt" behavior.
+
+**Field-path vocabulary (the TASK-168 convergence).** `IDENTITY_INFERENCE_SECTION_FIELDS` maps
+each section to the dotted identity paths it owns (`skills`, `self_model.arc`,
+`self_model.competitive_moat`, …) in the same string vocabulary as `artifactMeta.identityFields`.
+Two pure helpers ride on it: `getIdentityInferenceSectionForField(path)` (prefix-matched reverse
+lookup bridging a Graph 1 mutation field into a Graph 2 section — `identity.name` and `expertise`
+correctly resolve to nothing) and `getIdentityInferenceInputFields(section)` (the upstream owned
+fields, i.e. the `inputs(section)` set the Option C fingerprint must hash so it does not degrade
+to the full identity). The fingerprint itself is not computed here — Thread 3 is its prerequisite,
+not its delivery.
