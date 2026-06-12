@@ -2789,10 +2789,10 @@ describe('identityStore inference staleness set', () => {
 
     useIdentityStore.getState().recordIdentityCorrection('thesis')
 
-    // Re-authoring the thesis clears its own flag and marks everything downstream.
+    // Re-authoring the thesis clears its own flag and marks everything downstream. The DAG
+    // excludes `chapters` — the career arc is authored from roles and never consumes the thesis.
     expect(useIdentityStore.getState().staleInferenceSections).toEqual([
       'profiles',
-      'chapters',
       'selfKnowledge',
       'positioning',
       'search',

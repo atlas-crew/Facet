@@ -108,6 +108,9 @@ const seed = (modifier?: (id: ReturnType<typeof cloneIdentityFixture>) => void) 
     changelog: [],
     lastError: null,
     mapSelection: null,
+    // Reset the persisted inference-staleness set so a prior test's cascade can't bleed a stale
+    // panel into the next render.
+    staleInferenceSections: [],
   })
 }
 
@@ -987,11 +990,9 @@ describe('Identity Map — match-rule add/remove', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
     fireEvent.click(screen.getByRole('button', { name: /run action: regenerate profiles/i }))
-    const prompt = await screen.findByRole('dialog', {
-      name: 'Regenerate downstream sections?',
-    })
-    fireEvent.click(within(prompt).getByRole('button', { name: 'Defer downstream' }))
 
+    // Profiles is a downstream leaf in the inference DAG: it drives no other section, so
+    // regenerating it runs directly with no downstream prompt and marks nothing stale.
     await waitFor(() => {
       expect(identityParameterMocks.generateIdentityProfilesFromIdentityMock).toHaveBeenCalledTimes(
         1,
@@ -1004,77 +1005,42 @@ describe('Identity Map — match-rule add/remove', () => {
         text: 'Action-list generated profile lens.',
       },
     ])
-    const stalePanel = screen.getByRole('region', {
-      name: 'Potentially stale identity sections',
-    })
-    expect(within(stalePanel).getByText('Career chapters')).toBeTruthy()
-    expect(within(stalePanel).getByText('Self-knowledge')).toBeTruthy()
-    expect(within(stalePanel).getByText('Positioning')).toBeTruthy()
-    expect(within(stalePanel).getByText('Search parameters')).toBeTruthy()
+    expect(
+      screen.queryByRole('dialog', { name: 'Regenerate downstream sections?' }),
+    ).toBeNull()
+    expect(
+      screen.queryByRole('region', { name: 'Potentially stale identity sections' }),
+    ).toBeNull()
   })
+
+  // The cascade-machinery tests below drive the downstream prompt from `selfKnowledge`. It is the
+  // only inference section that is both async-mockable and a non-leaf, non-draft-review source:
+  // `profiles` is now a downstream leaf, while `thesis`/`positioning` open a review draft that
+  // short-circuits the cascade. Its downstream is `{positioning, search}`.
+  const seedSelfKnowledgeSource = (id: ReturnType<typeof cloneIdentityFixture>) => {
+    id.self_model.philosophy = []
+    id.self_model.interview_style = { strengths: [], weaknesses: [], prep_strategy: '' }
+  }
+  const generatedSelfKnowledge = {
+    philosophy: [
+      {
+        id: 'platform-judgment',
+        text: 'Favor platform moves when they unlock product access.',
+        tags: ['platform'],
+      },
+    ],
+    interview_style: {
+      strengths: ['Frames platform proof through customer access.'],
+      weaknesses: [],
+      prep_strategy: '',
+    },
+  }
 
   it('regenerates selected downstream sections through existing request triggers', async () => {
-    seed((id) => {
-      id.self_model.arc = []
-    })
-    identityParameterMocks.generateIdentityProfilesFromIdentityMock.mockResolvedValueOnce([
-      {
-        id: 'platform-strategy',
-        tags: ['platform'],
-        text: 'Profile regenerated before chapters.',
-      },
-    ])
-
-    render(<IdentityMapPage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
-    fireEvent.click(screen.getByRole('button', { name: /run action: regenerate profiles/i }))
-    const dialog = await screen.findByRole('dialog', { name: 'Regenerate downstream sections?' })
-    fireEvent.click(within(dialog).getByLabelText(/Self-knowledge/i))
-    fireEvent.click(within(dialog).getByLabelText(/Positioning/i))
-    fireEvent.click(within(dialog).getByLabelText(/Search parameters/i))
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Regenerate selected' }))
-
-    await waitFor(() => {
-      expect(identityParameterMocks.generateIdentityProfilesFromIdentityMock).toHaveBeenCalledTimes(
-        1,
-      )
-      expect(useIdentityStore.getState().currentIdentity?.self_model.arc.length).toBeGreaterThan(0)
-    })
-    expect(screen.queryByRole('dialog', { name: 'Regenerate downstream sections?' })).toBeNull()
-    const stalePanel = screen.getByRole('region', {
-      name: 'Potentially stale identity sections',
-    })
-    expect(within(stalePanel).queryByText('Profiles')).toBeNull()
-    expect(within(stalePanel).queryByText('Career chapters')).toBeNull()
-    expect(within(stalePanel).getByText('Self-knowledge')).toBeTruthy()
-    expect(within(stalePanel).getByText('Positioning')).toBeTruthy()
-    expect(within(stalePanel).getByText('Search parameters')).toBeTruthy()
-  })
-
-  it('regenerates stale downstream sections from the stale panel', async () => {
-    seed()
-    identityParameterMocks.generateIdentityProfilesFromIdentityMock.mockResolvedValueOnce([
-      {
-        id: 'platform-strategy',
-        tags: ['platform'],
-        text: 'Profile regenerated before stale recovery.',
-      },
-    ])
-    identityParameterMocks.generateSelfKnowledgeFromIdentityMock.mockResolvedValueOnce({
-      philosophy: [
-        {
-          id: 'platform-judgment',
-          text: 'Favor platform moves when they unlock product access.',
-          tags: ['platform'],
-        },
-      ],
-      interview_style: {
-        strengths: ['Frames platform proof through customer access.'],
-        weaknesses: [],
-        prep_strategy: '',
-      },
-    })
+    seed(seedSelfKnowledgeSource)
+    identityParameterMocks.generateSelfKnowledgeFromIdentityMock.mockResolvedValueOnce(
+      generatedSelfKnowledge,
+    )
     identityParameterMocks.generateStrategicPositioningFromIdentityMock.mockResolvedValueOnce({
       unfair_advantages: ['Turns platform constraints into market access.'],
       search_vectors: [],
@@ -1084,13 +1050,12 @@ describe('Identity Map — match-rule add/remove', () => {
     render(<IdentityMapPage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
-    fireEvent.click(screen.getByRole('button', { name: /run action: regenerate profiles/i }))
-    await deferDownstreamPrompt()
-
-    const stalePanel = await screen.findByRole('region', {
-      name: 'Potentially stale identity sections',
-    })
-    fireEvent.click(within(stalePanel).getByRole('button', { name: 'Regenerate all stale' }))
+    fireEvent.click(screen.getByRole('button', { name: /run action: generate self-knowledge/i }))
+    const dialog = await screen.findByRole('dialog', { name: 'Regenerate downstream sections?' })
+    // Checkboxes start all-checked; uncheck Search to defer it, leaving Positioning to regenerate
+    // through its existing request trigger once self-knowledge settles.
+    fireEvent.click(within(dialog).getByLabelText(/Search parameters/i))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Regenerate selected' }))
 
     await waitFor(() => {
       expect(identityParameterMocks.generateSelfKnowledgeFromIdentityMock).toHaveBeenCalledTimes(1)
@@ -1098,24 +1063,58 @@ describe('Identity Map — match-rule add/remove', () => {
         identityParameterMocks.generateStrategicPositioningFromIdentityMock,
       ).toHaveBeenCalledTimes(1)
     })
+    expect(screen.queryByRole('dialog', { name: 'Regenerate downstream sections?' })).toBeNull()
+    const stalePanel = screen.getByRole('region', {
+      name: 'Potentially stale identity sections',
+    })
     expect(within(stalePanel).queryByText('Self-knowledge')).toBeNull()
+    expect(within(stalePanel).queryByText('Positioning')).toBeNull()
     expect(within(stalePanel).getByText('Search parameters')).toBeTruthy()
   })
 
-  it('clears stale downstream markers without regenerating', async () => {
-    seed()
-    identityParameterMocks.generateIdentityProfilesFromIdentityMock.mockResolvedValueOnce([
-      {
-        id: 'platform-strategy',
-        tags: ['platform'],
-        text: 'Profile regenerated before stale clear.',
-      },
-    ])
+  it('regenerates stale downstream sections from the stale panel', async () => {
+    seed(seedSelfKnowledgeSource)
+    identityParameterMocks.generateSelfKnowledgeFromIdentityMock.mockResolvedValueOnce(
+      generatedSelfKnowledge,
+    )
+    identityParameterMocks.generateStrategicPositioningFromIdentityMock.mockResolvedValueOnce({
+      unfair_advantages: ['Turns platform constraints into market access.'],
+      search_vectors: [],
+      open_questions: [],
+    })
 
     render(<IdentityMapPage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
-    fireEvent.click(screen.getByRole('button', { name: /run action: regenerate profiles/i }))
+    fireEvent.click(screen.getByRole('button', { name: /run action: generate self-knowledge/i }))
+    await deferDownstreamPrompt()
+
+    const stalePanel = await screen.findByRole('region', {
+      name: 'Potentially stale identity sections',
+    })
+    fireEvent.click(within(stalePanel).getByRole('button', { name: 'Regenerate all stale' }))
+
+    // Positioning sorts first in the stale queue and opens a review draft, regenerating it and
+    // marking the remaining queued section (search) stale.
+    await waitFor(() => {
+      expect(
+        identityParameterMocks.generateStrategicPositioningFromIdentityMock,
+      ).toHaveBeenCalledTimes(1)
+    })
+    expect(within(stalePanel).queryByText('Positioning')).toBeNull()
+    expect(within(stalePanel).getByText('Search parameters')).toBeTruthy()
+  })
+
+  it('clears stale downstream markers without regenerating', async () => {
+    seed(seedSelfKnowledgeSource)
+    identityParameterMocks.generateSelfKnowledgeFromIdentityMock.mockResolvedValueOnce(
+      generatedSelfKnowledge,
+    )
+
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
+    fireEvent.click(screen.getByRole('button', { name: /run action: generate self-knowledge/i }))
     await deferDownstreamPrompt()
 
     const stalePanel = await screen.findByRole('region', {
@@ -1124,36 +1123,36 @@ describe('Identity Map — match-rule add/remove', () => {
     fireEvent.click(within(stalePanel).getByRole('button', { name: 'Clear stale markers' }))
 
     expect(screen.queryByRole('region', { name: 'Potentially stale identity sections' })).toBeNull()
-    expect(identityParameterMocks.generateSelfKnowledgeFromIdentityMock).not.toHaveBeenCalled()
+    expect(
+      identityParameterMocks.generateStrategicPositioningFromIdentityMock,
+    ).not.toHaveBeenCalled()
   })
 
   it('marks queued downstream sections stale if a cascade request does not settle', async () => {
     vi.useFakeTimers()
     try {
-      seed((id) => {
-        id.self_model.arc = []
-      })
+      seed(seedSelfKnowledgeSource)
       const deferred =
         createDeferred<
           Awaited<
-            ReturnType<typeof identityParameterMocks.generateIdentityProfilesFromIdentityMock>
+            ReturnType<typeof identityParameterMocks.generateSelfKnowledgeFromIdentityMock>
           >
         >()
-      identityParameterMocks.generateIdentityProfilesFromIdentityMock.mockReturnValueOnce(
+      identityParameterMocks.generateSelfKnowledgeFromIdentityMock.mockReturnValueOnce(
         deferred.promise,
       )
 
       render(<IdentityMapPage />)
 
       fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
-      fireEvent.click(screen.getByRole('button', { name: /run action: regenerate profiles/i }))
+      fireEvent.click(screen.getByRole('button', { name: /run action: generate self-knowledge/i }))
       await act(async () => {
         vi.runOnlyPendingTimers()
         await Promise.resolve()
       })
       const dialog = screen.getByRole('dialog', { name: 'Regenerate downstream sections?' })
-      fireEvent.click(within(dialog).getByLabelText(/Self-knowledge/i))
-      fireEvent.click(within(dialog).getByLabelText(/Positioning/i))
+      // Defer Search (marked stale immediately) and keep Positioning queued behind the stalled
+      // self-knowledge request, so the queued section only goes stale once the deadline elapses.
       fireEvent.click(within(dialog).getByLabelText(/Search parameters/i))
       fireEvent.click(within(dialog).getByRole('button', { name: 'Regenerate selected' }))
 
@@ -1161,18 +1160,16 @@ describe('Identity Map — match-rule add/remove', () => {
         await Promise.resolve()
         await Promise.resolve()
       })
-      expect(identityParameterMocks.generateIdentityProfilesFromIdentityMock).toHaveBeenCalledTimes(
-        1,
-      )
+      expect(identityParameterMocks.generateSelfKnowledgeFromIdentityMock).toHaveBeenCalledTimes(1)
       const stalePanel = screen.getByRole('region', {
         name: 'Potentially stale identity sections',
       })
       expect(
         within(stalePanel).getByText(
-          'Waiting for Profiles before regenerating queued downstream sections.',
+          'Waiting for Self-knowledge before regenerating queued downstream sections.',
         ),
       ).toBeTruthy()
-      expect(within(stalePanel).queryByText('Career chapters')).toBeNull()
+      expect(within(stalePanel).queryByText('Positioning')).toBeNull()
 
       act(() => {
         vi.advanceTimersByTime(90_000)
@@ -1181,10 +1178,10 @@ describe('Identity Map — match-rule add/remove', () => {
         await Promise.resolve()
       })
 
-      expect(within(stalePanel).getByText('Career chapters')).toBeTruthy()
+      expect(within(stalePanel).getByText('Positioning')).toBeTruthy()
       expect(
         within(stalePanel).queryByText(
-          'Waiting for Profiles before regenerating queued downstream sections.',
+          'Waiting for Self-knowledge before regenerating queued downstream sections.',
         ),
       ).toBeNull()
     } finally {
@@ -1193,21 +1190,18 @@ describe('Identity Map — match-rule add/remove', () => {
   })
 
   it('marks queued downstream sections stale when an upstream cascade request fails', async () => {
-    seed((id) => {
-      id.self_model.arc = []
-    })
+    seed(seedSelfKnowledgeSource)
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    identityParameterMocks.generateIdentityProfilesFromIdentityMock.mockRejectedValueOnce(
+    identityParameterMocks.generateSelfKnowledgeFromIdentityMock.mockRejectedValueOnce(
       new Error('proxy timeout'),
     )
 
     render(<IdentityMapPage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
-    fireEvent.click(screen.getByRole('button', { name: /run action: regenerate profiles/i }))
+    fireEvent.click(screen.getByRole('button', { name: /run action: generate self-knowledge/i }))
     const dialog = await screen.findByRole('dialog', { name: 'Regenerate downstream sections?' })
-    fireEvent.click(within(dialog).getByLabelText(/Self-knowledge/i))
-    fireEvent.click(within(dialog).getByLabelText(/Positioning/i))
+    // Defer Search; keep Positioning queued behind the failing self-knowledge request.
     fireEvent.click(within(dialog).getByLabelText(/Search parameters/i))
     fireEvent.click(within(dialog).getByRole('button', { name: 'Regenerate selected' }))
 
@@ -1215,9 +1209,11 @@ describe('Identity Map — match-rule add/remove', () => {
       name: 'Potentially stale identity sections',
     })
     await waitFor(() => {
-      expect(within(stalePanel).getByText('Career chapters')).toBeTruthy()
+      expect(within(stalePanel).getByText('Positioning')).toBeTruthy()
     })
-    expect(identityParameterMocks.generateSelfKnowledgeFromIdentityMock).not.toHaveBeenCalled()
+    expect(
+      identityParameterMocks.generateStrategicPositioningFromIdentityMock,
+    ).not.toHaveBeenCalled()
     consoleErrorSpy.mockRestore()
   })
 
@@ -1500,36 +1496,17 @@ describe('Identity Map — match-rule add/remove', () => {
   })
 
   it('clears a stale marker when the matching band generation starts directly', async () => {
+    // Self-knowledge clears its own marker the moment its band generation starts
+    // (onSelfKnowledgeRequestStarted). Mark it stale directly, then regenerate it from its band.
     seed()
-    identityParameterMocks.generateIdentityProfilesFromIdentityMock.mockResolvedValueOnce([
-      {
-        id: 'platform-strategy',
-        tags: ['platform'],
-        text: 'Profile regenerated before direct stale clear.',
-      },
-    ])
-    identityParameterMocks.generateSelfKnowledgeFromIdentityMock.mockResolvedValueOnce({
-      philosophy: [
-        {
-          id: 'platform-judgment',
-          text: 'Favor platform moves when they unlock product access.',
-          tags: ['platform'],
-        },
-      ],
-      interview_style: {
-        strengths: ['Frames platform proof through customer access.'],
-        weaknesses: [],
-        prep_strategy: '',
-      },
-    })
+    identityParameterMocks.generateSelfKnowledgeFromIdentityMock.mockResolvedValueOnce(
+      generatedSelfKnowledge,
+    )
+    useIdentityStore.getState().markInferenceSectionsStale(['selfKnowledge'])
 
     render(<IdentityMapPage />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
-    fireEvent.click(screen.getByRole('button', { name: /run action: regenerate profiles/i }))
-    await deferDownstreamPrompt()
-
-    const stalePanel = await screen.findByRole('region', {
+    const stalePanel = screen.getByRole('region', {
       name: 'Potentially stale identity sections',
     })
     expect(within(stalePanel).getByText('Self-knowledge')).toBeTruthy()
@@ -1540,8 +1517,11 @@ describe('Identity Map — match-rule add/remove', () => {
       }),
     )
 
+    // Self-knowledge was the only stale section, so clearing its marker removes the panel entirely.
     await waitFor(() => {
-      expect(within(stalePanel).queryByText('Self-knowledge')).toBeNull()
+      expect(
+        screen.queryByRole('region', { name: 'Potentially stale identity sections' }),
+      ).toBeNull()
     })
   })
 
@@ -1660,9 +1640,10 @@ describe('Identity Map — match-rule add/remove', () => {
     expect(
       screen.getByRole('button', { name: /^generating\.\.\.$/i }).getAttribute('aria-busy'),
     ).toBe('true')
+    // Profiles is a leaf, so the action regenerates it directly (no downstream prompt) and the
+    // in-flight guard reports the duplicate.
     fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
     fireEvent.click(screen.getByRole('button', { name: /run action: regenerate profiles/i }))
-    await deferDownstreamPrompt()
 
     await waitFor(() => {
       expect(screen.getByText('Profile generation is already running.')).toBeTruthy()
