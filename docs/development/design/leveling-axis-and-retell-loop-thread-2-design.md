@@ -229,9 +229,13 @@ Resolution:
 2. ~~**Dedicated `leveling` section vs. folded**~~ — **settled 2026-06-13**: dedicated, now *required*
    (not just recommended) — folding `level` into `bullets` over-fires into `skills`/`chapters`. See
    the ⚠️ over-fire finding above for the mechanism.
-3. **Role-level rollup** — *(open)* also store an aggregated `level` on `ProfessionalRole`, or derive
-   role/candidate level purely at generation time? Recommend bullet-anchored truth + generated
-   rollups (don't persist redundant aggregates that can drift). Settle in the schema PR.
+3. ~~**Role-level rollup**~~ — **settled 2026-06-13**: *derive*. No `level` field on
+   `ProfessionalRole`; role-level scope is computed at generation time from the role's bullet
+   `level`s when a consuming generator needs it. The bullet `level` is the only persisted truth on
+   the evidence side; the candidate-level rollup stays in `self_model` as generated narrative
+   (corrigible, sibling of `competitive_moat`). A persisted role aggregate would be a third copy of
+   the same signal that silently drifts from the bullets the moment one is re-told — the exact
+   evidence-vs-narrative collapse the thread is built to avoid.
 
 ## Implementation gates
 
