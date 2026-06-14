@@ -32,7 +32,8 @@ const getProgressCopy = (progress: {
   if (progress.complete === progress.total) {
     return {
       heading: 'All Skills Enriched',
-      description: 'Every current skill now has enough metadata for enrichment-aware workflows.',
+      description:
+        'Every current skill now has enough metadata for enrichment-aware workflows. Continue on the Identity Map to keep building toward Research.',
     }
   }
 
@@ -184,18 +185,36 @@ export function IdentityEnrichmentPage() {
         </div>
 
         <div className="identity-header-actions">
-          <button className="identity-btn" type="button" onClick={() => void navigate({ to: '/identity' })}>
-            Back to Identity
-          </button>
-          {nextSkill ? (
+          {progress.total > 0 && progress.complete === progress.total ? (
+            // Terminal: every skill enriched. Route forward into the Identity Map hub, which
+            // owns the research-ready determination and the handoff to Research (M11 C1).
             <button
               className="identity-btn identity-btn-primary"
               type="button"
-              onClick={() => void openSkill(nextSkill.groupId, nextSkill.skillName)}
+              onClick={() => void navigate({ to: '/identity' })}
             >
-              Continue next skill
+              Continue on the Identity Map
             </button>
-          ) : null}
+          ) : (
+            <>
+              <button
+                className="identity-btn"
+                type="button"
+                onClick={() => void navigate({ to: '/identity' })}
+              >
+                Back to Identity
+              </button>
+              {nextSkill ? (
+                <button
+                  className="identity-btn identity-btn-primary"
+                  type="button"
+                  onClick={() => void openSkill(nextSkill.groupId, nextSkill.skillName)}
+                >
+                  Continue next skill
+                </button>
+              ) : null}
+            </>
+          )}
         </div>
       </header>
 
