@@ -103,6 +103,29 @@ describe('IdentityEnrichmentPage', () => {
     })
   })
 
+  it('routes forward to the Identity Map when all skills are complete', () => {
+    const currentIdentity = cloneIdentityFixture()
+    currentIdentity.skills.groups = [
+      {
+        id: 'platform',
+        label: 'Platform',
+        items: [
+          { name: 'Kubernetes', depth: 'strong', tags: ['platform'] },
+          { name: 'Terraform', depth: 'working', tags: ['platform'] },
+        ],
+      },
+    ]
+    useIdentityStore.setState({ currentIdentity })
+
+    render(<IdentityEnrichmentPage />)
+
+    expect(screen.getByText('All Skills Enriched')).toBeTruthy()
+    // The terminal state replaces the dead-end "Back to Identity" with a forward handoff (C1).
+    expect(screen.queryByRole('button', { name: 'Back to Identity' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Continue on the Identity Map' }))
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/identity' })
+  })
+
   it('adds a skill to the selected group and shows it in the pending list', () => {
     const currentIdentity = cloneIdentityFixture()
     currentIdentity.skills.groups = [
