@@ -4058,7 +4058,7 @@ describe('Identity Map — match-rule add/remove', () => {
     ).toHaveProperty('disabled', true)
   })
 
-  it('advances the next action from positioning to strategy to review', () => {
+  it('advances the next action from positioning to strategy to research-ready', () => {
     seed((id) => {
       id.self_model.arc = [{ company: 'Contoso Networks', chapter: 'Platform delivery chapter.' }]
       id.self_model.competitive_moat = undefined
@@ -4098,7 +4098,13 @@ describe('Identity Map — match-rule add/remove', () => {
       id.awareness = { open_questions: [] }
     })
     render(<IdentityMapPage />)
-    expect(screen.getByRole('region', { name: 'Review the identity map' })).toBeTruthy()
+    // At the terminal phase the dead-end "Review the identity map" panel is replaced by
+    // the research-ready state with a guided handoff to Research (M11 finding C1).
+    expect(
+      screen.getByRole('region', { name: 'Your identity model is ready for Research' }),
+    ).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Continue to Research' }))
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/research' })
   })
 
   it('does not run identity inference on map mount', () => {

@@ -8,7 +8,16 @@ import {
   type MouseEvent,
 } from 'react'
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import { Download, ListChecks, LocateFixed, Pencil, Sparkles, Upload } from 'lucide-react'
+import {
+  ArrowRight,
+  CircleCheck,
+  Download,
+  ListChecks,
+  LocateFixed,
+  Pencil,
+  Sparkles,
+  Upload,
+} from 'lucide-react'
 import type { ProfessionalIdentityV3 } from '../../identity/schema'
 import { isMapSelectionValid, useIdentityStore } from '../../store/identityStore'
 import {
@@ -35,6 +44,7 @@ import {
   type IdentityActionId,
   type IdentityActionItem,
 } from '../../utils/identityActionLadder'
+import { deriveIdentityQueue, deriveIdentityReadiness } from '../../utils/identityNextQueue'
 import { describeFillStrengthLegend } from '../../utils/identityFillStrength'
 import { HelpHint } from '../../components/HelpHint'
 import { IdentityInspector } from './IdentityInspector'
@@ -1271,6 +1281,27 @@ export function IdentityMapPage() {
     () => getNextIdentityAttentionItem(attentionItems, mapSelection),
     [attentionItems, mapSelection],
   )
+  // The current ladder phase, read off the single status-toned action. `'review'` is
+  // the terminal phase — every generation step satisfied ⇒ research-ready.
+  const actionPhase: IdentityActionId =
+    actionItems.find((item) => item.statusTone === 'next')?.id ?? 'review'
+  const identityQueue = useMemo(
+    () =>
+      deriveIdentityQueue({
+        actionItems,
+        actionPhase,
+        attentionItems,
+        staleSections: staleInferenceSections,
+      }),
+    [actionItems, actionPhase, attentionItems, staleInferenceSections],
+  )
+  const identityReadiness = useMemo(
+    () => deriveIdentityReadiness({ actionPhase, queue: identityQueue }),
+    [actionPhase, identityQueue],
+  )
+  const goToResearch = () => {
+    void navigate({ to: '/research' })
+  }
   const isOnlyCurrentAttentionItem = Boolean(
     nextAttentionItem &&
     attentionItems.length === 1 &&
@@ -1385,7 +1416,63 @@ export function IdentityMapPage() {
                   each band for the durable edits that belong to that slice.
                 </p>
               </section>
-              {nextAction ? (
+              {identity && identityReadiness.researchReady ? (
+                <section
+                  className="identity-map-action-panel identity-map-ready-panel"
+                  aria-labelledby="identity-map-action-title"
+                >
+                  <div className="identity-map-action-copy">
+                    <p className="label-tracked identity-map-guide-eyebrow">
+                      <CircleCheck size={13} aria-hidden="true" /> Research-ready
+                    </p>
+                    <h2 id="identity-map-action-title">Your identity model is ready for Research</h2>
+                    <p className="chapter-copy">
+                      Thesis, positioning, and search strategy are all in place. Continue to
+                      Research, or keep refining the bands below — the model is never finished, just
+                      ready.
+                    </p>
+                    {identityReadiness.refinementCount > 0 || identityReadiness.staleCount > 0 ? (
+                      <div className="identity-map-action-meta">
+                        <span className="identity-action-status label-tracked ready">
+                          {[
+                            identityReadiness.refinementCount > 0
+                              ? `${identityReadiness.refinementCount} optional refinement${
+                                  identityReadiness.refinementCount === 1 ? '' : 's'
+                                }`
+                              : null,
+                            identityReadiness.staleCount > 0
+                              ? `${identityReadiness.staleCount} to refresh`
+                              : null,
+                          ]
+                            .filter(Boolean)
+                            .join(' · ')}
+                        </span>
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="identity-map-action-buttons">
+                    <button type="button" className="inspector-btn primary" onClick={goToResearch}>
+                      Continue to Research
+                      <ArrowRight size={14} aria-hidden="true" />
+                    </button>
+                    <button type="button" className="inspector-btn" onClick={openActionItems}>
+                      <ListChecks size={14} aria-hidden="true" />
+                      View all actions
+                    </button>
+                    <button
+                      type="button"
+                      className="inspector-btn"
+                      onClick={startRunAllInference}
+                      disabled={!identity || Boolean(runAllInferenceProgress?.running)}
+                    >
+                      <Sparkles size={14} aria-hidden="true" />
+                      {runAllInferenceProgress?.running
+                        ? 'Running inference...'
+                        : 'Run all inference'}
+                    </button>
+                  </div>
+                </section>
+              ) : nextAction ? (
                 <section
                   className="identity-map-action-panel"
                   aria-labelledby="identity-map-action-title"
