@@ -33,18 +33,18 @@ import {
   getIdentityEnrichmentProgress,
   resolveIdentityMapSkillDraftSelection,
 } from '../../utils/identityEnrichment'
-import {
-  deriveIdentityAttentionItems,
-  getNextIdentityAttentionItem,
-  identityAttentionSelectionMatches,
-} from '../../utils/identityAttentionQueue'
+import { deriveIdentityAttentionItems } from '../../utils/identityAttentionQueue'
 import {
   ACTION_INFERENCE_SECTIONS,
   deriveIdentityActions,
   type IdentityActionId,
   type IdentityActionItem,
 } from '../../utils/identityActionLadder'
-import { deriveIdentityQueue, deriveIdentityReadiness } from '../../utils/identityNextQueue'
+import {
+  deriveIdentityQueue,
+  deriveIdentityReadiness,
+  type IdentityQueueItem,
+} from '../../utils/identityNextQueue'
 import { describeFillStrengthLegend } from '../../utils/identityFillStrength'
 import { HelpHint } from '../../components/HelpHint'
 import { IdentityInspector } from './IdentityInspector'
@@ -1257,7 +1257,6 @@ export function IdentityMapPage() {
     // Queue advancement intentionally reads the latest dispatcher closures at the tick boundary.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingInferenceCascade, settledInferenceRequests])
-  const staleInferenceLabels = staleInferenceSections.map(getIdentityInferenceSectionLabel)
   const downstreamSourceRequiresReview = downstreamPrompt
     ? DRAFT_REVIEW_INFERENCE_SECTIONS.has(downstreamPrompt.sourceSection)
     : false
@@ -1277,10 +1276,6 @@ export function IdentityMapPage() {
     scrollToLayer(nextAction.targetLayer, { highlight: true, focus: true })
   }
   const attentionItems = useMemo(() => deriveIdentityAttentionItems(identity), [identity])
-  const nextAttentionItem = useMemo(
-    () => getNextIdentityAttentionItem(attentionItems, mapSelection),
-    [attentionItems, mapSelection],
-  )
   // The current ladder phase, read off the single status-toned action. `'review'` is
   // the terminal phase — every generation step satisfied ⇒ research-ready.
   const actionPhase: IdentityActionId =
@@ -1302,16 +1297,25 @@ export function IdentityMapPage() {
   const goToResearch = () => {
     void navigate({ to: '/research' })
   }
-  const isOnlyCurrentAttentionItem = Boolean(
-    nextAttentionItem &&
-    attentionItems.length === 1 &&
-    identityAttentionSelectionMatches(nextAttentionItem, mapSelection),
-  )
   const hasModalOpen = showActionItems || Boolean(downstreamPrompt)
-  const jumpToNextAttentionItem = () => {
-    if (!nextAttentionItem || isOnlyCurrentAttentionItem) return
-    setMapSelection(nextAttentionItem.selection)
-    scrollToLayer(nextAttentionItem.layer, { highlight: true, focus: true })
+  // The subordinate queue: every signal except the focal next-action (which renders as
+  // the headline card / terminal state above). Stale outranks attention by priority, so
+  // this is already in the right order. (M11 H1 — one list, not two always-on panels.)
+  const queueRefinements = useMemo(
+    () => identityQueue.filter((item) => item.kind !== 'next-action'),
+    [identityQueue],
+  )
+  // Per-kind resolve dispatch — the data-only queue item carries where to land and what
+  // to run; the route owns the side effects (scroll/select vs. regenerate).
+  const resolveQueueItem = (item: IdentityQueueItem) => {
+    if (item.kind === 'attention') {
+      if (item.selection) setMapSelection(item.selection)
+      scrollToLayer(item.layer, { highlight: true, focus: true })
+      return
+    }
+    if (item.kind === 'stale' && item.section) {
+      runQueuedInferenceSections([item.section])
+    }
   }
   return (
     <div className="identity-map">
@@ -1579,57 +1583,17 @@ export function IdentityMapPage() {
                   </div>
                 </section>
               ) : null}
-              <section
-                className="identity-map-action-panel identity-map-attention-panel"
-                aria-labelledby="identity-map-attention-title"
-              >
-                <div className="identity-map-action-copy">
-                  <p className="label-tracked identity-map-guide-eyebrow">Needs attention</p>
-                  <h2 id="identity-map-attention-title">
-                    {nextAttentionItem ? nextAttentionItem.title : 'No attention items'}
-                  </h2>
-                  <p className="chapter-copy">
-                    {nextAttentionItem
-                      ? nextAttentionItem.body
-                      : 'No assumptions, failed inference, sparse sections, or messy skills need review right now.'}
-                  </p>
-                  <div className="identity-map-action-meta">
-                    <span
-                      className={`identity-action-status label-tracked ${
-                        nextAttentionItem ? 'ready' : 'done'
-                      }`}
-                    >
-                      {nextAttentionItem
-                        ? `${attentionItems.length} item${attentionItems.length === 1 ? '' : 's'}`
-                        : 'Clear'}
-                    </span>
-                    {nextAttentionItem ? (
-                      <span className="label-tracked">{nextAttentionItem.statusLabel}</span>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="identity-map-action-buttons">
-                  <button
-                    type="button"
-                    className="inspector-btn"
-                    onClick={jumpToNextAttentionItem}
-                    disabled={!nextAttentionItem || isOnlyCurrentAttentionItem}
-                  >
-                    <LocateFixed size={14} aria-hidden="true" />
-                    {isOnlyCurrentAttentionItem ? 'Current attention item' : 'Next attention item'}
-                  </button>
-                </div>
-              </section>
-              {staleInferenceSections.length > 0 || pendingInferenceCascade ? (
+              {queueRefinements.length > 0 || pendingInferenceCascade ? (
                 <section
-                  className="identity-map-stale-panel"
-                  aria-label="Potentially stale identity sections"
+                  className="identity-map-action-panel identity-map-queue-panel"
+                  aria-labelledby="identity-map-queue-title"
                 >
                   <div className="identity-map-action-copy">
-                    <p className="label-tracked identity-map-guide-eyebrow">Potentially stale</p>
-                    <h2>Downstream sections may need regeneration</h2>
+                    <p className="label-tracked identity-map-guide-eyebrow">Keep refining</p>
+                    <h2 id="identity-map-queue-title">Refine and refresh the model</h2>
                     <p className="chapter-copy">
-                      These sections were downstream of a regenerated source and were deferred.
+                      None of these block Research — work them when you want a sharper model.
+                      Refreshes bring sections back in sync after an upstream correction.
                     </p>
                     {pendingInferenceLabel ? (
                       <p className="chapter-copy" role="status">
@@ -1637,35 +1601,66 @@ export function IdentityMapPage() {
                         sections.
                       </p>
                     ) : null}
-                    {staleInferenceLabels.length > 0 ? (
-                      <div className="identity-map-stale-list" aria-label="Stale sections">
-                        {staleInferenceLabels.map((label) => (
-                          <span key={label} className="identity-action-status ready label-tracked">
-                            {label}
-                          </span>
-                        ))}
-                      </div>
-                    ) : null}
                   </div>
-                  <div className="identity-map-action-buttons">
-                    <button
-                      type="button"
-                      className="inspector-btn primary"
-                      onClick={regenerateAllStaleSections}
-                      disabled={staleInferenceSections.length === 0}
-                    >
-                      <Sparkles size={14} aria-hidden="true" />
-                      Regenerate all stale
-                    </button>
-                    <button
-                      type="button"
-                      className="inspector-btn"
-                      onClick={() => clearAllInferenceSectionsStale()}
-                      disabled={staleInferenceSections.length === 0}
-                    >
-                      Clear stale markers
-                    </button>
-                  </div>
+                  {queueRefinements.length > 0 ? (
+                    <ul className="identity-map-queue-list">
+                      {queueRefinements.map((item) => (
+                        <li key={item.id} className={`identity-map-queue-item ${item.kind}`}>
+                          <div className="identity-map-queue-item-copy">
+                            <h3
+                              id={`identity-map-queue-item-${item.id}`}
+                              className="identity-map-queue-item-title"
+                            >
+                              {item.title}
+                            </h3>
+                            {item.rationale ? (
+                              <p className="chapter-copy">{item.rationale}</p>
+                            ) : null}
+                          </div>
+                          {/* Describe (don't name) the button with the row title: screen readers
+                              announce "Review, <title>" while the accessible name stays the verb,
+                              so byname queries don't collide with the item's own text. */}
+                          <button
+                            type="button"
+                            className="inspector-btn"
+                            onClick={() => resolveQueueItem(item)}
+                            aria-describedby={`identity-map-queue-item-${item.id}`}
+                          >
+                            {item.kind === 'stale' ? (
+                              <>
+                                <Sparkles size={14} aria-hidden="true" />
+                                Regenerate
+                              </>
+                            ) : (
+                              <>
+                                <LocateFixed size={14} aria-hidden="true" />
+                                Review
+                              </>
+                            )}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  {staleInferenceSections.length > 0 ? (
+                    <div className="identity-map-action-buttons">
+                      <button
+                        type="button"
+                        className="inspector-btn primary"
+                        onClick={regenerateAllStaleSections}
+                      >
+                        <Sparkles size={14} aria-hidden="true" />
+                        Regenerate all stale
+                      </button>
+                      <button
+                        type="button"
+                        className="inspector-btn"
+                        onClick={() => clearAllInferenceSectionsStale()}
+                      >
+                        Clear stale markers
+                      </button>
+                    </div>
+                  ) : null}
                 </section>
               ) : null}
             </>

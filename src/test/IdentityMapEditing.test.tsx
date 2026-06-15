@@ -412,7 +412,7 @@ describe('Identity Map — match-rule add/remove', () => {
     expect(screen.getByLabelText('Name')).toHaveProperty('value', 'Alex Example')
   })
 
-  it('jumps through Identity items that need attention', async () => {
+  it('opens each attention item from the unified queue', () => {
     seed((id) => {
       id.awareness = {
         open_questions: [
@@ -434,20 +434,22 @@ describe('Identity Map — match-rule add/remove', () => {
     })
     render(<IdentityMapPage />)
 
-    expect(screen.getByRole('heading', { name: 'Clarify visa status' })).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Next attention item' }))
-
+    // Both attention items render as rows in the one queue (no cycling button) — each opens
+    // its own inspector selection via Review. (M11 H1 — one prioritized list, not a panel.)
+    const queue = screen.getByRole('region', { name: 'Refine and refresh the model' })
+    const visaRow = within(queue)
+      .getByRole('heading', { name: 'Clarify visa status' })
+      .closest('li') as HTMLElement
+    fireEvent.click(within(visaRow).getByRole('button', { name: 'Review' }))
     expect(useIdentityStore.getState().mapSelection).toEqual({
       type: 'awareness-question',
       id: 'visa',
     })
-    await waitFor(() => {
-      expect(
-        screen.getAllByRole('heading', { name: 'Deepen skill evidence' }).length,
-      ).toBeGreaterThan(0)
-    })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Next attention item' }))
+    const skillRow = within(queue)
+      .getByRole('heading', { name: 'Deepen skill evidence' })
+      .closest('li') as HTMLElement
+    fireEvent.click(within(skillRow).getByRole('button', { name: 'Review' }))
     expect(useIdentityStore.getState().mapSelection).toEqual({
       type: 'skill-item',
       groupId: 'platform',
@@ -455,16 +457,15 @@ describe('Identity Map — match-rule add/remove', () => {
     })
   })
 
-  it('shows a clear empty state when no Identity items need attention', () => {
+  it('shows no refinements panel when nothing needs attention', () => {
     seedNoAttentionIdentity()
     render(<IdentityMapPage />)
 
-    expect(screen.getByRole('heading', { name: 'No attention items' })).toBeTruthy()
-    expect(screen.getByText('Clear')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Next attention item' })).toHaveProperty(
-      'disabled',
-      true,
-    )
+    // Nag-free terminal behavior: with zero attention items and zero stale sections the
+    // queue does not render at all — no empty "needs attention" panel. (M11 H1 + C1.)
+    expect(screen.queryByRole('region', { name: 'Refine and refresh the model' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Review' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Regenerate all stale' })).toBeNull()
   })
 
   it('summarizes contact basics in inspector read mode', () => {
@@ -1008,9 +1009,9 @@ describe('Identity Map — match-rule add/remove', () => {
     expect(
       screen.queryByRole('dialog', { name: 'Regenerate downstream sections?' }),
     ).toBeNull()
-    expect(
-      screen.queryByRole('region', { name: 'Potentially stale identity sections' }),
-    ).toBeNull()
+    // Regenerating a leaf marks nothing stale: no stale rows, no batch control.
+    expect(screen.queryByRole('button', { name: 'Regenerate all stale' })).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Refresh profiles' })).toBeNull()
   })
 
   // The cascade-machinery tests below drive the downstream prompt from `selfKnowledge`. It is the
@@ -1064,15 +1065,15 @@ describe('Identity Map — match-rule add/remove', () => {
       ).toHaveBeenCalledTimes(1)
     })
     expect(screen.queryByRole('dialog', { name: 'Regenerate downstream sections?' })).toBeNull()
-    const stalePanel = screen.getByRole('region', {
-      name: 'Potentially stale identity sections',
-    })
-    expect(within(stalePanel).queryByText('Self-knowledge')).toBeNull()
-    expect(within(stalePanel).queryByText('Positioning')).toBeNull()
-    expect(within(stalePanel).getByText('Search parameters')).toBeTruthy()
+    const stalePanel = screen.getByRole('region', { name: 'Refine and refresh the model' })
+    expect(within(stalePanel).queryByRole('heading', { name: 'Refresh self-knowledge' })).toBeNull()
+    expect(within(stalePanel).queryByRole('heading', { name: 'Refresh positioning' })).toBeNull()
+    expect(
+      within(stalePanel).getByRole('heading', { name: 'Refresh search parameters' }),
+    ).toBeTruthy()
   })
 
-  it('regenerates stale downstream sections from the stale panel', async () => {
+  it('regenerates stale downstream sections from the queue', async () => {
     seed(seedSelfKnowledgeSource)
     identityParameterMocks.generateSelfKnowledgeFromIdentityMock.mockResolvedValueOnce(
       generatedSelfKnowledge,
@@ -1089,9 +1090,7 @@ describe('Identity Map — match-rule add/remove', () => {
     fireEvent.click(screen.getByRole('button', { name: /run action: generate self-knowledge/i }))
     await deferDownstreamPrompt()
 
-    const stalePanel = await screen.findByRole('region', {
-      name: 'Potentially stale identity sections',
-    })
+    const stalePanel = await screen.findByRole('region', { name: 'Refine and refresh the model' })
     fireEvent.click(within(stalePanel).getByRole('button', { name: 'Regenerate all stale' }))
 
     // Positioning sorts first in the stale queue and opens a review draft, regenerating it and
@@ -1101,8 +1100,10 @@ describe('Identity Map — match-rule add/remove', () => {
         identityParameterMocks.generateStrategicPositioningFromIdentityMock,
       ).toHaveBeenCalledTimes(1)
     })
-    expect(within(stalePanel).queryByText('Positioning')).toBeNull()
-    expect(within(stalePanel).getByText('Search parameters')).toBeTruthy()
+    expect(within(stalePanel).queryByRole('heading', { name: 'Refresh positioning' })).toBeNull()
+    expect(
+      within(stalePanel).getByRole('heading', { name: 'Refresh search parameters' }),
+    ).toBeTruthy()
   })
 
   it('clears stale downstream markers without regenerating', async () => {
@@ -1117,12 +1118,14 @@ describe('Identity Map — match-rule add/remove', () => {
     fireEvent.click(screen.getByRole('button', { name: /run action: generate self-knowledge/i }))
     await deferDownstreamPrompt()
 
-    const stalePanel = await screen.findByRole('region', {
-      name: 'Potentially stale identity sections',
-    })
+    const stalePanel = await screen.findByRole('region', { name: 'Refine and refresh the model' })
     fireEvent.click(within(stalePanel).getByRole('button', { name: 'Clear stale markers' }))
 
-    expect(screen.queryByRole('region', { name: 'Potentially stale identity sections' })).toBeNull()
+    // Clearing removes the stale rows and the batch control; any optional attention items may
+    // remain in the queue, but no stale refresh is offered or run.
+    expect(screen.queryByRole('button', { name: 'Regenerate all stale' })).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Refresh positioning' })).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Refresh search parameters' })).toBeNull()
     expect(
       identityParameterMocks.generateStrategicPositioningFromIdentityMock,
     ).not.toHaveBeenCalled()
@@ -1161,15 +1164,13 @@ describe('Identity Map — match-rule add/remove', () => {
         await Promise.resolve()
       })
       expect(identityParameterMocks.generateSelfKnowledgeFromIdentityMock).toHaveBeenCalledTimes(1)
-      const stalePanel = screen.getByRole('region', {
-        name: 'Potentially stale identity sections',
-      })
+      const stalePanel = screen.getByRole('region', { name: 'Refine and refresh the model' })
       expect(
         within(stalePanel).getByText(
           'Waiting for Self-knowledge before regenerating queued downstream sections.',
         ),
       ).toBeTruthy()
-      expect(within(stalePanel).queryByText('Positioning')).toBeNull()
+      expect(within(stalePanel).queryByRole('heading', { name: 'Refresh positioning' })).toBeNull()
 
       act(() => {
         vi.advanceTimersByTime(90_000)
@@ -1178,7 +1179,9 @@ describe('Identity Map — match-rule add/remove', () => {
         await Promise.resolve()
       })
 
-      expect(within(stalePanel).getByText('Positioning')).toBeTruthy()
+      expect(
+        within(stalePanel).getByRole('heading', { name: 'Refresh positioning' }),
+      ).toBeTruthy()
       expect(
         within(stalePanel).queryByText(
           'Waiting for Self-knowledge before regenerating queued downstream sections.',
@@ -1205,11 +1208,9 @@ describe('Identity Map — match-rule add/remove', () => {
     fireEvent.click(within(dialog).getByLabelText(/Search parameters/i))
     fireEvent.click(within(dialog).getByRole('button', { name: 'Regenerate selected' }))
 
-    const stalePanel = await screen.findByRole('region', {
-      name: 'Potentially stale identity sections',
-    })
+    const stalePanel = await screen.findByRole('region', { name: 'Refine and refresh the model' })
     await waitFor(() => {
-      expect(within(stalePanel).getByText('Positioning')).toBeTruthy()
+      expect(within(stalePanel).getByRole('heading', { name: 'Refresh positioning' })).toBeTruthy()
     })
     expect(
       identityParameterMocks.generateStrategicPositioningFromIdentityMock,
@@ -1506,10 +1507,10 @@ describe('Identity Map — match-rule add/remove', () => {
 
     render(<IdentityMapPage />)
 
-    const stalePanel = screen.getByRole('region', {
-      name: 'Potentially stale identity sections',
-    })
-    expect(within(stalePanel).getByText('Self-knowledge')).toBeTruthy()
+    const stalePanel = screen.getByRole('region', { name: 'Refine and refresh the model' })
+    expect(
+      within(stalePanel).getByRole('heading', { name: 'Refresh self-knowledge' }),
+    ).toBeTruthy()
 
     fireEvent.click(
       within(getSelfKnowledgeControls()).getByRole('button', {
@@ -1517,12 +1518,12 @@ describe('Identity Map — match-rule add/remove', () => {
       }),
     )
 
-    // Self-knowledge was the only stale section, so clearing its marker removes the panel entirely.
+    // Self-knowledge was the only stale section; starting its band generation clears the marker,
+    // removing the stale row and the batch control (optional attention items may remain).
     await waitFor(() => {
-      expect(
-        screen.queryByRole('region', { name: 'Potentially stale identity sections' }),
-      ).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Regenerate all stale' })).toBeNull()
     })
+    expect(screen.queryByRole('heading', { name: 'Refresh self-knowledge' })).toBeNull()
   })
 
   it('shows a configuration error when profile generation has no AI proxy', async () => {
