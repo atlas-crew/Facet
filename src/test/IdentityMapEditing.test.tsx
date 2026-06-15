@@ -1106,6 +1106,43 @@ describe('Identity Map — match-rule add/remove', () => {
     ).toBeTruthy()
   })
 
+  it('regenerates a single stale section from its own queue row', async () => {
+    seed(seedSelfKnowledgeSource)
+    identityParameterMocks.generateSelfKnowledgeFromIdentityMock.mockResolvedValueOnce(
+      generatedSelfKnowledge,
+    )
+    identityParameterMocks.generateStrategicPositioningFromIdentityMock.mockResolvedValueOnce({
+      unfair_advantages: ['Turns platform constraints into market access.'],
+      search_vectors: [],
+      open_questions: [],
+    })
+
+    render(<IdentityMapPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'View all actions' }))
+    fireEvent.click(screen.getByRole('button', { name: /run action: generate self-knowledge/i }))
+    await deferDownstreamPrompt()
+
+    // Each stale section owns a Regenerate button: clicking one refreshes only that section
+    // (resolveQueueItem → runQueuedInferenceSections([section])), leaving the rest stale —
+    // distinct from the bulk "Regenerate all stale" control.
+    const stalePanel = await screen.findByRole('region', { name: 'Refine and refresh the model' })
+    const positioningRow = within(stalePanel)
+      .getByRole('heading', { name: 'Refresh positioning' })
+      .closest('li') as HTMLElement
+    fireEvent.click(within(positioningRow).getByRole('button', { name: 'Regenerate' }))
+
+    await waitFor(() => {
+      expect(
+        identityParameterMocks.generateStrategicPositioningFromIdentityMock,
+      ).toHaveBeenCalledTimes(1)
+    })
+    expect(within(stalePanel).queryByRole('heading', { name: 'Refresh positioning' })).toBeNull()
+    expect(
+      within(stalePanel).getByRole('heading', { name: 'Refresh search parameters' }),
+    ).toBeTruthy()
+  })
+
   it('clears stale downstream markers without regenerating', async () => {
     seed(seedSelfKnowledgeSource)
     identityParameterMocks.generateSelfKnowledgeFromIdentityMock.mockResolvedValueOnce(
