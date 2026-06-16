@@ -413,6 +413,24 @@ const SKILL_DEPTH_VALUES = new Set<ProfessionalSkillDepth>([
   'basic',
   'avoid',
 ])
+/**
+ * Bullet level rungs in ascending scope order. The index is the ordinal the re-tell
+ * stepper moves along (step a bullet up or down one register); `BULLET_LEVEL_VALUES`
+ * derives from it so the order tuple is the single source of truth.
+ */
+export const BULLET_LEVEL_ORDER = [
+  'executes',
+  'owns',
+  'shapes',
+  'defines',
+  'pioneers',
+] as const satisfies readonly ProfessionalBulletLevel[]
+export const BULLET_LEVEL_VALUES = new Set<ProfessionalBulletLevel>(BULLET_LEVEL_ORDER)
+export const BULLET_LEVEL_CONFIDENCE_VALUES = new Set<ProfessionalBulletLevelConfidence>([
+  'high',
+  'medium',
+  'low',
+])
 const ENRICHED_BY_VALUES = new Set<ProfessionalSkillEnrichedBy>([
   'user',
   'user-edited-llm',

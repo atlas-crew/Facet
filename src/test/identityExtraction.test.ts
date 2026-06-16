@@ -17,10 +17,13 @@ import {
   buildExtractionPrompt,
   deepenIdentityBullet,
   deepenIdentityProject,
+  buildRetellBulletPrompt,
   generateIdentityDraft,
   parseDeepenIdentityBulletResponse,
   parseDeepenIdentityProjectResponse,
   parseIdentityExtractionResponse,
+  parseRetellIdentityBulletResponse,
+  retellIdentityBullet,
 } from '../utils/identityExtraction'
 import type { SynthesisSeed } from '../types/identity'
 import { callLlmProxy } from '../utils/llmProxy'
@@ -1309,6 +1312,99 @@ describe('identity bullet deepening', () => {
     )
 
     expect(draft.summary).toContain('system prompt evaluation')
+  })
+})
+
+describe('identity bullet re-telling', () => {
+  const validRetellPayload = {
+    summary: 'Re-told the deployment migration bullet at owns scope.',
+    role_id: 'acme',
+    bullet_id: 'acme-1',
+    level: 'owns',
+    level_confidence: 'high',
+    level_rationale: 'You owned the migration rollout and the on-call that followed, not just the change.',
+    rewrites: [
+      'Owned the end-to-end migration to EKS, from Helm/Terraform design through rollout and on-call.',
+      'Drove a platform migration to EKS and owned its operation across 12 pipelines.',
+    ],
+  }
+
+  it('builds a prompt from the decomposed PAIO and threads target_level when recalibrating', () => {
+    const prompt = buildRetellBulletPrompt({
+      identity: responseBody.identity,
+      roleId: 'acme',
+      bulletId: 'acme-1',
+      targetLevel: 'shapes',
+      correctionNotes: 'I set the architecture the other teams adopted.',
+    })
+
+    expect(prompt).toContain('Target bullet to re-tell:')
+    expect(prompt).toContain('"role_id": "acme"')
+    expect(prompt).toContain('"bullet_id": "acme-1"')
+    expect(prompt).toContain('target_level: shapes')
+    expect(prompt).toContain('I set the architecture the other teams adopted.')
+  })
+
+  it('parses a valid re-tell payload into level, confidence, rationale, and rewrites', () => {
+    const parsed = parseRetellIdentityBulletResponse(
+      JSON.stringify(validRetellPayload),
+      responseBody.identity,
+    )
+
+    expect(parsed.roleId).toBe('acme')
+    expect(parsed.bulletId).toBe('acme-1')
+    expect(parsed.level).toBe('owns')
+    expect(parsed.levelConfidence).toBe('high')
+    expect(parsed.rationale).toContain('on-call')
+    expect(parsed.rewrites).toHaveLength(2)
+    expect(parsed.warnings).toEqual([])
+  })
+
+  it('rejects a level outside the scope ordinal', () => {
+    expect(() =>
+      parseRetellIdentityBulletResponse(
+        JSON.stringify({ ...validRetellPayload, level: 'principal' }),
+        responseBody.identity,
+      ),
+    ).toThrow(/level must be one of executes, owns, shapes, defines, pioneers/)
+  })
+
+  it('rejects an unknown bullet target', () => {
+    expect(() =>
+      parseRetellIdentityBulletResponse(
+        JSON.stringify({ ...validRetellPayload, bullet_id: 'missing-bullet' }),
+        responseBody.identity,
+      ),
+    ).toThrow(/Bullet "missing-bullet" does not exist in role "acme"/)
+  })
+
+  it('round-trips a re-tell request through the proxy', async () => {
+    vi.mocked(callLlmProxy).mockResolvedValueOnce(JSON.stringify(validRetellPayload))
+
+    await expect(
+      retellIdentityBullet({
+        endpoint: 'https://facet.test/api/ai',
+        identity: responseBody.identity,
+        roleId: 'acme',
+        bulletId: 'acme-1',
+      }),
+    ).resolves.toMatchObject({ roleId: 'acme', bulletId: 'acme-1', level: 'owns' })
+
+    expect(vi.mocked(callLlmProxy).mock.calls[0]?.[3]).toMatchObject({ feature: 'identity.retell' })
+  })
+
+  it('rejects a response whose level contradicts the requested recalibration', async () => {
+    vi.mocked(callLlmProxy).mockResolvedValueOnce(JSON.stringify(validRetellPayload))
+
+    await expect(
+      retellIdentityBullet({
+        endpoint: 'https://facet.test/api/ai',
+        identity: responseBody.identity,
+        roleId: 'acme',
+        bulletId: 'acme-1',
+        targetLevel: 'defines',
+      }),
+    ).rejects.toThrow(/expected the requested defines/)
   })
 })
 

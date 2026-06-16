@@ -1,4 +1,9 @@
-import type { ProfessionalIdentityV3, ProfessionalSearchVector } from '../identity/schema'
+import type {
+  ProfessionalBulletLevel,
+  ProfessionalBulletLevelConfidence,
+  ProfessionalIdentityV3,
+  ProfessionalSearchVector,
+} from '../identity/schema'
 
 export type IdentityConfidence = 'stated' | 'confirmed' | 'guessing' | 'corrected'
 
@@ -32,6 +37,28 @@ export interface IdentityDeepenedProject {
   project: ProfessionalIdentityV3['projects'][number]
   rewrite: string
   assumptions: IdentityAssumptionTag[]
+  warnings: string[]
+}
+
+/**
+ * Result of `retellIdentityBullet` (Thread 2 / #38). The re-tell loop is a sibling of
+ * deepen: deepen *writes* a bullet's factual PAIO, whereas re-tell only *interprets* it —
+ * it assesses the scope-of-ownership `level` the work demonstrates and surfaces the
+ * assumption for the user to confirm or step.
+ *
+ * The only durable artifact is `level` + `rationale` (persisted as `level` /
+ * `level_rationale` / `level_source: 'corrected'`). `rewrites` are **ephemeral preview**
+ * re-narrations at the assessed register — presentation, not evidence — never persisted
+ * and never written back into the bullet's problem/action/outcome/impact or source_text.
+ */
+export interface IdentityRetoldBullet {
+  summary: string
+  roleId: string
+  bulletId: string
+  level: ProfessionalBulletLevel
+  levelConfidence: ProfessionalBulletLevelConfidence
+  rationale: string
+  rewrites: string[]
   warnings: string[]
 }
 

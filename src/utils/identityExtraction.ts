@@ -1,10 +1,15 @@
 import {
   AWARENESS_SEVERITY_VALUES,
+  BULLET_LEVEL_CONFIDENCE_VALUES,
+  BULLET_LEVEL_ORDER,
+  BULLET_LEVEL_VALUES,
   MATCHING_SEVERITY_VALUES,
   MATCHING_WEIGHT_VALUES,
   SEARCH_VECTOR_PRIORITY_VALUES,
   importProfessionalIdentity,
   normalizeRuntimeProfessionalIdentity,
+  type ProfessionalBulletLevel,
+  type ProfessionalBulletLevelConfidence,
   type ProfessionalIdentityV3,
 } from '../identity/schema'
 import type {
@@ -14,6 +19,7 @@ import type {
   IdentityConfidence,
   IdentityDraftBullet,
   IdentityExtractionDraft,
+  IdentityRetoldBullet,
   SupplementalContextSource,
 } from '../types/identity'
 import { getSupplementalContextSourceLabel } from '../types/identity'
@@ -313,6 +319,34 @@ Rules:
 - Use "stated" when the source says it directly.
 - Use "confirmed" when the source states it and the surrounding evidence reinforces it.
 - Use "corrected" only when explicit correction notes revise the project.
+- Do not wrap the JSON in markdown fences.`
+
+export const BULLET_RETELL_SYSTEM_PROMPT = `You are Facet's bullet re-telling agent.
+You assess the SCOPE OF OWNERSHIP one already-decomposed resume bullet demonstrates, then re-narrate the same facts at that register.
+Return JSON only with this exact top-level shape:
+{
+  "summary": string,
+  "role_id": string,
+  "bullet_id": string,
+  "level": "executes" | "owns" | "shapes" | "defines" | "pioneers",
+  "level_confidence": "high" | "medium" | "low",
+  "level_rationale": string,
+  "rewrites": string[]
+}
+The level ordinal, low to high — a scope-of-ownership frame, NOT a job title or seniority label:
+- "executes": carried out a defined task someone else scoped.
+- "owns": owned a component or outcome end-to-end, design through operation.
+- "shapes": shaped the design of a system beyond a single component.
+- "defines": set technical direction others then followed.
+- "pioneers": influence adopted beyond your own organisation.
+Rules:
+- Judge level from what the problem/action/outcome/impact actually demonstrate, not from seniority words in the prose. The author is an unreliable narrator who may under- or over-state their scope.
+- level_rationale must be ONE sentence naming the concrete evidence that fixes the level ("you owned the rollout and on-call, not just the change"). This is the assumption surfaced to the user to confirm or correct.
+- Use level_confidence "high" when the evidence clearly demonstrates the scope, "low" when the bullet is thin or ambiguous, "medium" otherwise.
+- When target_level is supplied, narrate at THAT register and return it as level — the user is recalibrating; honour their correction. Otherwise assess the level yourself.
+- rewrites: 2 or 3 candidate re-narrations of the SAME facts at the level register. Reframe scope language only.
+- Never invent a claim, metric, technology, outcome, or proper noun not already present in the bullet. Do not alter named technologies, metrics, or proper nouns. rewrites are presentation previews, not new evidence.
+- Keep role_id and bullet_id exactly as provided.
 - Do not wrap the JSON in markdown fences.`
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -2070,6 +2104,65 @@ export const parseDeepenIdentityBulletResponse = (
   }
 }
 
+const assertBulletLevel = (value: unknown, context: string): ProfessionalBulletLevel => {
+  const level = assertString(value, context).trim()
+  if (!BULLET_LEVEL_VALUES.has(level as ProfessionalBulletLevel)) {
+    throw new Error(
+      `${context} must be one of ${BULLET_LEVEL_ORDER.join(', ')}; received "${level}".`,
+    )
+  }
+  return level as ProfessionalBulletLevel
+}
+
+const assertBulletLevelConfidence = (
+  value: unknown,
+  context: string,
+): ProfessionalBulletLevelConfidence => {
+  const confidence = assertString(value, context).trim()
+  if (!BULLET_LEVEL_CONFIDENCE_VALUES.has(confidence as ProfessionalBulletLevelConfidence)) {
+    throw new Error(`${context} must be high, medium, or low; received "${confidence}".`)
+  }
+  return confidence as ProfessionalBulletLevelConfidence
+}
+
+const parseRetoldBulletPayload = (
+  value: unknown,
+  context: string,
+): Omit<IdentityRetoldBullet, 'warnings'> => {
+  const root = assertRecord(value, context)
+  const rewrites = assertStringArray(root.rewrites, 'rewrites')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+  return {
+    summary: assertString(root.summary, 'summary').trim(),
+    roleId: assertString(root.role_id, 'role_id').trim(),
+    bulletId: assertString(root.bullet_id, 'bullet_id').trim(),
+    level: assertBulletLevel(root.level, 'level'),
+    levelConfidence: assertBulletLevelConfidence(root.level_confidence, 'level_confidence'),
+    rationale: assertString(root.level_rationale, 'level_rationale').trim(),
+    rewrites,
+  }
+}
+
+export const parseRetellIdentityBulletResponse = (
+  rawResponse: string,
+  identity: ProfessionalIdentityV3,
+): IdentityRetoldBullet => {
+  const { parsed, repaired } = parseLlmJsonResponse(rawResponse, 'Identity bullet re-tell response')
+  const normalized = parseRetoldBulletPayload(parsed, 'identity bullet re-tell response')
+  // Existence check only: re-tell is an interpretation pass, so the factual bullet is never
+  // mutated and there is no identity round-trip to validate. findRoleBullet throws if the
+  // target drifted out from under the request.
+  findRoleBullet(identity, normalized.roleId, normalized.bulletId)
+
+  return {
+    ...normalized,
+    warnings: repaired
+      ? ['Repaired minor JSON syntax issues in the AI response before validation.']
+      : [],
+  }
+}
+
 export const parseDeepenIdentityProjectResponse = (
   rawResponse: string,
   identity: ProfessionalIdentityV3,
@@ -2345,6 +2438,69 @@ export const buildDeepenBulletPrompt = ({
   return parts.join('\n')
 }
 
+export const buildRetellBulletPrompt = ({
+  identity,
+  roleId,
+  bulletId,
+  targetLevel,
+  correctionNotes,
+}: {
+  identity: ProfessionalIdentityV3
+  roleId: string
+  bulletId: string
+  targetLevel?: ProfessionalBulletLevel
+  correctionNotes?: string
+}): string => {
+  const target = findRoleBullet(identity, roleId, bulletId)
+  const parts = [
+    'Scanned identity shell:',
+    JSON.stringify(identity, null, 2),
+    '',
+    'Target role context:',
+    JSON.stringify(
+      {
+        role_id: target.role.id,
+        company: target.role.company,
+        title: target.role.title,
+        dates: target.role.dates,
+        subtitle: target.role.subtitle ?? '',
+      },
+      null,
+      2,
+    ),
+    '',
+    // The decomposed PAIO is the evidence to level, not source_text — re-tell operates on the
+    // structured facts deepen already extracted, and reframes scope language over them.
+    'Target bullet to re-tell:',
+    JSON.stringify(
+      {
+        role_id: target.role.id,
+        bullet_id: target.bullet.id,
+        problem: target.bullet.problem,
+        action: target.bullet.action,
+        outcome: target.bullet.outcome,
+        impact: target.bullet.impact,
+        metrics: target.bullet.metrics,
+        technologies: target.bullet.technologies,
+        current_level: target.bullet.level ?? null,
+      },
+      null,
+      2,
+    ),
+  ]
+
+  if (targetLevel) {
+    parts.push('', `target_level: ${targetLevel}`)
+  }
+
+  if (correctionNotes?.trim()) {
+    parts.push('', 'Correction notes:', correctionNotes.trim())
+  }
+
+  parts.push('', 'Return only the re-tell payload. Do not emit a full identity object.')
+  return parts.join('\n')
+}
+
 export const buildDeepenProjectPrompt = ({
   identity,
   projectId,
@@ -2480,6 +2636,58 @@ export const deepenIdentityBullet = async ({
   if (result.roleId !== roleId || result.bulletId !== bulletId) {
     throw new Error(
       `Deepening response targeted ${result.roleId}/${result.bulletId}, expected ${roleId}/${bulletId}.`,
+    )
+  }
+
+  return result
+}
+
+export const retellIdentityBullet = async ({
+  endpoint,
+  identity,
+  roleId,
+  bulletId,
+  targetLevel,
+  correctionNotes,
+  signal,
+}: {
+  endpoint: string
+  identity: ProfessionalIdentityV3
+  roleId: string
+  bulletId: string
+  targetLevel?: ProfessionalBulletLevel
+  correctionNotes?: string
+  signal?: AbortSignal
+}): Promise<IdentityRetoldBullet> => {
+  const normalizedIdentity = normalizeRuntimeProfessionalIdentity(identity)
+  const rawResponse = await callLlmProxy(
+    endpoint,
+    BULLET_RETELL_SYSTEM_PROMPT,
+    buildRetellBulletPrompt({
+      identity: normalizedIdentity,
+      roleId,
+      bulletId,
+      targetLevel,
+      correctionNotes,
+    }),
+    {
+      feature: 'identity.retell',
+      model: 'sonnet',
+      temperature: 0.1,
+      timeoutMs: IDENTITY_EXTRACTION_TIMEOUT_MS,
+      signal,
+    },
+  )
+
+  const result = parseRetellIdentityBulletResponse(rawResponse, normalizedIdentity)
+  if (result.roleId !== roleId || result.bulletId !== bulletId) {
+    throw new Error(
+      `Re-tell response targeted ${result.roleId}/${result.bulletId}, expected ${roleId}/${bulletId}.`,
+    )
+  }
+  if (targetLevel && result.level !== targetLevel) {
+    throw new Error(
+      `Re-tell response returned level ${result.level}, expected the requested ${targetLevel}.`,
     )
   }
 
