@@ -54,7 +54,8 @@ If any of those is false, prefer inline implementation with reference to this gu
 > and the
 > [rollout plan](../../development/plans/ui-primitive-consolidation-rollout-plan.md)
 > (milestone M12). Tokens (L1) and per-workspace composition (L3) remain
-> unchanged.
+> unchanged. Authoring conventions for the new layer live in
+> [`src/components/ui/README.md`](../../../src/components/ui/README.md).
 
 ---
 
