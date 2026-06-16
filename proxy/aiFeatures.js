@@ -6,6 +6,7 @@ export const FACET_AI_FEATURE_KEYS = [
   'identity.deepen',
   'identity.skill-group-naming',
   'identity.deepen_project',
+  'identity.retell',
   'match.jd-analysis',
   'pipeline.t3.interviewer',
   'research.deep-search',
