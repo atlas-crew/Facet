@@ -42,6 +42,20 @@ Defer extraction to `src/components/ui/` until **all four** are true:
 
 If any of those is false, prefer inline implementation with reference to this guide.
 
+> **Status (2026-06-16): the gate has fired for the primitive layer.** An audit
+> found the predicted failure of convention-only consistency at ~8 workspaces —
+> 49 forked button classes, 40 badge classes, 15 eyebrow classes,
+> `.label-tracked` redefined in `identityMap.css`. Condition #3 is met (a button
+> restyle touches ~49 class definitions across 12+ files). `Button`,
+> `SectionLabel`, and `StatusBadge` are being extracted into
+> `src/components/ui/`. This does not reverse the deferral policy — it is the
+> gate working as designed. See
+> [adr-0011](../../architecture/decisions/adr-0011-extract-ui-primitive-layer.md)
+> and the
+> [rollout plan](../../development/plans/ui-primitive-consolidation-rollout-plan.md)
+> (milestone M12). Tokens (L1) and per-workspace composition (L3) remain
+> unchanged.
+
 ---
 
 ## Color System

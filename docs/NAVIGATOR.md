@@ -116,6 +116,7 @@ Design notes and rollout plans live under `development/design/`. Key identity-ex
 | Document                                                                      | Description                                                                         |
 | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
 | [Live Cheatsheet Content V2](development/plans/live-cheatsheet-content-v2.md) | Spec for upgrading the live interview cheatsheet to rich, structured content blocks |
+| [UI Primitive Consolidation](development/plans/ui-primitive-consolidation-rollout-plan.md) | Extract Button/SectionLabel/StatusBadge into `src/components/ui/`; milestone M12 (#67–#76). See adr-0011 |
 
 ### Reports
 
