@@ -99,19 +99,10 @@ Design notes and rollout plans live under `development/design/`. Key identity-ex
 | ------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | [Identity Derivation Graph — Reframe & Roadmap](development/design/identity-derivation-graph-reframe-and-roadmap.md)             | The map as a second generation surface; one derivation graph with two feed points; two staleness graphs sharing one mechanism; three-thread roadmap |
 | [Thread 1 — Correction-Driven Inference Staleness](development/design/correction-driven-inference-staleness-thread-1-design.md)  | Wiring inspector corrections into the intra-identity dependency chain; persisted stale set; producer/owner map; mechanism choice  |
+| [Thread 3 — Inference Dependency Graph DAG Precision](development/design/inference-dependency-graph-dag-precision-thread-3-design.md) | Linear chain → authored semantic DAG; why generators are full-context; the inclusion rule; fingerprint convergence                |
+| [Thread 2 — Leveling Axis & Re-tell Loop (spine)](development/design/leveling-axis-and-retell-loop-thread-2-design.md)             | First-class `level` axis on bullets (mirrors skill-depth provenance); re-tell as deepen sibling; evidence-vs-narrative guardrail   |
+| [Identity as a Workspace Artifact](development/design/identity-as-workspace-artifact-design.md)                                    | Promote identity from tier-1-only store to a durable snapshot artifact (backup/restore, import-merge, hosted sync); singleton merge semantics |
 | [Shepherding — Extraction Loops & Correction Flow](development/design/shepherding-design-extraction-loops-correction-flow-architecture.md) | Correction-over-blank-box principle, free-context sources, per-stage extraction moments, and the identity→artifact impact graph   |
-
-### Hosted Platform (Wave 1)
-
-| Document                                                                                         | Description                                                                                                |
-| ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
-| [Wave 1 Hosting Foundation](development/platform/wave-1-hosting-foundation.md)                   | Provider lock, environment contract, migration workflow, and billing webhook contract for hosted accounts  |
-| [Wave 1 Domain Contract](development/platform/wave-1-domain-contract.md)                         | Hosted vs self-hosted AI rules, account/workspace entities, and entitlement contract for Wave 1            |
-| [Wave 1 Pricing And Entitlements](development/platform/wave-1-pricing-and-entitlements.md)       | Internal source of truth for hosted pricing, AI-gated features, and entitlement messaging                  |
-| [Wave 1 Infrastructure Provisioning](development/platform/wave-1-infrastructure-provisioning.md) | Step-by-step provisioning guide bridging hosting foundation and the beta readiness gate                    |
-| [Wave 1 Operations Runbook](development/platform/wave-1-operations-runbook.md)                   | Hosted launch controls, rate limits, alert signals, and rollback or restore procedures for the Wave 1 beta |
-| [Wave 1 Beta Support Playbook](development/platform/wave-1-beta-support-playbook.md)             | Launch communication, support scenarios, known limits, and escalation guidance for the hosted beta         |
-| [Wave 1 Beta Readiness Gate](development/platform/wave-1-beta-readiness-gate.md)                 | Staging validation checklist, go or no-go criteria, and staged rollout plan for the first hosted beta      |
 
 ### Active Refactors
 
