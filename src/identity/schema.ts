@@ -20,6 +20,27 @@ export type ProfessionalSkillDepthSource = 'inferred' | 'corrected'
 
 export type ProfessionalSkillDepthConfidence = 'high' | 'medium' | 'low'
 
+/**
+ * Scope-of-ownership a bullet demonstrates, as an abstract ordinal (low → high):
+ * executed a defined task → owned a component end-to-end → shaped a system's design →
+ * set direction others follow → influenced beyond the org. Deliberately *not* a company
+ * title-ladder — Facet spans professions, so ladders don't generalise; this is the
+ * scope frame a litigator's matter and a staff engineer's platform both fit. Ordinal so
+ * a re-tell can step a bullet up or down one register. (Thread 2 / #38.)
+ */
+export type ProfessionalBulletLevel =
+  | 'executes'
+  | 'owns'
+  | 'shapes'
+  | 'defines'
+  | 'pioneers'
+
+/** Provenance of `ProfessionalRoleBullet.level`, mirroring `ProfessionalSkillDepthSource`. */
+export type ProfessionalBulletLevelSource = 'inferred' | 'corrected'
+
+/** Confidence in an inferred `level`, mirroring `ProfessionalSkillDepthConfidence`. */
+export type ProfessionalBulletLevelConfidence = 'high' | 'medium' | 'low'
+
 export type ProfessionalSkillProvenance = 'claimed' | 'inferred' | 'corrected'
 
 export const SOFTWARE_ENGINEERING_SKILL_CAREER_CLASS = 'software-engineering'
@@ -257,6 +278,22 @@ export interface ProfessionalRoleBullet {
   technologies: string[]
   source_text?: string
   portfolio_dive?: string | null
+  /**
+   * Scope/seniority the work demonstrates — *interpretation* layered on the bullet's
+   * factual PAIO, never written back into problem/action/outcome/impact or source_text
+   * (the evidence-vs-narrative guardrail). Orthogonal to extraction confidence: a bullet
+   * can be `confirmed` (it happened) yet mis-levelled. Set by the re-tell loop (#38).
+   */
+  level?: ProfessionalBulletLevel
+  /**
+   * Provenance of `level`, mirroring `ProfessionalSkillItem.depthSource`. When
+   * `'corrected'`, regeneration (resume re-scan, identity re-extract, re-tell) must not
+   * overwrite the user's calibration; `'inferred'` or absent may be replaced.
+   */
+  level_source?: ProfessionalBulletLevelSource
+  level_confidence?: ProfessionalBulletLevelConfidence
+  /** The surfaced assumption behind `level` ("reads as owns-scope because you ran the rollout and on-call"). */
+  level_rationale?: string
   tags: string[]
 }
 
