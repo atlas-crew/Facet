@@ -1,2 +1,24 @@
 skills:
-  enabled: []
+  enabled:
+    - design-critiquer
+    - design-journey-review
+    - frontend-design
+    - owasp-top-10
+    - product-manager
+    - prompt-engineering
+    - react-performance-optimization
+    - secure-coding-practices
+    - sharing-skills
+    - skill-creator
+    - supabase
+    - supabase-postgres-best-practices
+    - template-skill
+    - testing-skills-with-subagents
+    - typescript-advanced-patterns
+    - ui-design-aesthetics
+    - ui-ux-review-suite
+    - ux-interaction-review
+    - ux-review
+    - ux-writer
+    - wiring-audit
+    - writing-skills

@@ -196,5 +196,4 @@ tests/hosted/.auth/
 .playwright-mcp/
 .playwright-cli/
 .claude/tour-state.json
-.claude/settings.json
 .claude/settings.local.json

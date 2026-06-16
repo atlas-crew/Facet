@@ -1,0 +1,17 @@
+# Ignore everything inside the .agents directory
+# Note the trailing /* which allows Git to still read subfolder exceptions
+/*
+
+# Keep the .gitignore file itself tracked
+!.gitignore
+
+# Open the skills directory so Git can look inside it
+!skills/
+
+# 4. Ignore all skills...
+skills/*
+
+# ...EXCEPT the ones starting with 'facet-' and their contents
+!skills/facet-*/
+!skills/facet-/**
+
