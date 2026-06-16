@@ -99,8 +99,10 @@ describe('BulletInspector — deepen canary', () => {
       id.roles[0].bullets[0].source_text = 'Raw text we could deepen'
     })
     render(<IdentityMapPage />)
-    const button = screen.getByRole('button', { name: 'AI not configured' })
-    expect((button as HTMLButtonElement).disabled).toBe(true)
+    // Deepen and its Re-tell sibling both report the same gate when the proxy is unset.
+    const gated = screen.getAllByRole('button', { name: 'AI not configured' })
+    expect(gated.length).toBeGreaterThanOrEqual(1)
+    expect(gated.every((button) => (button as HTMLButtonElement).disabled)).toBe(true)
   })
 
   it('calls deepenIdentityBullet and applies the result to currentIdentity on success', async () => {

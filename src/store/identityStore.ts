@@ -3,6 +3,7 @@ import { createJSONStorage, persist } from 'zustand/middleware'
 import {
   importProfessionalIdentity,
   normalizeRuntimeProfessionalIdentity,
+  type ProfessionalBulletLevel,
   type ProfessionalIdentityArcEntry,
   type ProfessionalIdentityCore,
   type ProfessionalExpertise,
@@ -158,6 +159,12 @@ interface IdentityState {
   updateCurrentCompetitiveMoat: (value: string) => void
   updateCurrentUnfairAdvantages: (value: string[]) => void
   updateCurrentRoles: (value: ProfessionalIdentityV3['roles']) => void
+  updateRoleBulletLevel: (
+    roleId: string,
+    bulletId: string,
+    level: ProfessionalBulletLevel,
+    rationale?: string,
+  ) => void
   updateCurrentProjects: (value: ProfessionalProject[]) => void
   updateCurrentSkillGroups: (value: ProfessionalSkillGroup[]) => void
   updateCurrentCompensation: (value: ProfessionalIdentityV3['preferences']['compensation']) => void
@@ -1732,6 +1739,34 @@ export const useIdentityStore = create<IdentityState>()(
           updateCurrentIdentity(state, (identity) => ({
             ...identity,
             roles: value,
+          })),
+        ),
+      updateRoleBulletLevel: (roleId, bulletId, level, rationale) =>
+        set((state) =>
+          updateCurrentIdentity(state, (identity) => ({
+            ...identity,
+            roles: identity.roles.map((role) =>
+              role.id !== roleId
+                ? role
+                : {
+                    ...role,
+                    bullets: role.bullets.map((bullet) =>
+                      bullet.id !== bulletId
+                        ? bullet
+                        : {
+                            ...bullet,
+                            level,
+                            // A user-affirmed level (confirmed or stepped) is a correction: lock it
+                            // so regeneration — resume re-scan, identity re-extract, re-tell — never
+                            // overwrites it, mirroring the skill-depth `corrected` rule. Evidence vs.
+                            // narrative: only the interpretation fields move; the factual PAIO and
+                            // source_text are untouched.
+                            level_source: 'corrected',
+                            level_rationale: rationale?.trim() ? rationale.trim() : undefined,
+                          },
+                    ),
+                  },
+            ),
           })),
         ),
       updateCurrentProjects: (value) =>

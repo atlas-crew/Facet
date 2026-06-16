@@ -1,15 +1,20 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { Plus, X } from 'lucide-react'
-import type { ProfessionalIdentityV3 } from '../../../identity/schema'
+import { BULLET_LEVEL_ORDER } from '../../../identity/schema'
+import type { ProfessionalBulletLevel, ProfessionalIdentityV3 } from '../../../identity/schema'
 import {
   getActiveResumeScan,
   getCurrentBulletDeepenKey,
   useIdentityStore,
 } from '../../../store/identityStore'
-import type { IdentityConfidence, ResumeScanBulletExplanation } from '../../../types/identity'
+import type {
+  IdentityConfidence,
+  IdentityRetoldBullet,
+  ResumeScanBulletExplanation,
+} from '../../../types/identity'
 import { facetClientEnv } from '../../../utils/facetEnv'
 import { sanitizeEndpointUrl } from '../../../utils/idUtils'
-import { deepenIdentityBullet } from '../../../utils/identityExtraction'
+import { deepenIdentityBullet, retellIdentityBullet } from '../../../utils/identityExtraction'
 import { InspectorSheet } from './InspectorSheet'
 import {
   Actions,
@@ -46,6 +51,25 @@ const CONFIDENCE_LABELS: Record<IdentityConfidence, string> = {
   confirmed: 'Confirmed',
   guessing: 'Guessing',
   corrected: 'Corrected',
+}
+
+// Short rung labels for the scope stepper and the read-view level readout.
+const LEVEL_SHORT_LABELS: Record<ProfessionalBulletLevel, string> = {
+  executes: 'Executes',
+  owns: 'Owns',
+  shapes: 'Shapes',
+  defines: 'Defines',
+  pioneers: 'Pioneers',
+}
+
+// The scope language the assumption is phrased in ("This reads as <phrase> — right?"),
+// from the Thread 2 UX copy table. Scope of ownership, never a job-title ladder.
+const LEVEL_SCOPE_PHRASES: Record<ProfessionalBulletLevel, string> = {
+  executes: 'executing a defined task',
+  owns: 'owning a component end-to-end',
+  shapes: "shaping a system's design",
+  defines: 'defining direction others follow',
+  pioneers: 'influence beyond the org',
 }
 
 const tagKey = (tag: string): string => tag.trim().toLowerCase()
@@ -207,6 +231,25 @@ function DeepenEvidence({ explanation }: { explanation: ResumeScanBulletExplanat
   )
 }
 
+function LevelReadout({
+  level,
+  rationale,
+}: {
+  level: ProfessionalBulletLevel
+  rationale?: string
+}) {
+  return (
+    <div className="inspector-read-section">
+      <p className="inspector-read-label label-tracked">Level</p>
+      <p className="inspector-level-readout">
+        <span className="inspector-level-name">{LEVEL_SHORT_LABELS[level]}</span>
+        <span className="inspector-level-scope"> · {LEVEL_SCOPE_PHRASES[level]}</span>
+      </p>
+      {rationale?.trim() ? <p className="inspector-level-rationale">{rationale}</p> : null}
+    </div>
+  )
+}
+
 export function BulletInspector({
   identity,
   roleId,
@@ -217,6 +260,7 @@ export function BulletInspector({
   bulletId: string
 }) {
   const updateRoles = useIdentityStore((s) => s.updateCurrentRoles)
+  const updateRoleBulletLevel = useIdentityStore((s) => s.updateRoleBulletLevel)
   const recordCorrection = useIdentityStore((s) => s.recordIdentityCorrection)
   const startCurrentBulletDeepen = useIdentityStore((s) => s.startCurrentBulletDeepen)
   const completeCurrentBulletDeepen = useIdentityStore((s) => s.completeCurrentBulletDeepen)
@@ -243,14 +287,34 @@ export function BulletInspector({
   const sheetOpen = sheetState !== null && sheetState.bulletId === bulletId
   const metricsSheetOpen = metricsSheetState !== null && metricsSheetState.bulletId === bulletId
   const deepenAbortRef = useRef<AbortController | null>(null)
+  // Re-tell preview is ephemeral local state (not store-backed like deepen): the re-narrations
+  // are presentation, never persisted, and only one inspector mounts at a time, so abort-on-unmount
+  // plus a reset on bullet change is all the single-flight this needs.
+  const [retellStatus, setRetellStatus] = useState<'idle' | 'running' | 'failed'>('idle')
+  const [retellError, setRetellError] = useState<string | null>(null)
+  const [retellResult, setRetellResult] = useState<IdentityRetoldBullet | null>(null)
+  const [selectedLevel, setSelectedLevel] = useState<ProfessionalBulletLevel | null>(null)
+  const retellAbortRef = useRef<AbortController | null>(null)
   const aiEndpoint = sanitizeEndpointUrl(facetClientEnv.anthropicProxyUrl)
 
   useEffect(
     () => () => {
       deepenAbortRef.current?.abort()
+      retellAbortRef.current?.abort()
     },
     [],
   )
+
+  // Discard any in-flight or rendered re-tell preview when the inspector switches bullets, so a
+  // preview can never leak onto the wrong bullet if React reuses this component instance.
+  useEffect(() => {
+    retellAbortRef.current?.abort()
+    retellAbortRef.current = null
+    setRetellStatus('idle')
+    setRetellError(null)
+    setRetellResult(null)
+    setSelectedLevel(null)
+  }, [roleId, bulletId])
 
   if (!role || !bullet) return <NotFound label="bullet" />
 
@@ -340,8 +404,13 @@ export function BulletInspector({
     ([key, entry]) => key !== deepenKey && entry.status === 'running',
   )
   const hasSourceText = Boolean(bullet.source_text?.trim())
+  const retellRunning = retellStatus === 'running'
   const deepenDisabled =
-    !aiEndpoint || !hasSourceText || deepenStatus === 'running' || anyOtherDeepenRunning
+    !aiEndpoint ||
+    !hasSourceText ||
+    deepenStatus === 'running' ||
+    anyOtherDeepenRunning ||
+    retellRunning
   const deepenLabel = (() => {
     if (deepenStatus === 'running') return 'Deepening…'
     if (!aiEndpoint) return 'AI not configured'
@@ -380,6 +449,87 @@ export function BulletInspector({
         deepenAbortRef.current = null
       }
     }
+  }
+
+  // Re-tell levels the decomposed PAIO, not source_text — so it gates on having facts to read
+  // rather than raw text, and never runs alongside a deepen on the same bullet.
+  const hasPaio = Boolean(
+    bullet.problem?.trim() || bullet.action?.trim() || bullet.outcome?.trim(),
+  )
+  const retellDisabled = !aiEndpoint || !hasPaio || retellRunning || deepenStatus === 'running'
+  const retellLabel = (() => {
+    if (retellRunning) return 'Re-telling…'
+    if (!aiEndpoint) return 'AI not configured'
+    if (!hasPaio) return 'Decompose the bullet first'
+    if (retellStatus === 'failed') return 'Retry re-tell'
+    return bullet.level ? 'Re-tell level' : 'Re-tell'
+  })()
+  const retellMatchesBullet =
+    retellResult !== null && retellResult.roleId === roleId && retellResult.bulletId === bulletId
+  const activeLevel = selectedLevel ?? retellResult?.level ?? null
+  // level_confidence gates the proactive nudge; it is never rendered as a badge or number.
+  const levelNudge = (() => {
+    if (!hasPaio || retellMatchesBullet) return null
+    if (!bullet.level) return 'Not levelled yet — re-tell to set the scope this work shows.'
+    if (bullet.level_source === 'inferred' && bullet.level_confidence === 'low') {
+      return 'I wasn’t sure how to level this one — re-tell to check the scope.'
+    }
+    return null
+  })()
+
+  const handleRetell = async (targetLevel?: ProfessionalBulletLevel) => {
+    if (retellRunning) return
+    if (!targetLevel && retellDisabled) return
+    let controller: AbortController | null = null
+    try {
+      retellAbortRef.current?.abort()
+      controller = new AbortController()
+      retellAbortRef.current = controller
+      setRetellStatus('running')
+      setRetellError(null)
+      const liveIdentity = useIdentityStore.getState().currentIdentity
+      if (!liveIdentity) return
+      const result = await retellIdentityBullet({
+        endpoint: aiEndpoint,
+        identity: liveIdentity,
+        roleId,
+        bulletId,
+        targetLevel,
+        signal: controller.signal,
+      })
+      if (controller.signal.aborted) return
+      setRetellResult(result)
+      setSelectedLevel(result.level)
+      setRetellStatus('idle')
+    } catch (error) {
+      if (controller?.signal.aborted && error instanceof DOMException) return
+      const message = error instanceof Error ? error.message : 'Re-telling this bullet failed.'
+      setRetellError(message)
+      setRetellStatus('failed')
+    } finally {
+      if (controller && retellAbortRef.current === controller) {
+        retellAbortRef.current = null
+      }
+    }
+  }
+
+  const handleConfirmLevel = () => {
+    if (!retellResult || !activeLevel) return
+    // Keep the AI's rationale only when the user confirms the assessed rung; a stepped override is
+    // the user's own call, with no AI rationale behind it (a note field is Phase-2 calibration).
+    const rationale = activeLevel === retellResult.level ? retellResult.rationale : undefined
+    updateRoleBulletLevel(roleId, bulletId, activeLevel, rationale)
+    // No recordCorrection here in Phase 1: `leveling` is not yet an inference section (its rollup
+    // node and precise edges land in Phase 2a), and routing a level correction through the coarse
+    // `bullets` region would over-fire staleness into skills/chapters that never consume level.
+    // Until the leveling node exists, a level correction correctly flags nothing downstream.
+    setRetellResult(null)
+    setSelectedLevel(null)
+  }
+
+  const dismissRetell = () => {
+    setRetellResult(null)
+    setSelectedLevel(null)
   }
 
   const handleSave = () => {
@@ -485,6 +635,65 @@ export function BulletInspector({
       ) : null}
     </InspectorSheet>
   )
+
+  const retellPanel =
+    retellResult && retellResult.roleId === roleId && retellResult.bulletId === bulletId ? (
+      <section className="inspector-deepen-evidence" aria-label="Re-tell level preview">
+        <p className="inspector-deepen-summary">
+          This reads as <strong>{LEVEL_SCOPE_PHRASES[retellResult.level]}</strong> — right?
+        </p>
+        {retellResult.rationale.trim() ? (
+          <p className="inspector-deepen-rewrite">{retellResult.rationale}</p>
+        ) : null}
+        <div className="inspector-read-section">
+          <p className="inspector-read-label label-tracked">Scope of ownership</p>
+          <div className="inspector-level-stepper" role="group" aria-label="Bullet scope level">
+            {BULLET_LEVEL_ORDER.map((lvl) => (
+              <button
+                key={lvl}
+                type="button"
+                className={`inspector-level-step${activeLevel === lvl ? ' is-selected' : ''}`}
+                aria-pressed={activeLevel === lvl}
+                onClick={() => setSelectedLevel(lvl)}
+              >
+                {LEVEL_SHORT_LABELS[lvl]}
+              </button>
+            ))}
+          </div>
+        </div>
+        {retellResult.rewrites.length > 0 ? (
+          <div className="inspector-read-section">
+            <p className="inspector-read-label label-tracked">
+              Re-told phrasings · presentation, not facts
+            </p>
+            <ul className="inspector-read-list">
+              {retellResult.rewrites.map((rewrite, index) => (
+                <li key={`rewrite:${index}`}>{rewrite}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        <Actions>
+          <button type="button" className="inspector-btn primary" onClick={handleConfirmLevel}>
+            {activeLevel === retellResult.level
+              ? 'Confirm level'
+              : `Set level to ${activeLevel ? LEVEL_SHORT_LABELS[activeLevel] : ''}`}
+          </button>
+          {activeLevel && activeLevel !== retellResult.level ? (
+            <button
+              type="button"
+              className="inspector-btn"
+              onClick={() => void handleRetell(activeLevel)}
+            >
+              Re-tell at {LEVEL_SHORT_LABELS[activeLevel]}
+            </button>
+          ) : null}
+          <button type="button" className="inspector-btn" onClick={dismissRetell}>
+            Dismiss
+          </button>
+        </Actions>
+      </section>
+    ) : null
 
   if (editing) {
     return (
@@ -625,12 +834,22 @@ export function BulletInspector({
         <MetricsRows metrics={bullet.metrics} />
         <BulletListSection label="Technologies" items={bullet.technologies} />
         <BulletTagsSection items={bullet.tags} />
+        {bullet.level ? (
+          <LevelReadout level={bullet.level} rationale={bullet.level_rationale} />
+        ) : null}
         {deepenExplanation ? <DeepenEvidence explanation={deepenExplanation} /> : null}
+        {retellPanel}
         {deepenStatus === 'failed' && deepenEntry?.lastError ? (
           <p className="inspector-warning" role="alert">
             {deepenEntry.lastError}
           </p>
         ) : null}
+        {retellStatus === 'failed' && retellError ? (
+          <p className="inspector-warning" role="alert">
+            {retellError}
+          </p>
+        ) : null}
+        {levelNudge ? <p className="inspector-level-nudge">{levelNudge}</p> : null}
         <Actions>
           <button type="button" className="inspector-btn primary" onClick={startEditing}>
             Edit bullet
@@ -648,6 +867,14 @@ export function BulletInspector({
             disabled={deepenDisabled}
           >
             {deepenLabel}
+          </button>
+          <button
+            type="button"
+            className="inspector-btn"
+            onClick={() => void handleRetell()}
+            disabled={retellDisabled}
+          >
+            {retellLabel}
           </button>
         </Actions>
       </SlotShell>

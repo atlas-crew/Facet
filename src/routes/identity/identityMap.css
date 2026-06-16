@@ -2299,6 +2299,67 @@
   color: color-mix(in srgb, var(--accent-violet) 72%, var(--text-primary));
   border-color: color-mix(in srgb, var(--accent-violet) 36%, var(--border-subtle));
 }
+/* Level (scope-of-ownership) is narrative interpretation — it borrows the violet accent the
+   `corrected` confidence chip already uses for the interpretation tone, kept distinct from the
+   evidence/confidence palette. */
+.inspector-level-readout {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.inspector-level-name {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.inspector-level-scope {
+  color: var(--text-tertiary);
+}
+.inspector-level-rationale {
+  margin: var(--space-1) 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.inspector-level-stepper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.inspector-level-step {
+  flex: 1 1 auto;
+  min-height: 28px;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.inspector-level-step:hover {
+  border-color: color-mix(in srgb, var(--accent-violet) 36%, var(--border-subtle));
+  color: var(--text-primary);
+}
+.inspector-level-step.is-selected {
+  background: color-mix(in srgb, var(--accent-violet) 12%, var(--bg-surface));
+  border-color: color-mix(in srgb, var(--accent-violet) 48%, var(--border-subtle));
+  color: color-mix(in srgb, var(--accent-violet) 72%, var(--text-primary));
+}
+.inspector-level-step:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 1px;
+}
+.inspector-level-nudge {
+  margin: var(--space-3) 0 0;
+  padding: var(--space-2) var(--space-3);
+  border-left: 2px solid color-mix(in srgb, var(--accent-violet) 40%, var(--border-subtle));
+  border-radius: 0 4px 4px 0;
+  background: color-mix(in srgb, var(--accent-violet) 5%, var(--bg-surface));
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
 .inspector-meta-row {
   display: flex;
   justify-content: space-between;

@@ -62,6 +62,27 @@ describe('identity workspace artifact (TASK-40)', () => {
     expect(snapshot.artifacts.identity.payload.identity).not.toBe(identity)
   })
 
+  it('round-trips an additive bullet level through capture and hydration (#38)', () => {
+    // level / level_source / level_rationale are additive optional fields. They survive without a
+    // migration only because the artifact is cloned wholesale, validated at the object-or-null
+    // boundary, and spread through the runtime normalizer — this asserts that end to end.
+    const identity = cloneIdentityFixture()
+    identity.roles[0].bullets[0].level = 'owns'
+    identity.roles[0].bullets[0].level_source = 'corrected'
+    identity.roles[0].bullets[0].level_rationale = 'Owned the rollout and on-call.'
+    useIdentityStore.setState({ currentIdentity: identity })
+
+    const snapshot = createWorkspaceSnapshotFromStores({ workspaceId: 'ws-1' })
+    expect(snapshot.artifacts.identity.payload.identity?.roles[0].bullets[0].level).toBe('owns')
+
+    resetIdentityStore()
+    applyWorkspaceSnapshotToStores(snapshot)
+    const restored = useIdentityStore.getState().currentIdentity!.roles[0].bullets[0]
+    expect(restored.level).toBe('owns')
+    expect(restored.level_source).toBe('corrected')
+    expect(restored.level_rationale).toBe('Owned the rollout and on-call.')
+  })
+
   it('captures a null identity when no model is loaded', () => {
     const snapshot = createWorkspaceSnapshotFromStores({ workspaceId: 'ws-1' })
     expect(snapshot.artifacts.identity.payload.identity).toBeNull()
