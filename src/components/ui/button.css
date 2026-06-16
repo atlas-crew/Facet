@@ -1,0 +1,133 @@
+/* Button / IconButton primitive — see ./README.md.
+ *
+ * Token-only. The `.facet-btn` namespace is intentionally separate from the
+ * legacy global `.btn-*` classes (removed in #76): those carry scoped overrides
+ * (e.g. `.preview-action-bar .btn-primary`) that would bleed into the primitive.
+ * Values mirror the canonical `.btn-*` block in index.css plus the variants the
+ * workspaces forked (danger, sm, pressed, icon). Font is inherited (--font-sans
+ * on the app root), matching the canonical buttons.
+ */
+
+.facet-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    opacity var(--duration-fast) var(--easing),
+    background var(--duration-fast) var(--easing),
+    border-color var(--duration-fast) var(--easing),
+    box-shadow var(--duration-fast) var(--easing),
+    transform var(--duration-fast) var(--easing);
+}
+
+.facet-btn:focus-visible {
+  outline: 2px solid var(--focus-ring-color);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--focus-ring-halo);
+}
+
+.facet-btn:disabled,
+.facet-btn[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* primary — solid, the dominant action */
+.facet-btn--primary {
+  padding: 8px 20px;
+  background: var(--text-primary);
+  color: var(--text-inverse);
+  border-color: transparent;
+  box-shadow: var(--shadow-xs);
+}
+
+.facet-btn--primary:hover:not(:disabled):not([aria-disabled='true']) {
+  opacity: 0.85;
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
+}
+
+.facet-btn--primary:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: var(--shadow-xs);
+}
+
+/* secondary — bordered neutral (default) */
+.facet-btn--secondary {
+  background: transparent;
+  color: var(--text-secondary);
+  border-color: var(--border-default);
+}
+
+.facet-btn--secondary:hover:not(:disabled):not([aria-disabled='true']) {
+  background: var(--bg-surface-hover);
+  border-color: var(--border-strong);
+}
+
+/* ghost — borderless, tertiary; inline actions */
+.facet-btn--ghost {
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-tertiary);
+  border-color: transparent;
+}
+
+.facet-btn--ghost:hover:not(:disabled):not([aria-disabled='true']) {
+  color: var(--text-secondary);
+  background: var(--bg-surface-hover);
+}
+
+/* danger — bordered, critical accent. Uses the canonical --error token
+   (the forks referenced --status-critical, which is undefined repo-wide). */
+.facet-btn--danger {
+  background: transparent;
+  color: var(--error);
+  border-color: var(--border-default);
+}
+
+.facet-btn--danger:hover:not(:disabled):not([aria-disabled='true']) {
+  color: var(--error);
+  border-color: color-mix(in srgb, var(--error) 25%, var(--border-default));
+  background: color-mix(in srgb, var(--error) 10%, transparent);
+}
+
+/* size: sm (declared after variants so its padding/font-size win) */
+.facet-btn--sm {
+  padding: 4px 8px;
+  font-size: 11px;
+}
+
+/* pressed: toggle on-state (accent), from the pipeline -active treatment */
+.facet-btn--pressed {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+  background: var(--accent-primary-subtle);
+}
+
+.facet-btn--pressed:hover:not(:disabled):not([aria-disabled='true']) {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+  background: color-mix(in srgb, var(--accent-primary-subtle) 76%, var(--bg-surface) 24%);
+}
+
+/* icon: square; overrides variant padding */
+.facet-btn--icon {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+}
+
+.facet-btn--icon.facet-btn--sm {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+}

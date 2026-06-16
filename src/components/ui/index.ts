@@ -10,6 +10,6 @@
 //   import { Button } from '../../components/ui'
 //
 // Primitives land in their own issues (Button #68, SectionLabel #69,
-// StatusBadge #70). This placeholder keeps the module valid until the first
-// primitive is added, at which point it becomes `export * from './Button'`.
-export {}
+// StatusBadge #70).
+export { Button, IconButton } from './Button'
+export type { ButtonProps, IconButtonProps, ButtonVariant, ButtonSize } from './Button'
