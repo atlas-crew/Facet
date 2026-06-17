@@ -1,0 +1,41 @@
+/* StatusBadge primitive — see ./README.md.
+ * Mono small-caps state badge. Each tone sets a single `--badge-color`, which
+ * the base reads for text, a 14% tint background, and a 30% border — so the
+ * tinting recipe lives in one place rather than repeating per tone. Token-only.
+ */
+
+.facet-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--badge-color);
+  background: color-mix(in srgb, var(--badge-color) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--badge-color) 30%, transparent);
+}
+
+.facet-badge--success {
+  --badge-color: var(--success);
+}
+
+.facet-badge--warning {
+  --badge-color: var(--warning);
+}
+
+.facet-badge--error {
+  --badge-color: var(--error);
+}
+
+.facet-badge--info {
+  --badge-color: var(--accent-primary);
+}
+
+.facet-badge--neutral {
+  --badge-color: var(--text-tertiary);
+}
