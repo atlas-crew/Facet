@@ -13,3 +13,5 @@
 // StatusBadge #70).
 export { Button, IconButton } from './Button'
 export type { ButtonProps, IconButtonProps, ButtonVariant, ButtonSize } from './Button'
+export { SectionLabel } from './SectionLabel'
+export type { SectionLabelProps, SectionLabelTone } from './SectionLabel'
