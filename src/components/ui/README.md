@@ -25,7 +25,10 @@ clearing the four-condition gate in the
 2. **Variants via props, never class forks.** A new visual variation is a prop
    value (`<Button variant="danger">`), reviewed against the documented set —
    not a new `.{workspace}-btn-*` class. Re-forking is the exact failure this
-   layer corrects.
+   layer corrects. The one exception is a genuinely *contextual* value that
+   isn't a fixed variant (e.g. a parent-provided `--band-color` on an identity
+   eyebrow): pass it via `style`, which overrides the tone class — don't add a
+   tone per context.
 3. **Style from tokens.** Colors, spacing, typography, and radius come from the
    CSS custom properties in `src/index.css`. No hardcoded hex, no off-grid
    spacing (4px grid), radius from the 4/6/8px scale. Colocate styles in a

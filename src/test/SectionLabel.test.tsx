@@ -25,6 +25,21 @@ describe('SectionLabel', () => {
     expect(screen.getByText('Apply').tagName).toBe('DIV')
   })
 
+  it('supports heading and form-label elements found in real usage', () => {
+    render(
+      <>
+        <SectionLabel as="h2">Match</SectionLabel>
+        <SectionLabel as="label" htmlFor="field-1">
+          Vector
+        </SectionLabel>
+      </>,
+    )
+    expect(screen.getByText('Match').tagName).toBe('H2')
+    const label = screen.getByText('Vector')
+    expect(label.tagName).toBe('LABEL')
+    expect(label.getAttribute('for')).toBe('field-1')
+  })
+
   it('merges a passthrough className', () => {
     render(<SectionLabel className="identity-eyebrow">Interview</SectionLabel>)
     const el = screen.getByText('Interview')
