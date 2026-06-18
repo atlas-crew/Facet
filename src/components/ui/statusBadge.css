@@ -15,7 +15,12 @@
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--badge-color);
+  /* Blend the tone toward --text-primary (dark in light theme, bright in dark
+   * theme) so badge text clears WCAG AA (4.5:1) on the tint in BOTH themes — the
+   * raw token fails on the near-white light-mode tint (success was 2.82). Measured
+   * floors at 70%: light success 4.68, dark neutral 5.66; all tones pass.
+   * Re-verify if the semantic tokens are re-themed. */
+  color: color-mix(in srgb, var(--badge-color) 70%, var(--text-primary));
   background: color-mix(in srgb, var(--badge-color) 14%, transparent);
   border: 1px solid color-mix(in srgb, var(--badge-color) 30%, transparent);
 }
