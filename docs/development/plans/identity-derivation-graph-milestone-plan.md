@@ -38,16 +38,28 @@ Two corollaries, each load-bearing:
 | #40 Identity as first-class workspace artifact | ✅ shipped | persistence |
 | Thread 1 (#36) correction-driven staleness | ✅ shipped | Graph 2 (intra-identity) |
 | Thread 3 (#37) linear chain → consumption DAG | ✅ shipped | Graph 2 precision |
-| Thread 2 (#38) leveling re-tell | 🟡 design resolved; build phased (below) | the differentiated bet |
-| Graph 1 (#63) identity → artifact staleness | ⚪ filed; reserved scaffolding, no writer/reader | the user-visible payoff |
+| Phase 0 (#48, #49) terminal state + unified queue | ✅ shipped | host-workspace "done" |
+| Thread 2 (#38) leveling re-tell | 🟢 built — re-tell loop wired into `BulletInspector`; #38 open pending closure | the differentiated bet |
+| Graph 1 (#63) identity → artifact staleness | 🟡 partial — field-level writer (`identityFields`) + reader (`describeImpact`) live and surfaced in Research; cover-letter/prep stamp but don't surface; resume + `identityFingerprint` unwired | the user-visible payoff |
 | #41 privacy + encryption-at-rest | ⚪ open | platform gate (hosted only) |
 | Page consolidation (Import → Map) | ⚪ not started | UI, "cheap last step" |
-| M10 (#42–47) · M11 (#48–62) review debt | ⚪ 21 open | host-workspace polish |
+| M10 (#42–47) · M11 (#48–62) review debt | ⚪ 19 open | host-workspace polish |
 
 **The diagnosis in one line:** Graph 2 is live but produces staleness *inside* the identity
 workspace with no downstream payoff (Graph 1 dark) in a workspace with no "done" (C1). The
 milestone's one shipped user-facing behavior — staleness — currently reads as **noise without
 payoff**. The next increment's job is to make an *existing* cascade pay off, not to add a new one.
+
+> **Update — 2026-06-19 (status reconciled against code):** the table above is corrected and the
+> "Graph 1 dark" diagnosis is now **historical**. Phase 0 (#48/#49) shipped — terminal state +
+> unified queue, both closed. Thread 2's re-tell loop is built (`level` axis on bullets, the
+> `retellIdentityBullet` generator, the `BulletInspector` affordance); #38 is open only for
+> closure. Graph 1's field-level cascade is **live and surfaced in Research**: `identityFields` is
+> stamped on cover letters, prep decks, and research thesis/runs, and `describeImpact` drives the
+> Research staleness-review + per-artifact refresh flow. The remaining Graph 1 gap is narrow —
+> surface staleness in the cover-letter/prep UIs (they stamp but never read), wire the resume
+> artifact (it never stamps `identityFields`), and decide whether `identityFingerprint` is still
+> needed or is superseded by field-path matching. See #63 for the re-scoped detail.
 
 ---
 
