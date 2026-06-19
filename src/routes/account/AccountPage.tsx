@@ -3,6 +3,7 @@ import { Shield, Clock, Zap, AlertCircle, LogOut } from 'lucide-react'
 import { useHostedAppStore } from '../../store/hostedAppStore'
 import { getFacetDeploymentMode, signOutHostedSession } from '../../utils/hostedSession'
 import { reloadPage } from '../../utils/windowLocation'
+import { Button } from '../../components/ui'
 import './account.css'
 
 // Human-readable labels for the hosted AI Pro bundle. Some labels group multiple
@@ -129,15 +130,14 @@ export function AccountPage() {
             <dd>{actor.email}</dd>
           </dl>
           <div className="account-actions">
-            <button
-              className="btn-secondary"
-              type="button"
+            <Button
+              variant="secondary"
               onClick={() => void handleSignOut()}
               disabled={signOutLoading}
             >
               <LogOut size={16} strokeWidth={1.75} />
               {signOutLoading ? 'Signing out…' : 'Sign out'}
-            </button>
+            </Button>
           </div>
           {signOutError ? (
             <p className="account-error" role="alert">
@@ -166,14 +166,13 @@ export function AccountPage() {
                 ? 'Additional 90-day pass purchased. It will start on first AI use after current access ends.'
                 : 'Purchase another pass to extend your access. The next pass starts on first AI use after current access ends.'}
             </p>
-            <button
-              className="btn-secondary"
-              type="button"
+            <Button
+              variant="secondary"
               onClick={() => void handleCheckout()}
               disabled={checkoutLoading}
             >
               {checkoutLoading ? 'Starting checkout…' : `Extend Access — ${AI_PRO_PRICE_LABEL}`}
-            </button>
+            </Button>
             <p className="account-note">
               7-day refund policy. Contact{' '}
               <a href="mailto:support@myfacets.cv">support@myfacets.cv</a> for assistance.
@@ -183,16 +182,15 @@ export function AccountPage() {
           <>
             <div className="account-status account-status-active">Purchased</div>
             <p>Your AI Pro pass is ready. The 90-day access window starts on first AI use.</p>
-            <button
-              className="btn-secondary"
-              type="button"
+            <Button
+              variant="secondary"
               onClick={() => void handleCheckout()}
               disabled={checkoutLoading}
             >
               {checkoutLoading
                 ? 'Starting checkout…'
                 : `Purchase another pass — ${AI_PRO_PRICE_LABEL}`}
-            </button>
+            </Button>
             <p className="account-note">
               7-day refund policy. Contact{' '}
               <a href="mailto:support@myfacets.cv">support@myfacets.cv</a> for assistance.
@@ -210,16 +208,15 @@ export function AccountPage() {
                 ? 'Your AI Pro access has expired. Purchase a new pass to continue using AI features.'
                 : 'Unlock all AI-powered features for 90 days.'}
             </p>
-            <button
-              className="btn-primary"
-              type="button"
+            <Button
+              variant="primary"
               onClick={() => void handleCheckout()}
               disabled={checkoutLoading}
             >
               {checkoutLoading
                 ? 'Starting checkout…'
                 : `Get AI Pro — ${AI_PRO_PRICE_LABEL} for 90 days`}
-            </button>
+            </Button>
             <p className="account-note">
               7-day refund policy. <a href="/terms#6-ai-pro-access-and-payment">See terms</a> for
               details.
