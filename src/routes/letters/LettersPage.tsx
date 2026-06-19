@@ -20,9 +20,11 @@ import { useIdentityStore } from '../../store/identityStore'
 import { useJDAnalysisStore } from '../../store/jdAnalysisStore'
 import { usePipelineStore } from '../../store/pipelineStore'
 import { useResumeStore } from '../../store/resumeStore'
-import type { CoverLetter, CoverLetterContent, CoverLetterParagraph, CoverLetterTemplate } from '../../types/coverLetter'
+import type { CoverLetterContent, CoverLetterParagraph, CoverLetterTemplate } from '../../types/coverLetter'
 import type { PipelineEntry } from '../../types/pipeline'
 import type { ResumeEntity } from '../../types/resume'
+import { sanitizeArtifactStalenessReview } from '../../types/artifactMeta'
+import type { ArtifactStalenessReview } from '../../types/artifactMeta'
 import { resolveCoverLetterCandidateMeta } from '../../utils/coverLetterCandidate'
 import {
   regenerateCoverLetterForEntry,
@@ -37,6 +39,7 @@ import { renderLetterAsPdf } from '../../utils/letterPdfRenderer'
 import { buildCoverLetterDocxFileName, buildCoverLetterPdfFileName } from '../../utils/pdfFormatting'
 import { downloadBlob } from '../../utils/downloadBlob'
 import { resolveTheme } from '../../themes/theme'
+import { resolveLetterDrift } from './letterDrift'
 import './letters.css'
 
 const AI_ENDPOINT_DISABLED_MESSAGE = 'AI generation is disabled. Configure VITE_ANTHROPIC_PROXY_URL.'
@@ -75,52 +78,6 @@ function getLetterCreatedAt(template: CoverLetterTemplate) {
 
 function formatPipelineEntryLabel(entry: PipelineEntry) {
   return [entry.company, entry.role].filter(Boolean).join(' - ') || 'Untitled opportunity'
-}
-
-function resolveLetterDrift(
-  letter: CoverLetter | null,
-  pipelineEntry: PipelineEntry | null,
-  sourceResume: ResumeEntity | null,
-  currentPipelineResume: ResumeEntity | null,
-) {
-  if (!letter) return null
-
-  const pipelineResumeChanged = !!pipelineEntry?.resumeId && pipelineEntry.resumeId !== letter.sourceResumeId
-  const sourceResumeChanged = !!sourceResume && sourceResume.contentHash !== letter.sourceResumeHash
-  const currentPipelineResumeChanged =
-    !!currentPipelineResume && currentPipelineResume.contentHash !== letter.sourceResumeHash
-
-  if (pipelineResumeChanged && sourceResumeChanged) {
-    return {
-      title: 'Resume context changed since this letter was generated - regenerate?',
-      detail: 'The original source resume changed and the pipeline entry now points to a different resume.',
-    }
-  }
-
-  if (pipelineResumeChanged) {
-    return {
-      title: 'Pipeline resume link changed since this letter was generated - regenerate?',
-      detail: currentPipelineResumeChanged
-        ? 'The pipeline entry now points to a different resume than this letter used.'
-        : 'The pipeline entry now points to another resume record with matching content.',
-    }
-  }
-
-  if (!sourceResume) {
-    return {
-      title: 'Source resume is unavailable - regenerate?',
-      detail: 'Choose a current resume in the generator section before replacing the draft.',
-    }
-  }
-
-  if (sourceResumeChanged) {
-    return {
-      title: 'Resume has changed since this letter was generated - regenerate?',
-      detail: 'Regenerate from the current resume if you want the letter to reflect the latest edits.',
-    }
-  }
-
-  return null
 }
 
 function resolveDefaultResumeId(
@@ -221,7 +178,8 @@ function LettersDisclosure({
 }
 
 export function LettersPage() {
-  const { letters, templates, createLetter, updateTemplate, deleteTemplate } = useCoverLetterStore()
+  const { letters, templates, createLetter, updateLetter, updateTemplate, deleteTemplate } =
+    useCoverLetterStore()
   const pipelineEntries = usePipelineStore((state) => state.entries)
   const updatePipelineEntry = usePipelineStore((state) => state.updateEntry)
   const jdAnalyses = useJDAnalysisStore((state) => state.analyses)
@@ -291,8 +249,15 @@ export function LettersPage() {
         activeLetterPipelineEntry,
         activeLetterSourceResume,
         activeLetterPipelineResume,
+        currentIdentity?.model_revision ?? null,
       ),
-    [activeLetter, activeLetterPipelineEntry, activeLetterPipelineResume, activeLetterSourceResume],
+    [
+      activeLetter,
+      activeLetterPipelineEntry,
+      activeLetterPipelineResume,
+      activeLetterSourceResume,
+      currentIdentity?.model_revision,
+    ],
   )
   const editingKey = editDraft?.key ?? null
   const editDraftValue = editDraft?.value ?? ''
@@ -756,6 +721,30 @@ export function LettersPage() {
     await handleGenerateForContext(activeLetterPipelineEntry, activeLetterRegenerationResume, researchDraft)
   }
 
+  // "Keep as-is": the user reviewed the identity-drift gap and chose the current draft. Record an
+  // accepted-current review keyed to the current revision so the banner stays quiet until the next
+  // identity change (decision is intentionally not a permanent mute — see #63).
+  const handleDismissIdentityDrift = () => {
+    if (!activeLetter) return
+    const currentRevision = currentIdentity?.model_revision ?? null
+    const artifactRevision = activeLetter.identityVersion
+    if (currentRevision === null || artifactRevision === null) return
+    const review = sanitizeArtifactStalenessReview({
+      decision: 'accepted-current',
+      reviewedAt: new Date().toISOString(),
+      reviewedIdentityVersion: currentRevision,
+      artifactIdentityVersionAtReview: artifactRevision,
+      mutationLabel: 'Identity updated',
+      mutationFields: [],
+      mutationFromRevision: artifactRevision,
+      mutationToRevision: currentRevision,
+      reason: 'Kept the existing letter despite newer Identity context.',
+    } satisfies ArtifactStalenessReview)
+    if (review) {
+      updateLetter(activeLetter.id, { stalenessReview: review })
+    }
+  }
+
   const handleRefineParagraph = async (paragraph: CoverLetterParagraph) => {
     if (!activeTemplate || refiningParagraphId) return
     const feedback = paragraph.refinement?.trim()
@@ -1092,15 +1081,26 @@ export function LettersPage() {
                   <h4 className="letters-drift-callout-title">{activeLetterDrift.title}</h4>
                   <span className="letters-drift-callout-detail">{activeLetterDrift.detail}</span>
                 </div>
-                <button
-                  className="letters-btn letters-btn-sm"
-                  type="button"
-                  onClick={() => void handleRegenerateActiveLetter()}
-                  disabled={!canRegenerateActiveLetter}
-                  title={regenerateDisabledReason}
-                >
-                  <RefreshCw size={14} /> Regenerate
-                </button>
+                <div className="letters-drift-callout-actions">
+                  <button
+                    className="letters-btn letters-btn-sm"
+                    type="button"
+                    onClick={() => void handleRegenerateActiveLetter()}
+                    disabled={!canRegenerateActiveLetter}
+                    title={regenerateDisabledReason}
+                  >
+                    <RefreshCw size={14} /> Regenerate
+                  </button>
+                  {activeLetterDrift.kind === 'identity' ? (
+                    <button
+                      className="letters-btn letters-btn-sm"
+                      type="button"
+                      onClick={handleDismissIdentityDrift}
+                    >
+                      Keep as-is
+                    </button>
+                  ) : null}
+                </div>
               </div>
             ) : null}
 
