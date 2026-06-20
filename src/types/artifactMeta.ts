@@ -8,14 +8,15 @@ import type { ProfessionalIdentityV3 } from '../identity/schema'
  * time. When `currentIdentity.model_revision > artifact.identityVersion`, the artifact was
  * generated against an earlier identity and may benefit from a fresh-context refresh.
  *
- * `identityFingerprint` is an optional content hash reserved for field-level staleness
- * tracking (e.g., a cover letter that only cares whether the identity fields it *referenced*
- * changed). Not populated in MVP — TASK-168 will layer in that precision.
+ * Field-level staleness precision (the original TASK-168 "identityFingerprint" value-hash idea)
+ * shipped instead as **field-path matching**: artifacts record the identity field-paths their
+ * generator consumed in `identityFields`, and `describeImpact` prefers those over coarse revision
+ * comparison. The reserved `identityFingerprint` value-hash was never written or read and is
+ * superseded by that mechanism, so it is intentionally not part of this type.
  */
 export interface ArtifactMetadata {
   createdAt: string
   identityVersion: number
-  identityFingerprint?: string
 }
 
 export type ArtifactImpactType = 'thesis' | 'run' | 'prep-deck' | 'cover-letter'
