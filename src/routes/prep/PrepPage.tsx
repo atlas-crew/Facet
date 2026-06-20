@@ -27,6 +27,9 @@ import { parsePrepImport } from '../../utils/prepImport'
 import { buildPrepIdentityContext } from '../../utils/prepIdentityContext'
 import { buildPrepContextGapIdentityDraft } from '../../utils/prepContextGapDraft'
 import { collectIdentityFieldsFromJdSkillMatches } from '../../utils/identityFieldDeps'
+import { sanitizeArtifactStalenessReview } from '../../types/artifactMeta'
+import type { ArtifactStalenessReview } from '../../types/artifactMeta'
+import { resolveDeckIdentityDrift } from './deckDrift'
 import { generateInterviewPrep } from '../../utils/prepGenerator'
 import { PREP_ANSWER_TEMPLATE_MAX_LENGTH } from '../../utils/prepAnswerTemplate'
 import { formatPrepRoundNumberLabel } from '../../utils/prepRoundLabel'
@@ -577,6 +580,10 @@ export function PrepPage() {
   const activeDeck = useMemo(
     () => decks.find((deck) => deck.id === activeDeckId) ?? null,
     [decks, activeDeckId],
+  )
+  const activeDeckIdentityDrift = useMemo(
+    () => resolveDeckIdentityDrift(activeDeck, currentIdentity?.model_revision ?? null),
+    [activeDeck, currentIdentity?.model_revision],
   )
   const updateEditGroupOpen = useCallback(
     (updater: (current: EditGroupOpenState) => EditGroupOpenState) => {
@@ -1839,6 +1846,10 @@ export function PrepPage() {
         jdAnalysisModelVersion: jdAnalysis.modelVersion,
         jdTextHash: jdAnalysis.jdTextHash,
         generatedAt: new Date().toISOString(),
+        // Re-stamp the identity version so a regenerate clears identity-staleness (the inline regen
+        // path historically advanced identityFields but not identityVersion). updateDeck auto-clears
+        // any prior stalenessReview when a newer version lands.
+        identityVersion: resolvePrepGenerationIdentityVersion(jdAnalysis, currentIdentity),
         identityFields: collectIdentityFieldsFromJdSkillMatches(jdAnalysis),
       })
       // Preserve cards the user authored or pulled from other sources; regenerate only replaces AI cards.
@@ -1868,6 +1879,30 @@ export function PrepPage() {
     replaceDeckCards,
     updateDeck,
   ])
+
+  // "Keep as-is": the user reviewed the identity-drift gap and chose the current prep set. Record an
+  // accepted-current review keyed to the current revision so the banner stays quiet until the next
+  // identity change (patching stalenessReview alone is preserved by updateDeck; see #63).
+  const handleDismissDeckIdentityDrift = useCallback(() => {
+    if (!activeDeck) return
+    const currentRevision = currentIdentity?.model_revision ?? null
+    const artifactRevision = activeDeck.identityVersion
+    if (currentRevision === null || artifactRevision === undefined) return
+    const review = sanitizeArtifactStalenessReview({
+      decision: 'accepted-current',
+      reviewedAt: new Date().toISOString(),
+      reviewedIdentityVersion: currentRevision,
+      artifactIdentityVersionAtReview: artifactRevision,
+      mutationLabel: 'Identity updated',
+      mutationFields: [],
+      mutationFromRevision: artifactRevision,
+      mutationToRevision: currentRevision,
+      reason: 'Kept the existing prep set despite newer Identity context.',
+    } satisfies ArtifactStalenessReview)
+    if (review) {
+      updateDeck(activeDeck.id, { stalenessReview: review })
+    }
+  }, [activeDeck, currentIdentity?.model_revision, updateDeck])
 
   return (
     <div className="prep-page">
@@ -2390,6 +2425,28 @@ export function PrepPage() {
                 Edit research notes
               </button>
             ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      {activeDeckIdentityDrift ? (
+        <div className="prep-drift-callout" role="alert">
+          <div className="prep-drift-callout-body">
+            <h4 className="prep-drift-callout-title">{activeDeckIdentityDrift.title}</h4>
+            <span className="prep-drift-callout-detail">{activeDeckIdentityDrift.detail}</span>
+          </div>
+          <div className="prep-drift-callout-actions">
+            <button
+              type="button"
+              className="prep-btn prep-btn-primary"
+              onClick={() => void handleRegenerateWithGapAnswers()}
+              disabled={isGenerating || isGapModalOpen}
+            >
+              {isGenerating ? 'Refreshing…' : 'Regenerate'}
+            </button>
+            <button type="button" className="prep-btn" onClick={handleDismissDeckIdentityDrift}>
+              Keep as-is
+            </button>
           </div>
         </div>
       ) : null}
