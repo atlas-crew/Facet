@@ -117,6 +117,33 @@ describe('resolveAiAccess', () => {
     })
   })
 
+  it('honors an injected clock for the access-window check (no real-time time-bomb)', async () => {
+    const { resolveHostedAiAccess } =
+      // @ts-expect-error runtime-tested local proxy module
+      await import('../../proxy/aiAccess.js')
+
+    const state = {
+      entitlement: {
+        planId: 'ai-pro',
+        status: 'active',
+        source: 'stripe',
+        features: ['research.search'],
+        effectiveThrough: '2026-06-12T12:00:00.000Z',
+      },
+    }
+
+    // Injected "now" before the window closes → allowed, regardless of real wall-clock. With the
+    // pre-fix `new Date()` comparison this assertion fails once real time passes 2026-06-12.
+    expect(
+      resolveHostedAiAccess(state, 'research.search', new Date('2026-03-14T12:00:00.000Z')),
+    ).toEqual({ allowed: true, reason: null })
+
+    // Injected "now" after the window → expired, proving the decision uses the injected clock.
+    expect(
+      resolveHostedAiAccess(state, 'research.search', new Date('2026-09-01T12:00:00.000Z')),
+    ).toEqual({ allowed: false, reason: 'access_expired' })
+  })
+
   it('allows paid hosted AI features for active entitlements', () => {
     expect(resolveAiAccess(hostedContext(), 'research.search')).toEqual({
       allowed: true,

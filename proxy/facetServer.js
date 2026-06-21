@@ -1742,12 +1742,13 @@ export function createFacetServer(options = {}) {
             actor.tenantId,
             actor.accountId,
           )
+          const nowMs = normalizeTimestampMs(options.billingNow?.() ?? options.now?.(), Date.now())
           const billingState = await activatePaidPassForAiUse({
             billingStore,
             billingState: loadedBillingState,
-            nowMs: normalizeTimestampMs(options.billingNow?.() ?? options.now?.(), Date.now()),
+            nowMs,
           })
-          const access = resolveHostedAiAccess(billingState, feature)
+          const access = resolveHostedAiAccess(billingState, feature, new Date(nowMs))
           if (!access.allowed) {
             operationsMonitor.record('ai', 'denied', {
               reason: access.reason,
