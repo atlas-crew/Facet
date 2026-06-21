@@ -115,6 +115,33 @@ identity:
    values."
 4. If D: surface to product/architecture decision before shipping.
 
+## Identity → Artifact Staleness Scope (Graph 1)
+
+The outward staleness cascade — a correction to canonical identity flags the
+*derived artifacts* that consumed it (see the derivation-graph roadmap's "two
+staleness graphs, one mechanism") — operates at two precisions:
+
+- **Field-level** (`identityFields` + `describeImpact`) — the artifact records
+  the identity field-paths its generator consumed; a change to those paths
+  flags it stale. This is the precise mechanism, surfaced in the Research,
+  cover-letter, and prep-deck UIs. (The original TASK-168 `identityFingerprint`
+  value-hash was superseded by this field-path matching and removed.)
+- **Version-level** (`identityVersion`) — coarse "generated against an earlier
+  identity revision" comparison, used where field-paths don't apply.
+
+**The resume is intentionally excluded from the field-level cascade.** It is
+not an `ArtifactImpactType` (`'thesis' | 'run' | 'prep-deck' | 'cover-letter'`)
+and is absent from `StalenessSurveyInput` by design. Unlike the cover letter
+and prep deck — AI generators that *consume* identity field-paths — the resume
+is **assembled deterministically from `ResumeData`** (the canonical component
+library) by the engine, so there are no identity field-paths to record and
+`identityFields` has nothing to point at. The resume still carries a coarse
+`identityVersion` (stamped at build, `BuildPage`), and its identity drift
+surfaces *indirectly*: a rebuilt resume's content hash changes, which the
+cover-letter resume-drift banner already flags on any letter built from it. A
+direct "identity changed since this resume was built" signal, if wanted later,
+belongs in the Build flow on `identityVersion` — not as `identityFields` wiring.
+
 ## Related Documents
 
 - `docs/architecture/facet-workspace-topology.md` — workspace
