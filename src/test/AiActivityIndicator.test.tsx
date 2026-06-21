@@ -17,6 +17,8 @@ describe('AiActivityIndicator', () => {
     expect(container.firstChild).not.toBeNull()
     expect(container.textContent).toBe('')
     expect(container.querySelector('.ai-activity-indicator-bar')).toBeNull()
+    // Idle indicator must not be a live region — otherwise it collides with page status banners.
+    expect(screen.queryByRole('status')).toBeNull()
   })
 
   it('renders a live status message when active', () => {

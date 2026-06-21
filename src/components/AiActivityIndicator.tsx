@@ -18,7 +18,10 @@ export function AiActivityIndicator({
   ].filter(Boolean).join(' ')
 
   return (
-    <span className={classes} role="status">
+    // Only a live region while there's something to announce. An idle indicator renders an empty
+    // span; keeping role="status" on it pollutes the a11y tree and collides with page-level status
+    // banners (two role="status" nodes break single-element getByRole('status') queries).
+    <span className={classes} role={active ? 'status' : undefined}>
       {active ? (
         <>
           <span className="ai-activity-indicator-row">
