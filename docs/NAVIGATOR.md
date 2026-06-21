@@ -103,6 +103,7 @@ Design notes and rollout plans live under `development/design/`. Key identity-ex
 | [Thread 2 — Leveling Axis & Re-tell Loop (spine)](development/design/leveling-axis-and-retell-loop-thread-2-design.md)             | First-class `level` axis on bullets (mirrors skill-depth provenance); re-tell as deepen sibling; evidence-vs-narrative guardrail   |
 | [Identity as a Workspace Artifact](development/design/identity-as-workspace-artifact-design.md)                                    | Promote identity from tier-1-only store to a durable snapshot artifact (backup/restore, import-merge, hosted sync); singleton merge semantics |
 | [Shepherding — Extraction Loops & Correction Flow](development/design/shepherding-design-extraction-loops-correction-flow-architecture.md) | Correction-over-blank-box principle, free-context sources, per-stage extraction moments, and the identity→artifact impact graph   |
+| [AI Action Verbs & the Sharpen Mechanic](development/design/ai-action-verbs-and-sharpen-mechanic.md) | Three generation modes (self-aware incremental / fresh / blind self-critique); Sharpen as the default quality verb; Refresh / Start over / Deepen / Polish vocabulary; quality-vs-safety axes with version-history rollback; the #31 AI-action styling standard |
 
 ### Active Refactors
 
