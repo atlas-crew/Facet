@@ -1,0 +1,30 @@
+name: Auto-merge
+
+# Enables auto-merge on every non-draft PR, so it lands automatically once the
+# required checks (CI matrix + CodeQL) pass. The merge is performed by GitHub
+# under GITHUB_TOKEN — which is NOT a ruleset bypass actor, so it cannot skip
+# required checks or the rebase-only policy. Agents never merge (that's blocked
+# in .claude/settings.json); this workflow is the only thing that does.
+#
+# No human review gate: the PR is the durable decision record (see the PR
+# template), CI + CodeQL + the claude-code-review bot are the automated gates,
+# and review is post-merge via the PR history.
+
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  enable-auto-merge:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enable auto-merge (rebase)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: gh pr merge --auto --rebase "$PR_URL"
