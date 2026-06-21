@@ -6,7 +6,10 @@ export function isFacetAiFeatureKey(value) {
   return typeof value === 'string' && FACET_AI_FEATURE_KEYS.includes(value)
 }
 
-export function resolveHostedAiAccess(state, feature) {
+// `now` is injected so access decisions use the same clock as pass activation. Defaulting to
+// wall-clock is a time-bomb: a freshly activated pass reads as `access_expired` once real time
+// passes its (mock-clock) expiry. The AI request path passes the request's resolved `now`.
+export function resolveHostedAiAccess(state, feature, now = new Date()) {
   const entitlement = state?.entitlement
   if (
     !entitlement ||
@@ -28,7 +31,7 @@ export function resolveHostedAiAccess(state, feature) {
 
   if (
     entitlement.status === 'expired' ||
-    (entitlement.effectiveThrough && new Date(entitlement.effectiveThrough) < new Date())
+    (entitlement.effectiveThrough && new Date(entitlement.effectiveThrough) < now)
   ) {
     return {
       allowed: false,
