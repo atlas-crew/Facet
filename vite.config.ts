@@ -10,6 +10,11 @@ export default defineConfig({
   plugins: [react()],
   test: {
     exclude: [...configDefaults.exclude, 'tests/**'],
+    // Full parallelism saturates CPU (worst on CI's lower core count), starving timing-sensitive
+    // async UI tests so they blow the default 5s timeout — order-dependent flakiness that only
+    // surfaces in the full suite. A generous timeout is free on the happy path (passing tests
+    // finish fast) and buys headroom under contention without slowing the suite.
+    testTimeout: 20000,
   },
   worker: {
     format: 'es',
