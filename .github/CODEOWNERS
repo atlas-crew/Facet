@@ -1,0 +1,54 @@
+# CODEOWNERS — review routing for Facet
+#
+# Owned paths require @NickCrew approval (repo ruleset: "Require review from
+# Code Owners"). Unowned paths need only green CI and can auto-merge.
+#
+# Last matching pattern wins, so the order below is deliberate:
+#   default (everything) -> exempt (low-risk) -> protected (re-asserted last).
+# A protected path anywhere in a diff therefore beats every exemption — a risky
+# file can't ride in under a "docs-only" PR.
+
+# ── Default: anything not matched below routes to review ─────────────────────
+*                       @NickCrew
+
+# ── Exempt: CI is sufficient (no owner = no required review) ─────────────────
+/docs/
+*.md
+/tests/
+/src/test/
+/site/
+/public/
+/brand/
+
+# ── (optional) trust CI + CodeQL + the claude-review bot for pure UI work ────
+# Uncomment to keep frontend churn out of the review queue. Start tight; loosen
+# only if the queue actually hurts.
+# /src/components/
+# /src/routes/
+# /src/themes/
+# /src/hooks/
+
+# ── Protected: re-asserted LAST so they win over the exemptions above ────────
+/proxy/                 @NickCrew   # trust boundary: auth, billing, AI, persistence, server
+/supabase/              @NickCrew   # schema & migrations
+/src/identity/          @NickCrew
+/src/routes/identity/   @NickCrew
+/src/routes/account/    @NickCrew
+/src/routes/admin/      @NickCrew
+/src/persistence/       @NickCrew
+/src/engine/            @NickCrew   # core generation — tests miss quality regressions
+/src/store/             @NickCrew   # subtle state bugs
+/.github/               @NickCrew   # CI / release config / this file
+/scripts/               @NickCrew
+/Dockerfile             @NickCrew
+/fly.toml               @NickCrew
+/vercel.json            @NickCrew
+/vite.config.ts         @NickCrew
+/vite.build.config.ts   @NickCrew
+/eslint.config.js       @NickCrew
+tsconfig*.json          @NickCrew
+/package.json           @NickCrew
+/pnpm-lock.yaml         @NickCrew
+/pnpm-workspace.yaml    @NickCrew
+/.npmrc                 @NickCrew
+.env.example            @NickCrew   # template changes shift runtime config
