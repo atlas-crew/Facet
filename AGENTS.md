@@ -76,11 +76,11 @@ Vitest and Testing Library are the test stack. Name tests `*.test.ts` or `*.test
 
 ## Commit & Pull Request Guidelines
 
-All changes land through pull requests. **Do not commit or push directly to `main`, and do not merge your own PR** — both are blocked for agents in `.claude/settings.json`, and `main` is review-gated. @NickCrew approves and merges. This overrides the default "commit directly to main" workflow.
+All changes land through pull requests — **do not commit or push directly to `main`** (blocked for agents in `.claude/settings.json`; `main` is ruleset-protected). PRs are the durable record and the CI gate, **not** a human review gate: every non-draft PR **auto-merges once required checks pass** (the CI matrix + CodeQL; the claude-review bot runs advisory). Nobody approves, and you don't merge your own PR — the auto-merge workflow does once CI is green. This overrides the default "commit directly to main" workflow.
 
 - **Branch in a worktree.** One branch per task in an isolated worktree under `.worktrees/`, so parallel agents don't collide.
 - **Conventional Commits, kept atomic.** `<type>(scope): summary`, e.g. `feat(research): add deep job research workflow`. This repo **rebase-merges**, so commits land on `main` as authored — keep each one bisectable and don't bundle unrelated churn.
-- **Routing decides who reviews.** Changes under protected paths (proxy, supabase, identity, persistence, engine, build config, deps — see `.github/CODEOWNERS`) require @NickCrew's review; a protected file anywhere in the diff sends the whole PR to review. Lower-risk paths (docs, tests, UI) need only green CI.
+- **Want a human to look before it lands? Open the PR as a draft.** Auto-merge skips drafts, so a draft PR waits. Mark the issue **Needs Review**, flag @NickCrew, and convert out of draft once cleared — then it auto-merges. This is the deliberate path for risky or uncertain work (e.g. `proxy/` auth/billing) where you want eyes first. (`.github/CODEOWNERS` is a non-enforcing map of which paths those are.)
 - **Write the PR as a decision record.** The template (`.github/PULL_REQUEST_TEMPLATE.md`) asks for *why*, *alternatives rejected*, and *verification evidence* (command + output) — fill them; a PR that restates the diff records nothing. Link the issue with `Closes #`.
 - **Verify before opening.** Run `pnpm run typecheck && pnpm run test` (and `pnpm run build` for route/render/persistence changes) and paste the output into the PR's Verification section. Add screenshots or recordings for visible UI changes.
 
@@ -95,4 +95,4 @@ Tasks live in **GitHub Issues**, on the **Facet** project board
 to create and update work; execution order (from `blocked-by` dependencies) comes
 from `gh seq`. Completed tasks remain under `backlog/` as a frozen archive.
 
-When you open a PR for an issue, set its board **Status** to **Needs Review** — that lane is @NickCrew's review queue. Approve-and-merge moves it to **Done**; requested changes send it back to **In Progress**.
+Open a PR for an issue (`Closes #`); it **auto-merges on green CI** and the issue moves to **Done** on merge. If you want human review *before* it lands, open the PR as a **draft** and set Status to **Needs Review** (that lane is @NickCrew's queue); converting out of draft once cleared lets it auto-merge.
