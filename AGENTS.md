@@ -76,7 +76,13 @@ Vitest and Testing Library are the test stack. Name tests `*.test.ts` or `*.test
 
 ## Commit & Pull Request Guidelines
 
-Recent history follows Conventional Commits such as `feat(research): add deep job research workflow` and `refactor(priority): simplify vectors to include-exclude`. Use the pattern `<type>(scope): summary`. Keep commits atomic and avoid bundling unrelated file churn. PRs should include a short summary, the linked GitHub issue, verification commands run, and screenshots or recordings for visible UI changes.
+All changes land through pull requests. **Do not commit or push directly to `main`, and do not merge your own PR** — both are blocked for agents in `.claude/settings.json`, and `main` is review-gated. @NickCrew approves and merges. This overrides the default "commit directly to main" workflow.
+
+- **Branch in a worktree.** One branch per task in an isolated worktree under `.worktrees/`, so parallel agents don't collide.
+- **Conventional Commits, kept atomic.** `<type>(scope): summary`, e.g. `feat(research): add deep job research workflow`. This repo **rebase-merges**, so commits land on `main` as authored — keep each one bisectable and don't bundle unrelated churn.
+- **Routing decides who reviews.** Changes under protected paths (proxy, supabase, identity, persistence, engine, build config, deps — see `.github/CODEOWNERS`) require @NickCrew's review; a protected file anywhere in the diff sends the whole PR to review. Lower-risk paths (docs, tests, UI) need only green CI.
+- **Write the PR as a decision record.** The template (`.github/PULL_REQUEST_TEMPLATE.md`) asks for *why*, *alternatives rejected*, and *verification evidence* (command + output) — fill them; a PR that restates the diff records nothing. Link the issue with `Closes #`.
+- **Verify before opening.** Run `pnpm run typecheck && pnpm run test` (and `pnpm run build` for route/render/persistence changes) and paste the output into the PR's Verification section. Add screenshots or recordings for visible UI changes.
 
 ## Security & Configuration Tips
 
@@ -88,3 +94,5 @@ Tasks live in **GitHub Issues**, on the **Facet** project board
 (<https://github.com/orgs/atlas-crew/projects/9>). Use `gh issue` and `gh project`
 to create and update work; execution order (from `blocked-by` dependencies) comes
 from `gh seq`. Completed tasks remain under `backlog/` as a frozen archive.
+
+When you open a PR for an issue, set its board **Status** to **Needs Review** — that lane is @NickCrew's review queue. Approve-and-merge moves it to **Done**; requested changes send it back to **In Progress**.
