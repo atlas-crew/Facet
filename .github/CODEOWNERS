@@ -1,12 +1,14 @@
-# CODEOWNERS — review routing for Facet
+# CODEOWNERS — sensitivity map for Facet (NON-ENFORCING)
 #
-# Owned paths require @NickCrew approval (repo ruleset: "Require review from
-# Code Owners"). Unowned paths need only green CI and can auto-merge.
+# NOTE: Facet uses full auto-merge with NO review gate, so this file does NOT
+# block any merge. `require_code_owner_review` is off in the branch ruleset.
+# It is kept as a map of sensitive paths and to auto-request @NickCrew as a
+# courtesy reviewer (a ping, never a block) on PRs authored by someone other
+# than the owner.
 #
-# Last matching pattern wins, so the order below is deliberate:
-#   default (everything) -> exempt (low-risk) -> protected (re-asserted last).
-# A protected path anywhere in a diff therefore beats every exemption — a risky
-# file can't ride in under a "docs-only" PR.
+# Last matching pattern wins: default (everything) -> exempt -> protected (last).
+# If a review gate is reintroduced later (e.g. a non-owner bot author plus
+# code-owner review), this routing becomes live again exactly as written.
 
 # ── Default: anything not matched below routes to review ─────────────────────
 *                       @NickCrew
