@@ -9,7 +9,9 @@ export default defineConfig({
   },
   plugins: [react()],
   test: {
-    exclude: [...configDefaults.exclude, 'tests/**'],
+    // '.worktrees/**' keeps Vitest from discovering duplicate test files in local git worktrees
+    // (e.g. `.worktrees/<branch>/src/test/*`), which otherwise run twice and pollute shared stores.
+    exclude: [...configDefaults.exclude, 'tests/**', '**/.worktrees/**'],
     // Full parallelism saturates CPU (worst on CI's lower core count), starving timing-sensitive
     // async UI tests so they blow the default 5s timeout — order-dependent flakiness that only
     // surfaces in the full suite. A generous timeout is free on the happy path (passing tests
