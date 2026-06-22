@@ -17,6 +17,7 @@ import {
   X,
 } from 'lucide-react'
 import { DropdownMenu } from '../../components/DropdownMenu'
+import { Button, IconButton } from '../../components/ui'
 import type {
   ResumeThemeOverrides,
   ResumeThemePresetId,
@@ -1427,20 +1428,19 @@ export function BuildPage() {
             per-job variant.
           </p>
           <div className="empty-state-actions">
-            <button
-              className="btn-primary"
-              type="button"
+            <Button
+              variant="primary"
               onClick={() => setImportExportMode('import')}
             >
               <Upload size={16} />
               Import Config
-            </button>
-            <button className="btn-secondary" type="button" onClick={() => resetToDefaults()}>
+            </Button>
+            <Button variant="secondary" onClick={() => resetToDefaults()}>
               Load Sample Data
-            </button>
-            <button className="btn-secondary" type="button" onClick={onAddVector}>
+            </Button>
+            <Button variant="secondary" onClick={onAddVector}>
               Start from Scratch
-            </button>
+            </Button>
           </div>
         </div>
       </main>
@@ -1576,21 +1576,19 @@ export function BuildPage() {
         </DropdownMenu>
 
         {generationState.source === 'pipeline' && (
-          <button
-            className="btn-secondary"
-            type="button"
+          <Button
+            variant="secondary"
             onClick={onOpenJobGeneration}
             aria-label="Generate for Job"
             title="Review the pipeline-linked JD analysis and vector plan"
           >
             <FileText size={14} />
             <span className="btn-label">Generate for Job</span>
-          </button>
+          </Button>
         )}
 
-        <button
-          className="btn-primary"
-          type="button"
+        <Button
+          variant="primary"
           onClick={onDownloadPdf}
           disabled={pdfRenderPending || Boolean(pdfRenderError)}
           title="Download PDF (⌘P)"
@@ -1598,7 +1596,7 @@ export function BuildPage() {
         >
           <Download size={16} />
           <span>Download PDF</span>
-        </button>
+        </Button>
       </div>
     </div>
   )
@@ -1844,14 +1842,13 @@ export function BuildPage() {
           <div className="modal-card jd-modal" ref={jdModalRef} tabIndex={-1}>
             <header className="modal-header">
               <h3 id="jd-analyzer-title">Job Description Analysis</h3>
-              <button
-                className="btn-ghost btn-icon-only"
-                type="button"
+              <IconButton
+                variant="ghost"
                 onClick={() => closeJdModal()}
                 aria-label="Close"
               >
                 <X size={18} />
-              </button>
+              </IconButton>
             </header>
             <div className="jd-modal-body">
               <p className="modal-intro">
@@ -1877,18 +1874,17 @@ export function BuildPage() {
                   </p>
                 )}
                 {jdAnalysisResult ? (
-                  <button className="btn-primary" type="button" onClick={onApplyPipelineJdAnalysis}>
+                  <Button variant="primary" onClick={onApplyPipelineJdAnalysis}>
                     Refresh from Pipeline Analysis
-                  </button>
+                  </Button>
                 ) : (
-                  <button
-                    className="btn-primary"
-                    type="button"
+                  <Button
+                    variant="primary"
                     onClick={onOpenPipelineEntry}
                     disabled={!generationState.pipelineEntryId}
                   >
                     Open Pipeline Entry
-                  </button>
+                  </Button>
                 )}
 
                 {jdAnalysisResult && (
@@ -2031,21 +2027,19 @@ export function BuildPage() {
                     </section>
 
                     <div className="jd-actions">
-                      <button
-                        className="btn-primary"
-                        type="button"
+                      <Button
+                        variant="primary"
                         disabled={!vectorPlan || plannedVectorIds.length === 0}
                         onClick={onContinueFromJdAnalysis}
                       >
                         Continue to assembly suggestions
-                      </button>
-                      <button
-                        className="btn-secondary"
-                        type="button"
+                      </Button>
+                      <Button
+                        variant="secondary"
                         onClick={() => closeJdModal()}
                       >
                         Close
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 )}
@@ -2065,9 +2059,9 @@ export function BuildPage() {
           <div className="modal-card reframe-modal" ref={reframeModalRef} tabIndex={-1}>
             <header className="modal-header">
               <h3 id="reframe-title">AI Reframe for {reframeResult.vectorLabel}</h3>
-              <button className="btn-ghost" type="button" onClick={() => setReframeResult(null)}>
+              <Button variant="ghost" aria-label="Close" onClick={() => setReframeResult(null)}>
                 <X size={18} />
-              </button>
+              </Button>
             </header>
 
             <div className="reframe-content">
@@ -2088,16 +2082,15 @@ export function BuildPage() {
             </div>
 
             <footer className="reframe-actions">
-              <button
-                className="btn-secondary"
-                type="button"
+              <Button
+                variant="secondary"
                 onClick={() => setReframeResult(null)}
               >
                 Discard
-              </button>
-              <button className="btn-primary" type="button" onClick={onApplyReframe}>
+              </Button>
+              <Button variant="primary" onClick={onApplyReframe}>
                 Apply as Variant
-              </button>
+              </Button>
             </footer>
           </div>
         </div>
