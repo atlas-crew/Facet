@@ -32,7 +32,7 @@ Read these before making structural changes. Architectural ADRs live in `docs/ar
 
 ## Build, Test, and Development Commands
 
-Use Node `>=20.19.0`. Facet is a **pnpm workspace** (`pnpm@10.32.1`, pinned via `packageManager`); a root install also covers `proxy/`. Do not run `npm install` — it would create a competing `package-lock.json` and drift off the pnpm lockfile.
+Use Node `>=24.0.0` (pinned to `24.14.0` in `.nvmrc`/`.node-version`). Facet is a **pnpm workspace** (`pnpm@10.32.1`, pinned via `packageManager`); a root install also covers `proxy/`. Do not run `npm install` — it would create a competing `package-lock.json` and drift off the pnpm lockfile.
 
 **Fresh-clone / cloud-agent setup** — `bash scripts/setup.sh` takes a bare checkout to a test-ready state: it pins the toolchain, installs with `--frozen-lockfile` (matching CI), seeds the gitignored `.env`/`proxy/.env` from their committed `.example` files, and runs a typecheck smoke check. Use it as the Codex cloud setup script (Environment → setup script), a `run:` step in a Claude Code action, or a devcontainer `postCreateCommand`. `FACET_SETUP_VERIFY=full` runs the whole gate (typecheck + lint + test); `none` skips verification.
 
