@@ -18,6 +18,7 @@ import {
   Sparkles,
 } from 'lucide-react'
 import { AiActivityIndicator } from '../../components/AiActivityIndicator'
+import { Button } from '../../components/ui'
 import { useIdentityStore } from '../../store/identityStore'
 import { useMatchStore } from '../../store/matchStore'
 import { usePipelineStore } from '../../store/pipelineStore'
@@ -509,41 +510,37 @@ export function MatchPage() {
         </div>
 
         <div className="match-header-actions">
-          <button
-            className="match-btn"
-            type="button"
+          <Button
+            variant="secondary"
             onClick={() => void navigate({ to: '/identity' })}
           >
             <Fingerprint size={16} />
             Open Identity
-          </button>
-          <button
-            className="match-btn match-btn-primary"
-            type="button"
+          </Button>
+          <Button
+            variant="primary"
             onClick={handleAssembleInBuild}
             disabled={!candidateReport}
           >
             <ArrowRight size={16} />
             Assemble in Build
-          </button>
-          <button
-            className="match-btn"
-            type="button"
+          </Button>
+          <Button
+            variant="secondary"
             onClick={handleSaveToPipeline}
             disabled={!currentReport || !currentJDAnalysis}
           >
             <Sparkles size={16} />
             Save to Pipeline
-          </button>
-          <button
-            className="match-btn"
-            type="button"
+          </Button>
+          <Button
+            variant="secondary"
             onClick={handleExport}
             disabled={!candidateReport}
           >
             <Download size={16} />
             Export Report
-          </button>
+          </Button>
         </div>
       </header>
 
@@ -584,16 +581,16 @@ export function MatchPage() {
               {isGenerating ? 'Analyzing job description.' : ''}
             </span>
           </div>
-          <button
-            className="match-btn match-btn-primary ai-working-button"
-            type="button"
+          <Button
+            variant="primary"
+            className="ai-working-button"
             onClick={() => void handleAnalyze()}
             disabled={isGenerating}
             aria-busy={isGenerating}
           >
             <Search size={16} />
             {isGenerating ? 'Analyzing…' : 'Generate Match Report'}
-          </button>
+          </Button>
           <AiActivityIndicator
             active={isGenerating}
             label="AI is analyzing the job description against your identity."
@@ -1031,14 +1028,13 @@ export function MatchPage() {
             Phase 1 starts here: load an identity model, paste a JD, and generate the first match
             report that Phase 2 material generators will consume.
           </p>
-          <button
-            className="match-btn match-btn-primary"
-            type="button"
+          <Button
+            variant="primary"
             onClick={() => void navigate({ to: '/identity' })}
           >
             <ArrowRight size={16} />
             Go to Identity
-          </button>
+          </Button>
         </section>
       )}
 
