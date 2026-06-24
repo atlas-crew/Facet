@@ -9,6 +9,9 @@ export default defineConfig({
   },
   plugins: [react()],
   test: {
+    // Global per-test reset (zustand store reset + storage/env/mock cleanup) so the suite is
+    // order-independent — see src/test/setup.ts and __mocks__/zustand.ts.
+    setupFiles: ['./src/test/setup.ts'],
     // '.worktrees/**' keeps Vitest from discovering duplicate test files in local git worktrees
     // (e.g. `.worktrees/<branch>/src/test/*`), which otherwise run twice and pollute shared stores.
     exclude: [...configDefaults.exclude, 'tests/**', '**/.worktrees/**'],
