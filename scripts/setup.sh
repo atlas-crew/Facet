@@ -23,13 +23,16 @@ cd "$ROOT_DIR"
 
 # Pinned toolchain versions are read from the repo, never hard-coded here, so
 # this script stays correct when package.json / .nvmrc bump.
-REQUIRED_NODE="$(cat .nvmrc)"                                   # e.g. 20.19.0
-PNPM_SPEC="$(node -p "require('./package.json').packageManager" 2>/dev/null || echo "")"  # e.g. pnpm@10.32.1
+REQUIRED_NODE="$(cat .nvmrc)"                                                            # e.g. 20.19.0
+PNPM_SPEC="$(node -p "require('./package.json').packageManager" 2>/dev/null || echo "")" # e.g. pnpm@10.32.1
 VERIFY="${1:-${FACET_SETUP_VERIFY:-smoke}}"
 
-log()  { printf '\033[1;36m[setup]\033[0m %s\n' "$*"; }
+log() { printf '\033[1;36m[setup]\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[setup]\033[0m %s\n' "$*" >&2; }
-die()  { printf '\033[1;31m[setup]\033[0m %s\n' "$*" >&2; exit 1; }
+die() {
+  printf '\033[1;31m[setup]\033[0m %s\n' "$*" >&2
+  exit 1
+}
 
 # ─── 1. Node ────────────────────────────────────────────────────────────────
 # Prefer nvm when present (matches scripts/tx-start-*.sh) so local runs land on
@@ -100,26 +103,41 @@ scaffold_env() {
 scaffold_env ".env.example" ".env"
 scaffold_env "proxy/.env.example" "proxy/.env"
 
-# ─── 5. Verify ──────────────────────────────────────────────────────────────
+# ─── 6. Install GH CLI ──────────────────────────────────────────────────────────────
+# Install the `gh` command with the `gh seq` sequencing extension
+gh_cli_version="2.95.0"
+gh_cli_filename="gh_${gh_cli_version}_linux_amd64"
+gh_cli_tarball="${gh_cli_filename}.tar.gz"
+
+cd /tmp
+curl -fsSL https://github.com/cli/cli/releases/download/v${gh_cli_version}/${gh_cli_tarball} >${gh_cli_tarball}
+tar -xvf ${gh_cli_tarball}
+mv ${gh_cli_filename} /usr/local/gh-cli
+chmod +x /usr/local/gh-cli/bin/gh
+ln -s /usr/local/bin/gh /usr/local/gh-cli/bin/gh
+cd -
+gh extension install NickCrew/gh-seq
+
+# ─── 6. Verify ──────────────────────────────────────────────────────────────
 # Catch a broken sandbox at setup time (network still on) rather than mid-task.
 # These need no network, so they're safe in Codex's offline agent phase too.
 case "$VERIFY" in
-  none)
-    log "Skipping verification (FACET_SETUP_VERIFY=none)"
-    ;;
-  smoke)
-    log "Smoke check: pnpm run typecheck"
-    pnpm run typecheck
-    ;;
-  full)
-    log "Full gate: typecheck + lint + test"
-    pnpm run typecheck
-    pnpm run lint
-    pnpm run test
-    ;;
-  *)
-    die "Unknown FACET_SETUP_VERIFY='$VERIFY' (expected none|smoke|full)"
-    ;;
+none)
+  log "Skipping verification (FACET_SETUP_VERIFY=none)"
+  ;;
+smoke)
+  log "Smoke check: pnpm run typecheck"
+  pnpm run typecheck
+  ;;
+full)
+  log "Full gate: typecheck + lint + test"
+  pnpm run typecheck
+  pnpm run lint
+  pnpm run test
+  ;;
+*)
+  die "Unknown FACET_SETUP_VERIFY='$VERIFY' (expected none|smoke|full)"
+  ;;
 esac
 
 log "Environment ready. Run: pnpm run test | typecheck | lint | build"
