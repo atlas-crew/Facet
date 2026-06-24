@@ -40,8 +40,27 @@
   cursor: not-allowed;
 }
 
-/* primary — solid, the dominant action */
+/* primary — the dominant action CTA (accent blue). Matches all 9 workspace forks
+ * and the Workspace Shell convention. The white emphasis treatment is `solid`. */
 .facet-btn--primary {
+  padding: 8px 20px;
+  background: var(--accent-primary);
+  color: var(--text-inverse);
+  border-color: transparent;
+  box-shadow: var(--shadow-xs);
+}
+
+.facet-btn--primary:hover:not(:disabled):not([aria-disabled='true']) {
+  background: var(--accent-primary-hover);
+  box-shadow: var(--shadow-sm);
+}
+
+.facet-btn--primary:active:not(:disabled) {
+  box-shadow: var(--shadow-xs);
+}
+
+/* solid — white emphasis button (e.g. Download PDF); the legacy `.btn-primary` look */
+.facet-btn--solid {
   padding: 8px 20px;
   background: var(--text-primary);
   color: var(--text-inverse);
@@ -49,13 +68,13 @@
   box-shadow: var(--shadow-xs);
 }
 
-.facet-btn--primary:hover:not(:disabled):not([aria-disabled='true']) {
+.facet-btn--solid:hover:not(:disabled):not([aria-disabled='true']) {
   opacity: 0.85;
   box-shadow: var(--shadow-sm);
   transform: translateY(-1px);
 }
 
-.facet-btn--primary:active:not(:disabled) {
+.facet-btn--solid:active:not(:disabled) {
   transform: translateY(0);
   box-shadow: var(--shadow-xs);
 }

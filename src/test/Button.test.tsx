@@ -19,11 +19,13 @@ describe('Button', () => {
     render(
       <>
         <Button variant="primary">P</Button>
+        <Button variant="solid">SO</Button>
         <Button variant="ghost">G</Button>
         <Button variant="danger">D</Button>
       </>,
     )
     expect(screen.getByRole('button', { name: 'P' }).className).toContain('facet-btn--primary')
+    expect(screen.getByRole('button', { name: 'SO' }).className).toContain('facet-btn--solid')
     expect(screen.getByRole('button', { name: 'G' }).className).toContain('facet-btn--ghost')
     expect(screen.getByRole('button', { name: 'D' }).className).toContain('facet-btn--danger')
   })

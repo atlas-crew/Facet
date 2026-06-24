@@ -1429,7 +1429,7 @@ export function BuildPage() {
           </p>
           <div className="empty-state-actions">
             <Button
-              variant="primary"
+              variant="solid"
               onClick={() => setImportExportMode('import')}
             >
               <Upload size={16} />
@@ -1588,7 +1588,7 @@ export function BuildPage() {
         )}
 
         <Button
-          variant="primary"
+          variant="solid"
           onClick={onDownloadPdf}
           disabled={pdfRenderPending || Boolean(pdfRenderError)}
           title="Download PDF (⌘P)"
@@ -1874,12 +1874,12 @@ export function BuildPage() {
                   </p>
                 )}
                 {jdAnalysisResult ? (
-                  <Button variant="primary" onClick={onApplyPipelineJdAnalysis}>
+                  <Button variant="solid" onClick={onApplyPipelineJdAnalysis}>
                     Refresh from Pipeline Analysis
                   </Button>
                 ) : (
                   <Button
-                    variant="primary"
+                    variant="solid"
                     onClick={onOpenPipelineEntry}
                     disabled={!generationState.pipelineEntryId}
                   >
@@ -2028,7 +2028,7 @@ export function BuildPage() {
 
                     <div className="jd-actions">
                       <Button
-                        variant="primary"
+                        variant="solid"
                         disabled={!vectorPlan || plannedVectorIds.length === 0}
                         onClick={onContinueFromJdAnalysis}
                       >
@@ -2088,7 +2088,7 @@ export function BuildPage() {
               >
                 Discard
               </Button>
-              <Button variant="primary" onClick={onApplyReframe}>
+              <Button variant="solid" onClick={onApplyReframe}>
                 Apply as Variant
               </Button>
             </footer>
