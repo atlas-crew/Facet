@@ -916,7 +916,7 @@ export function createResearchJobService(options) {
   const eventHub = createResearchJobEventHub()
   const activeStreams = new Set()
   const config = {
-    model: options.model ?? 'claude-opus-4-7',
+    model: options.model ?? 'claude-opus-4-8',
     maxTokens: options.maxTokens ?? 128_000,
     taskBudgetTokens: options.taskBudgetTokens ?? 80_000,
     effort: options.effort ?? 'high',

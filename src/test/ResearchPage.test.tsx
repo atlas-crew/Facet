@@ -235,7 +235,7 @@ const buildResearchUsage = () => ({
     reservedCents: 0,
   },
   estimate: {
-    model: 'claude-opus-4-7',
+    model: 'claude-opus-4-8',
     inputTokens: 12000,
     outputTokens: 80000,
     runCostCents: 618,
@@ -277,7 +277,7 @@ describe('ResearchPage', () => {
       modelCapabilities: {
         opus: {
           available: true,
-          model: 'claude-opus-4-7',
+          model: 'claude-opus-4-8',
           phase1FallbackModel: 'claude-sonnet-4-6',
           phase2Required: true,
         },
@@ -1484,7 +1484,7 @@ describe('ResearchPage', () => {
       .getByText('Confirm search run refresh')
       .closest('.research-warning') as HTMLElement
     expect(confirmPanel.textContent).toContain('$6.18')
-    expect(confirmPanel.textContent).toContain('claude-opus-4-7')
+    expect(confirmPanel.textContent).toContain('claude-opus-4-8')
     expect(
       screen
         .getAllByRole('status')

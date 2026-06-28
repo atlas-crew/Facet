@@ -53,7 +53,7 @@ describe('callLlmProxy', () => {
         modelCapabilities: {
           opus: {
             available: false,
-            model: 'claude-opus-4-7',
+            model: 'claude-opus-4-8',
             phase1FallbackModel: 'claude-sonnet-4-6',
             phase2Required: true,
           },
