@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { Download, Plus, Sparkles, Trash2 } from 'lucide-react'
 import { AiActivityIndicator } from '../../components/AiActivityIndicator'
+import { Button, IconButton } from '../../components/ui'
 import { useIdentityStore } from '../../store/identityStore'
 import { useJDAnalysisStore } from '../../store/jdAnalysisStore'
 import { useMatchStore } from '../../store/matchStore'
@@ -312,14 +313,13 @@ export function DebriefPage() {
                 </span>
                 <small>{session.roundName}</small>
               </button>
-              <button
-                type="button"
-                className="debrief-icon-btn debrief-text-danger"
+              <IconButton
+                variant="danger"
                 onClick={() => deleteSession(session.id)}
                 aria-label={`Delete ${session.company} ${session.roundName}`}
               >
                 <Trash2 size={14} />
-              </button>
+              </IconButton>
             </div>
           ))}
           {sessions.length === 0 && <p className="debrief-empty-text">No debriefs yet.</p>}
@@ -337,16 +337,16 @@ export function DebriefPage() {
                 gaps, then stage identity updates back into the Phase 0 workspace.
               </p>
             </div>
-            <button
-              type="button"
-              className="debrief-btn debrief-btn-primary ai-working-button"
+            <Button
+              variant="primary"
+              className="ai-working-button"
               onClick={() => void handleGenerate()}
               disabled={isGenerating || !currentIdentity || !context}
               aria-busy={isGenerating}
             >
               <Sparkles size={16} />
               {isGenerating ? 'Generating...' : 'Generate Debrief'}
-            </button>
+            </Button>
             <AiActivityIndicator
               active={isGenerating}
               label="AI is drafting the debrief and themes."
@@ -358,22 +358,20 @@ export function DebriefPage() {
               <fieldset className="debrief-field debrief-field-span debrief-fieldset">
                 <legend className="debrief-label">Source</legend>
                 <div className="debrief-toggle-row">
-                  <button
-                    type="button"
-                    className={`debrief-btn ${sourceKind === 'match' ? 'debrief-btn-primary' : ''}`}
+                  <Button
+                    variant={sourceKind === 'match' ? 'primary' : 'secondary'}
                     onClick={() => setSourceKind('match')}
                     aria-pressed={sourceKind === 'match'}
                   >
                     Current Match Report
-                  </button>
-                  <button
-                    type="button"
-                    className={`debrief-btn ${sourceKind === 'pipeline' ? 'debrief-btn-primary' : ''}`}
+                  </Button>
+                  <Button
+                    variant={sourceKind === 'pipeline' ? 'primary' : 'secondary'}
                     onClick={() => setSourceKind('pipeline')}
                     aria-pressed={sourceKind === 'pipeline'}
                   >
                     Pipeline Entry
-                  </button>
+                  </Button>
                 </div>
               </fieldset>
             ) : null}
@@ -482,10 +480,10 @@ export function DebriefPage() {
                   actually lands in interviews.
                 </p>
               </div>
-              <button type="button" className="debrief-btn" onClick={handleAddStory}>
+              <Button variant="secondary" onClick={handleAddStory}>
                 <Plus size={14} />
                 Add Story
-              </button>
+              </Button>
             </div>
 
             <div className="debrief-story-list">
@@ -650,21 +648,19 @@ export function DebriefPage() {
                 <p>{activeSession.summary}</p>
               </div>
               <div className="debrief-panel-actions">
-                <button
-                  type="button"
-                  className="debrief-btn"
+                <Button
+                  variant="secondary"
                   onClick={() => downloadSession(activeSession)}
                 >
                   <Download size={16} />
                   Export
-                </button>
-                <button
-                  type="button"
-                  className="debrief-btn debrief-btn-primary"
+                </Button>
+                <Button
+                  variant="primary"
                   onClick={() => void handleSendToIdentity()}
                 >
                   Send to Identity
-                </button>
+                </Button>
               </div>
             </div>
 
