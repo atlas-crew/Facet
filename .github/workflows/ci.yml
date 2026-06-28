@@ -64,6 +64,10 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Seed .env from the committed template so VITE_* config is defined. Without it the hosted
+      # runtime path (AppShell) builds an undefined backend and crashes on `.start()`. CI doesn't
+      # run scripts/setup.sh (which seeds this for local dev), so do it explicitly here.
+      - run: cp .env.example .env
       - run: pnpm run test
 
   build:
@@ -78,6 +82,7 @@ jobs:
           node-version-file: '.nvmrc'
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: cp .env.example .env
       - run: pnpm run build
       - name: Report bundle size
         id: bundle
