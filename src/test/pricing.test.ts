@@ -12,14 +12,14 @@ describe('proxy pricing table', () => {
   it('computes opus cost in cents, rounded up', async () => {
     const { estimateCostCents } = await loadPricing()
     // 1M input tokens at $15/M = 1500 cents.
-    expect(estimateCostCents('claude-opus-4-7', 1_000_000, 0)).toBe(1500)
+    expect(estimateCostCents('claude-opus-4-8', 1_000_000, 0)).toBe(1500)
     // 1M output tokens at $75/M = 7500 cents.
-    expect(estimateCostCents('claude-opus-4-7', 0, 1_000_000)).toBe(7500)
+    expect(estimateCostCents('claude-opus-4-8', 0, 1_000_000)).toBe(7500)
     // Mixed call: 10k input + 5k output
     //   10000 * 1500/1_000_000 = 15 cents
     //    5000 * 7500/1_000_000 = 37.5 -> ceil 38
     //   total 53 cents
-    expect(estimateCostCents('claude-opus-4-7', 10_000, 5_000)).toBe(53)
+    expect(estimateCostCents('claude-opus-4-8', 10_000, 5_000)).toBe(53)
   })
 
   it('computes sonnet cost at the Sonnet rate', async () => {
@@ -41,7 +41,7 @@ describe('proxy pricing table', () => {
   it('rounds fractional cents UP so partial costs never silently round to zero', async () => {
     const { estimateCostCents } = await loadPricing()
     // 1 input token at opus rate = 0.0015 cents -> ceil 1
-    expect(estimateCostCents('claude-opus-4-7', 1, 0)).toBe(1)
+    expect(estimateCostCents('claude-opus-4-8', 1, 0)).toBe(1)
     // 1 output token at haiku rate = 0.0004 cents -> ceil 1
     expect(estimateCostCents('claude-haiku-4-5-20251001', 0, 1)).toBe(1)
   })
@@ -57,9 +57,9 @@ describe('proxy pricing table', () => {
 
   it('clamps negative and non-finite token counts to zero', async () => {
     const { estimateCostCents } = await loadPricing()
-    expect(estimateCostCents('claude-opus-4-7', -100, -50)).toBe(0)
-    expect(estimateCostCents('claude-opus-4-7', Number.NaN, 0)).toBe(0)
-    expect(estimateCostCents('claude-opus-4-7', Infinity, 0)).toBe(0)
+    expect(estimateCostCents('claude-opus-4-8', -100, -50)).toBe(0)
+    expect(estimateCostCents('claude-opus-4-8', Number.NaN, 0)).toBe(0)
+    expect(estimateCostCents('claude-opus-4-8', Infinity, 0)).toBe(0)
   })
 
   it('enumerates current and legacy 4.x model ids at identical rates', async () => {

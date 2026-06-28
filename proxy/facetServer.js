@@ -40,14 +40,14 @@ import { estimateCostCents } from './pricing.js'
 import pg from 'pg'
 
 const CURRENT_SONNET_MODEL = 'claude-sonnet-4-6'
-const CURRENT_OPUS_MODEL = 'claude-opus-4-7'
+const CURRENT_OPUS_MODEL = 'claude-opus-4-8'
 const CURRENT_HAIKU_MODEL = 'claude-haiku-4-5-20251001'
 // Anthropic currently returns `temperature is deprecated for this model` for these
 // upstream model ids in non-thinking requests, so the proxy must omit temperature.
 // Re-check this set whenever a new Sonnet/Opus model id is added to proxy routing.
 const MODELS_OMIT_TEMPERATURE = new Set([CURRENT_SONNET_MODEL, CURRENT_OPUS_MODEL])
 // Models that require adaptive thinking (`thinking: {type: 'adaptive'}`); manual
-// extended thinking with `budget_tokens` 400s on Opus 4.7 and is deprecated on
+// extended thinking with `budget_tokens` 400s on Opus 4.7/4.8 and is deprecated on
 // Sonnet 4.6. The proxy translates `thinking_budget` → adaptive for these models.
 const ADAPTIVE_THINKING_MODELS = new Set([CURRENT_SONNET_MODEL, CURRENT_OPUS_MODEL])
 // Models that accept the `output_config.effort` parameter. Sonnet 4.5 and Haiku 4.5
@@ -110,11 +110,11 @@ const AI_PRO_PASS_ACCESS_DAYS = 90
 const AI_PRO_PASS_REDEMPTION_MONTHS = 12
 
 // Per-feature model tiering (see backlog doc-24 for product context):
-//   Opus 4.7   — quality-critical user-facing output ("represents the product to the user")
+//   Opus 4.8   — quality-critical user-facing output ("represents the product to the user")
 //   Sonnet 4.6 — structured transformation with a clear input/output shape
 //   Haiku 4.5  — mechanical field extraction
 const FEATURE_MODEL_DEFAULTS = {
-  // Opus 4.7 — quality-critical
+  // Opus 4.8 — quality-critical
   'identity.compensation-suggestion': CURRENT_OPUS_MODEL,
   'identity.deepen': CURRENT_OPUS_MODEL,
   'identity.deepen_project': CURRENT_OPUS_MODEL,
@@ -1885,8 +1885,8 @@ export function createFacetServer(options = {}) {
       }
 
       if (useThinking) {
-        // Translate manual extended thinking → adaptive on 4.6/4.7. Manual 400s on
-        // Opus 4.7 and is deprecated on Sonnet 4.6. Older models retain manual.
+        // Translate manual extended thinking → adaptive on 4.6/4.7/4.8. Manual 400s on
+        // Opus 4.7/4.8 and is deprecated on Sonnet 4.6. Older models retain manual.
         params.thinking = ADAPTIVE_THINKING_MODELS.has(resolvedModel)
           ? { type: 'adaptive' }
           : { type: 'enabled', budget_tokens: resolvedThinkingBudget }

@@ -21,8 +21,8 @@ Shared caller defaults:
 
 Proxy nuance for current upstream models:
 
-- the proxy omits `temperature` when the resolved upstream model is in `MODELS_OMIT_TEMPERATURE` (currently `claude-opus-4-7` and `claude-sonnet-4-6`), because those models reject temperature in non-thinking requests on the Anthropic Messages API
-- the proxy translates `thinking_budget` into adaptive thinking (`thinking: { type: 'adaptive' }`) for models in `ADAPTIVE_THINKING_MODELS` (`claude-opus-4-7`, `claude-sonnet-4-6`); manual `budget_tokens` is rejected by these models
+- the proxy omits `temperature` when the resolved upstream model is in `MODELS_OMIT_TEMPERATURE` (currently `claude-opus-4-8` and `claude-sonnet-4-6`), because those models reject temperature in non-thinking requests on the Anthropic Messages API
+- the proxy translates `thinking_budget` into adaptive thinking (`thinking: { type: 'adaptive' }`) for models in `ADAPTIVE_THINKING_MODELS` (`claude-opus-4-8`, `claude-sonnet-4-6`); manual `budget_tokens` is rejected by these models
 - the proxy maps `thinking_budget` magnitude to an `output_config.effort` level on models in `MODELS_ACCEPT_EFFORT` (same set today); Sonnet 4.5 and Haiku 4.5 reject the `effort` parameter
 - Haiku and legacy Sonnet 4 (`claude-sonnet-4-20250514`) still receive caller/default temperature when thinking is disabled
 
@@ -32,13 +32,13 @@ Base model aliases are resolved in [proxy/facetServer.js](/Users/nick/Developer/
 | --- | --- |
 | `haiku` | `claude-haiku-4-5-20251001` |
 | `sonnet` | `claude-sonnet-4-6` |
-| `opus` | `claude-opus-4-7` |
+| `opus` | `claude-opus-4-8` |
 
-The proxy applies per-feature model defaults before the upstream request is sent (see `FEATURE_MODEL_DEFAULTS` in `proxy/facetServer.js`). The product-tiering rationale: Opus 4.7 for quality-critical user-facing output, Sonnet 4.6 for structured transformation, Haiku 4.5 for mechanical field extraction.
+The proxy applies per-feature model defaults before the upstream request is sent (see `FEATURE_MODEL_DEFAULTS` in `proxy/facetServer.js`). The product-tiering rationale: Opus 4.8 for quality-critical user-facing output, Sonnet 4.6 for structured transformation, Haiku 4.5 for mechanical field extraction.
 
 | Tier | Effective upstream model | Features |
 | --- | --- | --- |
-| Quality-critical | `claude-opus-4-7` | `identity.deepen`, `prep.generate`, `linkedin.generate`, `research.profile-inference`, `research.thesis`, `research.deep-search`, `pipeline.t3.interviewer` |
+| Quality-critical | `claude-opus-4-8` | `identity.deepen`, `prep.generate`, `linkedin.generate`, `research.profile-inference`, `research.thesis`, `research.deep-search`, `pipeline.t3.interviewer` |
 | Structured transformation | `claude-sonnet-4-6` | `identity.extract`, `build.bullet-reframe`, `letters.generate`, `debrief.generate`, `research.search` |
 | Mechanical extraction | `claude-haiku-4-5-20251001` | `match.jd-analysis` |
 
@@ -92,20 +92,20 @@ The "Effective upstream model" column shows what the proxy actually sends after 
 | Build: bullet reframe | [src/routes/build/BuildPage.tsx](/Users/nick/Developer/Facet/src/routes/build/BuildPage.tsx:1150) | `reframeBulletForVector` | `build.bullet-reframe` | `haiku` | `claude-sonnet-4-6` | `temperature: 0` |
 | Match: identity vs JD | [src/routes/match/MatchPage.tsx](/Users/nick/Developer/Facet/src/routes/match/MatchPage.tsx:259) | `analyzeIdentityJobMatch` | `match.jd-analysis` | `sonnet` | `claude-haiku-4-5-20251001` | `temperature: 0.1`, `timeoutMs: 60000` |
 | Identity: draft extraction | [src/routes/identity/IdentityPage.tsx](/Users/nick/Developer/Facet/src/routes/identity/IdentityPage.tsx:282) | `generateIdentityDraft` | `identity.extract` | `sonnet` | `claude-sonnet-4-6` | `temperature: 0.2`, `timeoutMs: 120000` |
-| Identity: bullet deepen | [src/routes/identity/IdentityPage.tsx](/Users/nick/Developer/Facet/src/routes/identity/IdentityPage.tsx:463) | `deepenIdentityBullet` | `identity.deepen` | `sonnet` | `claude-opus-4-7` | `temperature: 0.1`, `timeoutMs: 120000` |
+| Identity: bullet deepen | [src/routes/identity/IdentityPage.tsx](/Users/nick/Developer/Facet/src/routes/identity/IdentityPage.tsx:463) | `deepenIdentityBullet` | `identity.deepen` | `sonnet` | `claude-opus-4-8` | `temperature: 0.1`, `timeoutMs: 120000` |
 | Identity: skill enrichment suggestion | [src/routes/identity/IdentityEnrichmentSkillPage.tsx](/Users/nick/Developer/Facet/src/routes/identity/IdentityEnrichmentSkillPage.tsx:328) | `generateSkillEnrichmentSuggestion` | `identity.extract` | `haiku` | `claude-sonnet-4-6` | `timeoutMs: 45000`, temp inherits `0.3` |
-| Identity strategy: generate full strategy | [src/routes/identity/bands/SearchStrategyBand.tsx](/Users/nick/Developer/Facet/src/routes/identity/bands/SearchStrategyBand.tsx:475) | `generateStrategicPositioningFromIdentity` | `research.profile-inference` | `opus` | `claude-opus-4-7` | `timeoutMs: 90000`, temp inherits `0.3` |
-| Identity strategy: generate search vectors | [src/routes/identity/bands/SearchStrategyBand.tsx](/Users/nick/Developer/Facet/src/routes/identity/bands/SearchStrategyBand.tsx:402) | `generateSearchVectorsFromIdentity` | `research.profile-inference` | `opus` | `claude-opus-4-7` | `timeoutMs: 90000`, temp inherits `0.3` |
-| Identity strategy: generate awareness | [src/routes/identity/bands/SearchStrategyBand.tsx](/Users/nick/Developer/Facet/src/routes/identity/bands/SearchStrategyBand.tsx:420) | `generateAwarenessFromIdentity` | `research.profile-inference` | `opus` | `claude-opus-4-7` | `timeoutMs: 90000`, temp inherits `0.3` |
-| Research: infer profile from resume | [src/routes/research/ResearchPage.tsx](/Users/nick/Developer/Facet/src/routes/research/ResearchPage.tsx:404) | `inferSearchProfile` | `research.profile-inference` | `haiku` | `claude-opus-4-7` | `timeoutMs: 90000`, temp inherits `0.3` |
-| Research: infer profile from identity | [src/routes/research/ResearchPage.tsx](/Users/nick/Developer/Facet/src/routes/research/ResearchPage.tsx:388) | `inferSearchProfileFromIdentity` | `research.profile-inference` | `haiku` | `claude-opus-4-7` | `timeoutMs: 90000`, temp inherits `0.3` |
+| Identity strategy: generate full strategy | [src/routes/identity/bands/SearchStrategyBand.tsx](/Users/nick/Developer/Facet/src/routes/identity/bands/SearchStrategyBand.tsx:475) | `generateStrategicPositioningFromIdentity` | `research.profile-inference` | `opus` | `claude-opus-4-8` | `timeoutMs: 90000`, temp inherits `0.3` |
+| Identity strategy: generate search vectors | [src/routes/identity/bands/SearchStrategyBand.tsx](/Users/nick/Developer/Facet/src/routes/identity/bands/SearchStrategyBand.tsx:402) | `generateSearchVectorsFromIdentity` | `research.profile-inference` | `opus` | `claude-opus-4-8` | `timeoutMs: 90000`, temp inherits `0.3` |
+| Identity strategy: generate awareness | [src/routes/identity/bands/SearchStrategyBand.tsx](/Users/nick/Developer/Facet/src/routes/identity/bands/SearchStrategyBand.tsx:420) | `generateAwarenessFromIdentity` | `research.profile-inference` | `opus` | `claude-opus-4-8` | `timeoutMs: 90000`, temp inherits `0.3` |
+| Research: infer profile from resume | [src/routes/research/ResearchPage.tsx](/Users/nick/Developer/Facet/src/routes/research/ResearchPage.tsx:404) | `inferSearchProfile` | `research.profile-inference` | `haiku` | `claude-opus-4-8` | `timeoutMs: 90000`, temp inherits `0.3` |
+| Research: infer profile from identity | [src/routes/research/ResearchPage.tsx](/Users/nick/Developer/Facet/src/routes/research/ResearchPage.tsx:388) | `inferSearchProfileFromIdentity` | `research.profile-inference` | `haiku` | `claude-opus-4-8` | `timeoutMs: 90000`, temp inherits `0.3` |
 | Research: execute live search | [src/routes/research/ResearchPage.tsx](/Users/nick/Developer/Facet/src/routes/research/ResearchPage.tsx:448) | `executeSearch` | `research.search` | `sonnet` | `claude-sonnet-4-6` | `temperature: 1`, `thinking_budget: 8000`, `tools: web_search_*`, `max_uses: 15`, request timeout `120000` |
-| Research: thesis generation | [src/utils/thesisGenerator.ts](/Users/nick/Developer/Facet/src/utils/thesisGenerator.ts:479) | `generateThesis` | `research.thesis` | `sonnet` | `claude-opus-4-7` | task-budget feature; raised `max_tokens` cap up to `128000` |
+| Research: thesis generation | [src/utils/thesisGenerator.ts](/Users/nick/Developer/Facet/src/utils/thesisGenerator.ts:479) | `generateThesis` | `research.thesis` | `sonnet` | `claude-opus-4-8` | task-budget feature; raised `max_tokens` cap up to `128000` |
 | Pipeline: investigate job entry | [src/routes/pipeline/PipelinePage.tsx](/Users/nick/Developer/Facet/src/routes/pipeline/PipelinePage.tsx:166) | `investigatePipelineEntry` via `callSearchProxy` | `research.search` | `sonnet` | `claude-sonnet-4-6` | same as research search lane |
-| Prep: generate interview prep | [src/routes/prep/PrepPage.tsx](/Users/nick/Developer/Facet/src/routes/prep/PrepPage.tsx:514) | `generateInterviewPrep` | `prep.generate` | `sonnet` | `claude-opus-4-7` | `timeoutMs: 90000`, temp inherits `0.3` |
-| Prep: regenerate/update interview prep | [src/routes/prep/PrepPage.tsx](/Users/nick/Developer/Facet/src/routes/prep/PrepPage.tsx:592), [src/routes/prep/PrepPage.tsx](/Users/nick/Developer/Facet/src/routes/prep/PrepPage.tsx:1031) | `generateInterviewPrep` | `prep.generate` | `sonnet` | `claude-opus-4-7` | `timeoutMs: 90000`, temp inherits `0.3` |
+| Prep: generate interview prep | [src/routes/prep/PrepPage.tsx](/Users/nick/Developer/Facet/src/routes/prep/PrepPage.tsx:514) | `generateInterviewPrep` | `prep.generate` | `sonnet` | `claude-opus-4-8` | `timeoutMs: 90000`, temp inherits `0.3` |
+| Prep: regenerate/update interview prep | [src/routes/prep/PrepPage.tsx](/Users/nick/Developer/Facet/src/routes/prep/PrepPage.tsx:592), [src/routes/prep/PrepPage.tsx](/Users/nick/Developer/Facet/src/routes/prep/PrepPage.tsx:1031) | `generateInterviewPrep` | `prep.generate` | `sonnet` | `claude-opus-4-8` | `timeoutMs: 90000`, temp inherits `0.3` |
 | Letters: cover letter generation | [src/routes/letters/LettersPage.tsx](/Users/nick/Developer/Facet/src/routes/letters/LettersPage.tsx:189), [src/routes/letters/LettersPage.tsx](/Users/nick/Developer/Facet/src/routes/letters/LettersPage.tsx:251) | `generateCoverLetter` | `letters.generate` | `sonnet` | `claude-sonnet-4-6` | `timeoutMs: 45000`, temp inherits `0.3`; task-budget feature (raised `max_tokens` cap) |
-| LinkedIn: profile generation | [src/routes/linkedin/LinkedInPage.tsx](/Users/nick/Developer/Facet/src/routes/linkedin/LinkedInPage.tsx:109) | `generateLinkedInProfile` | `linkedin.generate` | `sonnet` | `claude-opus-4-7` | `timeoutMs: 45000`, temp inherits `0.3` |
+| LinkedIn: profile generation | [src/routes/linkedin/LinkedInPage.tsx](/Users/nick/Developer/Facet/src/routes/linkedin/LinkedInPage.tsx:109) | `generateLinkedInProfile` | `linkedin.generate` | `sonnet` | `claude-opus-4-8` | `timeoutMs: 45000`, temp inherits `0.3` |
 | Debrief: report generation | [src/routes/debrief/DebriefPage.tsx](/Users/nick/Developer/Facet/src/routes/debrief/DebriefPage.tsx:190) | `generateDebriefReport` | `debrief.generate` | `sonnet` | `claude-sonnet-4-6` | `timeoutMs: 45000`, temp inherits `0.3` |
 
 ## UI Availability vs Proxy Enforcement

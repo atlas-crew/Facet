@@ -398,7 +398,7 @@ describe('facetServer persistence API', () => {
       modelCapabilities: {
         opus: {
           available: false,
-          model: 'claude-opus-4-7',
+          model: 'claude-opus-4-8',
           phase1FallbackModel: 'claude-sonnet-4-6',
           phase2Required: true,
         },
@@ -1642,7 +1642,7 @@ describe('facetServer persistence API', () => {
     expect(response.status).toBe(200)
     expect(messagesCreate).toHaveBeenCalledWith(
       expect.objectContaining({
-        model: 'claude-opus-4-7',
+        model: 'claude-opus-4-8',
         max_tokens: 128000,
         output_config: {
           task_budget: { type: 'tokens', total: 80000 },
@@ -1731,7 +1731,7 @@ describe('facetServer persistence API', () => {
       expect.objectContaining({
         beta: 'task-budgets-2026-03-13',
         body: expect.objectContaining({
-          model: 'claude-opus-4-7',
+          model: 'claude-opus-4-8',
         }),
       }),
     ])
@@ -2291,7 +2291,7 @@ describe('facetServer persistence API', () => {
       },
       body: JSON.stringify({
         feature: 'letters.generate',
-        model: 'claude-opus-4-7',
+        model: 'claude-opus-4-8',
         system: 'Return JSON only.',
         messages: [{ role: 'user', content: 'Draft a letter.' }],
         max_tokens: 16000,
@@ -2303,7 +2303,7 @@ describe('facetServer persistence API', () => {
     expect(response.status).toBe(200)
     expect(messagesCreate).toHaveBeenCalledWith(
       expect.objectContaining({
-        model: 'claude-opus-4-7',
+        model: 'claude-opus-4-8',
         max_tokens: 16000,
         thinking: { type: 'adaptive' },
         output_config: { effort: 'high' },
@@ -2311,7 +2311,7 @@ describe('facetServer persistence API', () => {
     )
   })
 
-  it('routes opus-class drafting and suggestion features to opus 4.7 when callers send generic aliases', async () => {
+  it('routes opus-class drafting and suggestion features to opus 4.8 when callers send generic aliases', async () => {
     const messagesCreate = vi.fn(async () => ({
       content: [{ type: 'text', text: '{"ok":true}' }],
       usage: { input_tokens: 0, output_tokens: 0 },
@@ -2357,19 +2357,19 @@ describe('facetServer persistence API', () => {
       })
 
       expect(response.status).toBe(200)
-      expect(response.headers.get('x-facet-resolved-model')).toBe('claude-opus-4-7')
+      expect(response.headers.get('x-facet-resolved-model')).toBe('claude-opus-4-8')
     }
 
     expect(messagesCreate).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
-        model: 'claude-opus-4-7',
+        model: 'claude-opus-4-8',
       }),
     )
     expect(messagesCreate).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
-        model: 'claude-opus-4-7',
+        model: 'claude-opus-4-8',
       }),
     )
     const [routedCall1, routedCall2] = messagesCreate.mock.calls as unknown as Array<
@@ -2488,7 +2488,7 @@ describe('facetServer persistence API', () => {
     )
   })
 
-  it('omits temperature for explicit raw overrides that already target opus 4.7', async () => {
+  it('omits temperature for explicit raw overrides that already target opus 4.8', async () => {
     const messagesCreate = vi.fn(async () => ({
       content: [{ type: 'text', text: '{"ok":true}' }],
       usage: { input_tokens: 0, output_tokens: 0 },
@@ -2526,17 +2526,17 @@ describe('facetServer persistence API', () => {
       },
       body: JSON.stringify({
         feature: 'letters.generate',
-        model: 'claude-opus-4-7',
+        model: 'claude-opus-4-8',
         system: 'Return JSON only.',
         messages: [{ role: 'user', content: 'Draft a letter.' }],
       }),
     })
 
     expect(response.status).toBe(200)
-    expect(response.headers.get('x-facet-resolved-model')).toBe('claude-opus-4-7')
+    expect(response.headers.get('x-facet-resolved-model')).toBe('claude-opus-4-8')
     expect(messagesCreate).toHaveBeenCalledWith(
       expect.objectContaining({
-        model: 'claude-opus-4-7',
+        model: 'claude-opus-4-8',
       }),
     )
     const [overrideCall] = messagesCreate.mock.calls as unknown as Array<[Record<string, unknown>]>
@@ -2582,7 +2582,7 @@ describe('facetServer persistence API', () => {
       },
       body: JSON.stringify({
         feature: 'letters.generate',
-        model: 'claude-opus-4-7',
+        model: 'claude-opus-4-8',
         temperature: 0.2,
         system: 'Return JSON only.',
         messages: [{ role: 'user', content: 'Draft a letter.' }],
@@ -2592,7 +2592,7 @@ describe('facetServer persistence API', () => {
     expect(response.status).toBe(200)
     expect(warnSpy).toHaveBeenCalledWith(
       '[proxy] omitting temperature because it is not accepted by model',
-      'claude-opus-4-7',
+      'claude-opus-4-8',
     )
     warnSpy.mockRestore()
   })

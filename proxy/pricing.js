@@ -14,6 +14,7 @@ const MODEL_PRICING = {
   // Opus 4.x (legacy + current)
   'claude-opus-4-20250514': { inputCentsPerMillion: 1500, outputCentsPerMillion: 7500 },
   'claude-opus-4-7':        { inputCentsPerMillion: 1500, outputCentsPerMillion: 7500 },
+  'claude-opus-4-8':        { inputCentsPerMillion: 1500, outputCentsPerMillion: 7500 },
   // Sonnet 4.x (legacy + current)
   'claude-sonnet-4-20250514': { inputCentsPerMillion: 300, outputCentsPerMillion: 1500 },
   'claude-sonnet-4-6':        { inputCentsPerMillion: 300, outputCentsPerMillion: 1500 },

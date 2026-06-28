@@ -281,7 +281,7 @@ describe('deepSearchClient', () => {
         reservedCents: 0,
       },
       estimate: {
-        model: 'claude-opus-4-7',
+        model: 'claude-opus-4-8',
         inputTokens: 12000,
         outputTokens: 80000,
         runCostCents: 618,

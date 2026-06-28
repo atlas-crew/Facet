@@ -393,7 +393,7 @@ describe('Search redesign round-trip (parent TASK-151)', () => {
         reservedCents: 0,
       },
       estimate: {
-        model: 'claude-opus-4-7',
+        model: 'claude-opus-4-8',
         inputTokens: 12_000,
         outputTokens: 80_000,
         runCostCents: 618,

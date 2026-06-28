@@ -531,7 +531,7 @@ describe('research job API', () => {
     expect(initialUsage.status).toBe(200)
     await expect(initialUsage.json()).resolves.toMatchObject({
       estimate: {
-        model: 'claude-opus-4-7',
+        model: 'claude-opus-4-8',
         inputTokens: 12000,
         outputTokens: 80000,
         runCostCents: 618,
@@ -972,7 +972,7 @@ describe('research job API', () => {
     expect(anthropicCreate).toHaveBeenCalledTimes(2)
     const [anthropicParams, requestOptions] = anthropicCreate.mock.calls[1]
     expect(anthropicParams).toMatchObject({
-      model: 'claude-opus-4-7',
+      model: 'claude-opus-4-8',
       max_tokens: 128000,
       thinking: { type: 'adaptive' },
       output_config: {
