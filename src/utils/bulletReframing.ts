@@ -1,10 +1,34 @@
+import { facetClientEnv } from './facetEnv'
 import { callLlmProxy, extractJsonBlock, JsonExtractionError } from './llmProxy'
 
 const BULLET_REFRAMING_MODEL = 'sonnet'
 
+/**
+ * Output contract for the structured-outputs path (#103 pilot). Hand-written
+ * rather than Zod-derived so the pilot stays dependency-free and provably within
+ * the constrained-decoding subset: every object sets `additionalProperties: false`
+ * and lists `required`. The broader rollout is expected to adopt Zod
+ * (`z.toJSONSchema()`) for ergonomics + a runtime backstop.
+ */
+export const REFRAME_OUTPUT_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['reframed', 'reasoning'],
+  properties: {
+    reframed: { type: 'string' },
+    reasoning: { type: 'string' },
+  },
+} as const
+
 export interface BulletReframingOptions {
   apiKey?: string
   strategy?: string
+  /**
+   * Force the structured-outputs path on/off for this call. Defaults to the
+   * `VITE_FACET_STRUCTURED_OUTPUTS` flag (`facetClientEnv.structuredOutputs`).
+   * Primarily a test/escape hatch; production callers inherit the env flag.
+   */
+  structuredOutput?: boolean
 }
 
 export interface ReframedBulletResult {
@@ -41,17 +65,24 @@ ${options.strategy ? `<positioning_strategy>${escapePromptXml(options.strategy)}
 
 Respond in JSON only.`
 
+  const useStructuredOutput = options.structuredOutput ?? facetClientEnv.structuredOutputs
+
   const rawResponse = await callLlmProxy(endpoint, systemPrompt, userPrompt, {
     feature: 'build.bullet-reframe',
     model: BULLET_REFRAMING_MODEL,
     temperature: 0,
     apiKey: options.apiKey,
+    ...(useStructuredOutput
+      ? { outputConfig: { format: { type: 'json_schema', schema: REFRAME_OUTPUT_SCHEMA } } }
+      : {}),
   })
 
   let parsed: Record<string, unknown>
   try {
-    const extracted = extractJsonBlock(rawResponse)
-    parsed = JSON.parse(extracted) as Record<string, unknown>
+    // Structured outputs guarantee the text block is valid JSON matching the
+    // schema, so parse it directly and skip the sentinel/fence/brace heuristics.
+    const jsonText = useStructuredOutput ? rawResponse : extractJsonBlock(rawResponse)
+    parsed = JSON.parse(jsonText) as Record<string, unknown>
   } catch (error) {
     if (error instanceof JsonExtractionError) throw error
     const detail = error instanceof Error ? error.message : 'Unknown error'
