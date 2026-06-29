@@ -9,6 +9,13 @@ export interface FacetClientEnv {
   anthropicProxyApiKey: string
   supabaseUrl: string
   supabasePublishableKey: string
+  /**
+   * Pilot flag (#103): route eligible AI calls through Anthropic native
+   * structured outputs instead of the `<result>`-sentinel extraction path.
+   * Env-only (no hosted build-time define yet) while the migration is scoped
+   * to the `bulletReframing` pilot.
+   */
+  structuredOutputs: boolean
 }
 
 export function resolveClientEnvValue(buildValue: BuildEnvValue, viteValue?: string): string {
@@ -17,6 +24,10 @@ export function resolveClientEnvValue(buildValue: BuildEnvValue, viteValue?: str
   }
 
   return viteValue?.trim() ?? ''
+}
+
+export function resolveBooleanEnvValue(viteValue?: string): boolean {
+  return viteValue?.trim().toLowerCase() === 'true'
 }
 
 export function resolveFacetDeploymentModeValue(
@@ -79,6 +90,7 @@ export function getFacetClientEnv(): FacetClientEnv {
       buildSupabasePublishableKey,
       import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
     ),
+    structuredOutputs: resolveBooleanEnvValue(import.meta.env.VITE_FACET_STRUCTURED_OUTPUTS),
   }
 }
 

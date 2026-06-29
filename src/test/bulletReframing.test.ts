@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { reframeBulletForVector } from '../utils/bulletReframing'
+import { REFRAME_OUTPUT_SCHEMA, reframeBulletForVector } from '../utils/bulletReframing'
 
 describe('bulletReframing', () => {
   const mockEndpoint = 'https://api.example.com/ai'
@@ -241,5 +241,66 @@ describe('bulletReframing', () => {
     expect(body.messages[0]?.content).toContain('<original_bullet>Original text</original_bullet>')
     expect(body.messages[0]?.content).toContain('<target_vector>Vector 1</target_vector>')
     expect(body.messages[0]?.content).not.toContain('<positioning_strategy>')
+  })
+
+  it('sends output_config.format and parses structured JSON directly when enabled', async () => {
+    // Anthropic-style envelope with a pure-JSON text block (no <result> sentinel,
+    // no fence) — what the structured-outputs path returns. The direct-parse path
+    // must consume it without the extraction heuristics.
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({ reframed: 'Structured rewrite', reasoning: 'Schema-bound' }),
+          },
+        ],
+      }),
+    } as Response)
+
+    const result = await reframeBulletForVector('Original text', 'Vector 1', mockEndpoint, {
+      structuredOutput: true,
+    })
+
+    expect(result).toEqual({
+      original: 'Original text',
+      reframed: 'Structured rewrite',
+      reasoning: 'Schema-bound',
+    })
+
+    const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
+    const body = JSON.parse((init as RequestInit).body as string) as {
+      output_config?: unknown
+    }
+    expect(body.output_config).toEqual({
+      format: { type: 'json_schema', schema: REFRAME_OUTPUT_SCHEMA },
+    })
+  })
+
+  it('omits output_config on the default extraction path', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                reframed: 'Rewritten text',
+                reasoning: 'Strategic reason',
+              }),
+            },
+          },
+        ],
+      }),
+    } as Response)
+
+    await reframeBulletForVector('Original text', 'Vector 1', mockEndpoint, {
+      structuredOutput: false,
+    })
+
+    const [, init] = vi.mocked(fetch).mock.calls[0] ?? []
+    const body = JSON.parse((init as RequestInit).body as string) as Record<string, unknown>
+    expect(body.output_config).toBeUndefined()
   })
 })
