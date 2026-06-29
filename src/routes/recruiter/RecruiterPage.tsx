@@ -9,6 +9,7 @@ import { createId } from '../../utils/idUtils'
 import { buildRecruiterCardPdfFileName } from '../../utils/pdfFormatting'
 import { createRecruiterCard } from '../../utils/recruiterCardGenerator'
 import { renderRecruiterCardAsPdf } from '../../utils/recruiterCardPdfRenderer'
+import { Button, IconButton } from '../../components/ui'
 import './recruiter.css'
 
 const downloadCardAsText = (card: RecruiterCard) => {
@@ -131,14 +132,12 @@ export function RecruiterPage() {
       <aside className="recruiter-sidebar" aria-label="Recruiter cards">
         <div className="recruiter-sidebar-header">
           <h2>Cards</h2>
-          <button
-            className="recruiter-icon-btn"
-            type="button"
+          <IconButton
             onClick={handleCreateBlankCard}
             aria-label="Create blank recruiter card"
           >
             <Plus size={16} />
-          </button>
+          </IconButton>
         </div>
 
         <div className="recruiter-card-list">
@@ -152,14 +151,13 @@ export function RecruiterPage() {
                 <span>{card.company} - {card.role}</span>
                 <small>{Math.round(card.matchScore * 100)}% match</small>
               </button>
-              <button
-                type="button"
-                className="recruiter-icon-btn recruiter-text-danger"
+              <IconButton
+                variant="danger"
                 onClick={() => deleteCard(card.id)}
                 aria-label={`Delete ${card.company} ${card.role}`}
               >
                 <Trash2 size={14} />
-              </button>
+              </IconButton>
             </div>
           ))}
           {cards.length === 0 && <p className="recruiter-empty-text">No recruiter cards yet.</p>}
@@ -176,15 +174,14 @@ export function RecruiterPage() {
                 Build a one-page recruiter cheat sheet directly from the active match report so an advocate can pitch the candidate quickly and accurately.
               </p>
             </div>
-            <button
-              type="button"
-              className="recruiter-btn recruiter-btn-primary"
+            <Button
+              variant="primary"
               onClick={handleGenerate}
               disabled={!currentIdentity || !currentJDAnalysis}
               title={helperMessage ?? undefined}
             >
               Generate from JD Analysis
-            </button>
+            </Button>
           </div>
 
           {currentJDAnalysis ? (
@@ -206,23 +203,21 @@ export function RecruiterPage() {
                 <p>Edit the generated recruiter-facing summary before sharing it.</p>
               </div>
               <div className="recruiter-export-actions">
-                <button
-                  type="button"
-                  className="recruiter-btn recruiter-btn-primary"
+                <Button
+                  variant="primary"
                   onClick={() => void handleDownloadPdf(activeCard)}
                   disabled={isExportingPdf}
                 >
                   <FileDown size={16} />
                   {isExportingPdf ? 'Generating PDF...' : 'Export PDF'}
-                </button>
-                <button
-                  type="button"
-                  className="recruiter-btn"
+                </Button>
+                <Button
+                  variant="secondary"
                   onClick={() => downloadCardAsText(activeCard)}
                 >
                   <FileText size={16} />
                   Export TXT
-                </button>
+                </Button>
               </div>
             </div>
             {exportError && <p className="recruiter-export-error">{exportError}</p>}

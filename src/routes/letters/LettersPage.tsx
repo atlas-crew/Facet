@@ -15,6 +15,7 @@ import {
   X,
 } from 'lucide-react'
 import { AiWorkingStatus } from '../../components/AiWorkingStatus'
+import { Button, IconButton } from '../../components/ui'
 import { useCoverLetterStore } from '../../store/coverLetterStore'
 import { useIdentityStore } from '../../store/identityStore'
 import { useJDAnalysisStore } from '../../store/jdAnalysisStore'
@@ -800,26 +801,22 @@ export function LettersPage() {
         <div className="letters-section-card-header">
           <h3 id={labelId}>{label}</h3>
           <div className="letters-section-actions">
-            <button
-              className="letters-btn-icon"
-              type="button"
+            <IconButton
               onClick={() => void copyTextWithFlag(copyValue, copyKey)}
               disabled={!copyValue.trim()}
               title={`Copy ${label.toLowerCase()}`}
               aria-label={`Copy ${label.toLowerCase()}`}
             >
               {copiedKey === copyKey ? <Check size={14} /> : <Copy size={14} />}
-            </button>
+            </IconButton>
             {!isEditing ? (
-              <button
-                className="letters-btn-icon"
-                type="button"
+              <IconButton
                 onClick={() => startEditingField(field, value)}
                 title={`Edit ${label.toLowerCase()}`}
                 aria-label={`Edit ${label.toLowerCase()}`}
               >
                 <Pencil size={14} />
-              </button>
+              </IconButton>
             ) : null}
           </div>
         </div>
@@ -835,20 +832,20 @@ export function LettersPage() {
               autoFocus
             />
             <div className="letters-edit-actions">
-              <button
-                className="letters-btn letters-btn-primary letters-btn-sm"
-                type="button"
+              <Button
+                variant="primary"
+                size="sm"
                 onClick={saveActiveEdit}
               >
                 <Save size={14} /> Save
-              </button>
-              <button
-                className="letters-btn letters-btn-sm"
-                type="button"
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={cancelEditing}
               >
                 <X size={14} /> Cancel
-              </button>
+              </Button>
             </div>
           </div>
         ) : (
@@ -865,15 +862,14 @@ export function LettersPage() {
       <nav className="letters-sidebar" aria-label="Cover letter history">
         <div className="letters-sidebar-header">
           <h2>History</h2>
-          <button 
-            className="letters-btn-icon" 
-            onClick={handleCreateTemplate} 
+          <IconButton
+            onClick={handleCreateTemplate}
             disabled={!canCreateDraft}
             title={canCreateDraft ? 'New Variant' : 'Choose a pipeline entry and source resume first'}
             aria-label="Create New Variant"
           >
             <Plus size={16} />
-          </button>
+          </IconButton>
         </div>
         <div className="letters-template-list">
           {letterHistory.map(t => {
@@ -894,14 +890,14 @@ export function LettersPage() {
                   <span className="letters-history-title">{historyTitle}</span>
                   <span className="letters-history-meta">{historyMeta}</span>
                 </button>
-                <button
-                  className="letters-btn-icon letters-text-danger"
+                <IconButton
+                  variant="danger"
                   onClick={() => handleDeleteTemplate(t.id, historyTitle)}
                   aria-label={`Delete ${historyTitle}`}
                   title={`Delete ${historyTitle}`}
                 >
                   <Trash2 size={14} />
-                </button>
+                </IconButton>
               </div>
             )
           })}
@@ -921,8 +917,9 @@ export function LettersPage() {
                 Generation uses the selected resume, identity model, and pipeline job context. Drafts stay attached to their opportunity.
               </p>
             </div>
-            <button
-              className="letters-btn letters-btn-primary ai-working-button"
+            <Button
+              variant="primary"
+              className="ai-working-button"
               onClick={() => void handleGenerate()}
               disabled={!canGenerate}
               aria-busy={isGenerating}
@@ -932,7 +929,7 @@ export function LettersPage() {
               ].filter(Boolean).join(' ') || undefined}
             >
               <Sparkles size={14} /> {isGenerating ? 'Generating...' : 'Generate with AI'}
-            </button>
+            </Button>
           </div>
           <AiWorkingStatus
             active={isGenerating}
@@ -1018,29 +1015,29 @@ export function LettersPage() {
             <div className="letters-editor-toolbar">
               <span className={`letters-save-status ${editorStatusClass}`}>{editingKey ? 'Editing' : 'Saved'}</span>
               <div className="letters-editor-actions" role="group" aria-label="Letter export actions">
-                <button
-                  className="letters-btn letters-btn-sm"
-                  type="button"
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={() => void handleDownloadLetterPdf()}
                   disabled={!activeLetterExportResume}
                   aria-describedby={exportError ? exportErrorId : undefined}
                   title={activeLetterExportResume ? 'Download cover letter as PDF' : 'A source resume is required before PDF export'}
                 >
                   <Download size={14} /> Download PDF
-                </button>
-                <button
-                  className="letters-btn letters-btn-sm"
-                  type="button"
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={() => void handleDownloadLetterDocx()}
                   disabled={!activeLetterExportResume}
                   aria-describedby={exportError ? exportErrorId : undefined}
                   title={activeLetterExportResume ? 'Download cover letter as DOCX' : 'A source resume is required before DOCX export'}
                 >
                   <FileText size={14} /> Download DOCX
-                </button>
-                <button
-                  className="letters-btn letters-btn-sm"
-                  type="button"
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={handleCopyLetter}
                   disabled={!composeLetterText(getActiveTemplateWithDraft() ?? activeTemplate)}
                   title="Copy assembled letter to clipboard"
@@ -1048,7 +1045,7 @@ export function LettersPage() {
                 >
                   {copiedKey === 'letter' ? <Check size={14} /> : <Copy size={14} />}{' '}
                   {copiedKey === 'letter' ? 'Copied' : 'Copy Letter'}
-                </button>
+                </Button>
               </div>
             </div>
             {exportError ? (
@@ -1082,23 +1079,23 @@ export function LettersPage() {
                   <span className="letters-drift-callout-detail">{activeLetterDrift.detail}</span>
                 </div>
                 <div className="letters-drift-callout-actions">
-                  <button
-                    className="letters-btn letters-btn-sm"
-                    type="button"
+                  <Button
+                    variant="secondary"
+                    size="sm"
                     onClick={() => void handleRegenerateActiveLetter()}
                     disabled={!canRegenerateActiveLetter}
                     title={regenerateDisabledReason}
                   >
                     <RefreshCw size={14} /> Regenerate
-                  </button>
+                  </Button>
                   {activeLetterDrift.kind === 'identity' ? (
-                    <button
-                      className="letters-btn letters-btn-sm"
-                      type="button"
+                    <Button
+                      variant="secondary"
+                      size="sm"
                       onClick={handleDismissIdentityDrift}
                     >
                       Keep as-is
-                    </button>
+                    </Button>
                   ) : null}
                 </div>
               </div>
@@ -1110,12 +1107,13 @@ export function LettersPage() {
             <div className="letters-paragraphs-section">
               <div className="letters-section-header">
                 <h3 id={LETTER_SECTION_IDS.paragraphs}>Paragraphs</h3>
-                <button
-                  className="letters-btn letters-btn-sm"
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={addParagraph}
                 >
                   <Plus size={14} /> Add Paragraph
-                </button>
+                </Button>
               </div>
 
               <div className="letters-paragraph-list">
@@ -1132,38 +1130,33 @@ export function LettersPage() {
                         <div className="letters-paragraph-card-header">
                           <h4>{p.label || `Paragraph ${index + 1}`}</h4>
                           <div className="letters-section-actions">
-                            <button
-                              className="letters-btn-icon"
-                              type="button"
+                            <IconButton
                               onClick={() => void copyTextWithFlag(paragraphCopyValue, paragraphKey)}
                               disabled={!paragraphCopyValue.trim()}
                               aria-label={`Copy paragraph ${index + 1}`}
                               title={`Copy paragraph ${index + 1}`}
                             >
                               {copiedKey === paragraphKey ? <Check size={14} /> : <Copy size={14} />}
-                            </button>
+                            </IconButton>
                             {!isEditingParagraph ? (
-                              <button
-                                className="letters-btn-icon"
-                                type="button"
+                              <IconButton
                                 onClick={() => startEditingParagraph(p.id, p.text)}
                                 disabled={isRefining}
                                 aria-label={`Edit paragraph ${index + 1}`}
                                 title={`Edit paragraph ${index + 1}`}
                               >
                                 <Pencil size={14} />
-                              </button>
+                              </IconButton>
                             ) : null}
-                            <button
-                              className="letters-btn-icon letters-text-danger"
-                              type="button"
+                            <IconButton
+                              variant="danger"
                               onClick={() => removeParagraph(p.id)}
                               disabled={isRefining}
                               aria-label={`Delete paragraph ${index + 1}`}
                               title={`Delete paragraph ${index + 1}`}
                             >
                               <Trash2 size={14} />
-                            </button>
+                            </IconButton>
                           </div>
                         </div>
                         {isEditingParagraph ? (
@@ -1178,20 +1171,20 @@ export function LettersPage() {
                               autoFocus
                             />
                             <div className="letters-edit-actions">
-                              <button
-                                className="letters-btn letters-btn-primary letters-btn-sm"
-                                type="button"
+                              <Button
+                                variant="primary"
+                                size="sm"
                                 onClick={saveActiveEdit}
                               >
                                 <Save size={14} /> Save
-                              </button>
-                              <button
-                                className="letters-btn letters-btn-sm"
-                                type="button"
+                              </Button>
+                              <Button
+                                variant="secondary"
+                                size="sm"
                                 onClick={cancelEditing}
                               >
                                 <X size={14} /> Cancel
-                              </button>
+                              </Button>
                             </div>
                           </div>
                         ) : (
@@ -1215,9 +1208,9 @@ export function LettersPage() {
                             placeholder="Tell AI what to tighten, add, remove, or make more specific for this paragraph."
                             disabled={isRefining || isEditingParagraph}
                           />
-                          <button
-                            className="letters-btn letters-btn-sm"
-                            type="button"
+                          <Button
+                            variant="secondary"
+                            size="sm"
                             onClick={() => void handleRefineParagraph(p)}
                             disabled={
                               !!refiningParagraphId ||
@@ -1228,7 +1221,7 @@ export function LettersPage() {
                             aria-busy={isRefining}
                           >
                             <RefreshCw size={14} /> {isRefining ? 'Refining...' : 'Refine Paragraph'}
-                          </button>
+                          </Button>
                           <AiWorkingStatus
                             active={isRefining}
                             label="Refining paragraph"
@@ -1256,14 +1249,14 @@ export function LettersPage() {
           <div className="letters-empty-state">
             <div className="letters-empty-state-content">
               <p>Select a history item or create a variant to start building cover letters.</p>
-              <button
-                className="letters-btn letters-btn-primary"
+              <Button
+                variant="primary"
                 onClick={handleCreateTemplate}
                 disabled={!canCreateDraft}
                 title={canCreateDraft ? 'Create Variant' : 'Choose a pipeline entry and source resume first'}
               >
                 <Plus size={16} /> Create Variant
-              </button>
+              </Button>
             </div>
           </div>
         )}

@@ -218,50 +218,6 @@
   background: color-mix(in srgb, var(--success) 10%, transparent);
 }
 
-.match-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  border-radius: 6px;
-  border: 1px solid var(--border-default);
-  background: var(--bg-surface);
-  color: var(--text-secondary);
-  padding: 8px 12px;
-  font-size: 12px;
-  font-weight: 500;
-  font: inherit;
-  cursor: pointer;
-  transition:
-    background var(--duration-fast) var(--easing),
-    border-color var(--duration-fast) var(--easing),
-    color var(--duration-fast) var(--easing),
-    box-shadow var(--duration-fast) var(--easing);
-}
-
-.match-btn:hover:not(:disabled) {
-  background: var(--bg-surface-hover);
-  border-color: var(--border-strong);
-  color: var(--text-primary);
-}
-
-.match-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.match-btn-primary {
-  background: var(--accent-primary);
-  border-color: var(--accent-primary);
-  color: var(--text-inverse);
-}
-
-.match-btn-primary:hover:not(:disabled) {
-  background: var(--accent-primary-hover);
-  border-color: var(--accent-primary-hover);
-  color: var(--text-inverse);
-}
-
 .match-report-section {
   scroll-margin-top: var(--match-report-nav-scroll-offset);
 }

@@ -3,6 +3,7 @@ import { AlertCircle, ChevronDown, ChevronRight, RefreshCw, ShieldOff } from 'lu
 import { readFacetApiError } from '../../utils/facetApiErrors'
 import { getHostedApiBaseUrl } from '../../utils/hostedApi'
 import { getHostedAccessToken } from '../../utils/hostedSession'
+import { Button } from '../../components/ui'
 import './admin.css'
 
 type AdminSection = 'webhooks' | 'actors' | 'workspaces' | 'billing'
@@ -922,15 +923,15 @@ export function AdminPage() {
             <p className="admin-panel-eyebrow">{sectionEyebrow}</p>
             <h2 id={sectionHeadingId}>{sectionTitle}</h2>
           </div>
-          <button
-            className="btn-ghost admin-refresh"
-            type="button"
+          <Button
+            variant="ghost"
+            className="admin-refresh"
             onClick={() => setReloadToken((current) => current + 1)}
             disabled={activeLoadState.status === 'loading'}
           >
             <RefreshCw size={14} />
             Refresh
-          </button>
+          </Button>
         </div>
 
         {activeSection === 'actors' ? (

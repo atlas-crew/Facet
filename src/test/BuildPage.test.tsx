@@ -370,10 +370,10 @@ describe('BuildPage', () => {
 
     const topBar = container.querySelector('.build-top-bar')
     expect(topBar).toBeTruthy()
-    expect(topBar?.querySelectorAll('.btn-primary')).toHaveLength(0)
+    expect(topBar?.querySelectorAll('.facet-btn--solid')).toHaveLength(0)
 
     const previewToolbar = screen.getByRole('toolbar', { name: /Build actions/i })
-    expect(previewToolbar.querySelectorAll('.btn-primary')).toHaveLength(1)
+    expect(previewToolbar.querySelectorAll('.facet-btn--solid')).toHaveLength(1)
     expect(previewToolbar.firstElementChild).toBe(screen.getByTestId('undo-redo-controls'))
     const toolbarButtons = within(previewToolbar)
       .getAllByRole('button')

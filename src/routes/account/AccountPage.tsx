@@ -209,7 +209,7 @@ export function AccountPage() {
                 : 'Unlock all AI-powered features for 90 days.'}
             </p>
             <Button
-              variant="primary"
+              variant="solid"
               onClick={() => void handleCheckout()}
               disabled={checkoutLoading}
             >

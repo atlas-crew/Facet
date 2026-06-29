@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Download, Plus, Sparkles, Trash2 } from 'lucide-react'
 import { AiActivityIndicator } from '../../components/AiActivityIndicator'
+import { Button, IconButton } from '../../components/ui'
 import { useIdentityStore } from '../../store/identityStore'
 import { useJDAnalysisStore } from '../../store/jdAnalysisStore'
 import { useLinkedInStore } from '../../store/linkedinStore'
@@ -175,9 +176,9 @@ export function LinkedInPage() {
       <aside className="linkedin-sidebar" aria-label="LinkedIn drafts">
         <div className="linkedin-sidebar-header">
           <h2>Drafts</h2>
-          <button className="linkedin-icon-btn" type="button" onClick={handleCreateBlankDraft} aria-label="Create blank draft">
+          <IconButton onClick={handleCreateBlankDraft} aria-label="Create blank draft">
             <Plus size={16} />
-          </button>
+          </IconButton>
         </div>
 
         <div className="linkedin-draft-list">
@@ -190,14 +191,13 @@ export function LinkedInPage() {
               >
                 {draft.name}
               </button>
-              <button
-                type="button"
-                className="linkedin-icon-btn linkedin-text-danger"
+              <IconButton
+                variant="danger"
                 onClick={() => deleteDraft(draft.id)}
                 aria-label={`Delete ${draft.name}`}
               >
                 <Trash2 size={14} />
-              </button>
+              </IconButton>
             </div>
           ))}
           {drafts.length === 0 && <p className="linkedin-empty-text">No drafts yet.</p>}
@@ -214,16 +214,16 @@ export function LinkedInPage() {
                 Generate LinkedIn profile or outreach content from the applied identity model and the latest match context when available.
               </p>
             </div>
-            <button
-              type="button"
-              className="linkedin-btn linkedin-btn-primary ai-working-button"
+            <Button
+              variant="primary"
+              className="ai-working-button"
               onClick={() => void handleGenerate()}
               disabled={isGenerating || !currentIdentity}
               aria-busy={isGenerating}
             >
               <Sparkles size={16} />
               {isGenerating ? 'Generating...' : 'Generate with AI'}
-            </button>
+            </Button>
             <AiActivityIndicator
               active={isGenerating}
               label="AI is drafting the LinkedIn profile."
@@ -298,10 +298,10 @@ export function LinkedInPage() {
                 <h2>Active Draft</h2>
                 <p>Edit the generated profile content before copying it into LinkedIn.</p>
               </div>
-              <button type="button" className="linkedin-btn" onClick={() => downloadDraft(activeDraft)}>
+              <Button variant="secondary" onClick={() => downloadDraft(activeDraft)}>
                 <Download size={16} />
                 Export
-              </button>
+              </Button>
             </div>
 
             <div className="linkedin-grid">
