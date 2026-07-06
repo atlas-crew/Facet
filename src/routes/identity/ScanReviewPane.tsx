@@ -305,6 +305,7 @@ export function ScanReviewPane({ scanResult, bulkStatus }: ScanReviewPaneProps) 
                     className="identity-input"
                     value={bulletQuery}
                     onChange={(event) => setBulletQuery(event.target.value)}
+                    aria-label="Search scan bullets"
                     placeholder="Search by company, role, source text, tags, or technologies."
                   />
                 </label>
@@ -322,7 +323,11 @@ export function ScanReviewPane({ scanResult, bulkStatus }: ScanReviewPaneProps) 
                     ))}
                   </select>
                 </label>
-                <div className="identity-scan-browser-summary">
+                <div
+                  className="identity-scan-browser-summary"
+                  aria-live="polite"
+                  aria-atomic="true"
+                >
                   <strong>{visibleBulletRefs.length}</strong>
                   <span>visible bullets</span>
                 </div>
